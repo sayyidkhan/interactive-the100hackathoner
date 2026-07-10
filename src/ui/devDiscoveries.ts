@@ -10,7 +10,7 @@ export function renderDevDiscoveries(root: HTMLElement): void {
           <h1>Discovery QA</h1>
           <p>Review every discovery card without walking the 3D world.</p>
         </div>
-        <strong>${JOURNEY_PROGRESS.completed}/${JOURNEY_PROGRESS.target}</strong>
+        <strong>${JOURNEY_PROGRESS.completed}/${JOURNEY_PROGRESS.target} · ${DISCOVERIES.length} cards</strong>
       </header>
       <section class="dev-grid">
         ${DISCOVERIES.map(
@@ -21,10 +21,14 @@ export function renderDevDiscoveries(root: HTMLElement): void {
               <dl>
                 <dt>Built</dt>
                 <dd>${entry.built}</dd>
+                <dt>Result</dt>
+                <dd>${entry.result}</dd>
                 <dt>Lesson</dt>
                 <dd>${entry.lesson}</dd>
                 <dt>Operator insight</dt>
                 <dd>${entry.operatorInsight}</dd>
+                <dt>Business angle</dt>
+                <dd>${entry.businessAngle}</dd>
                 <dt>Next clue</dt>
                 <dd>${entry.nextClue}</dd>
               </dl>
