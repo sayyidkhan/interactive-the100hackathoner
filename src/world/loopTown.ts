@@ -2,11 +2,22 @@ import * as THREE from "three";
 import { DISCOVERIES, DiscoveryEntry } from "../data/discoveries";
 import { createInput, InputControl, setInputControl } from "../systems/input";
 import { loadDiscovered, saveDiscovered } from "../systems/storage";
-import { createHud } from "../ui/hud";
+import { createHud, PersonaOption } from "../ui/hud";
 
 type DiscoveryMarker = {
   entry: DiscoveryEntry;
   object: THREE.Object3D;
+  plinth: THREE.Mesh;
+  plinthMaterial: THREE.MeshStandardMaterial;
+  ring: THREE.Mesh;
+  halo: THREE.Mesh;
+  badge: THREE.Sprite;
+  savedSeal: THREE.Sprite;
+  beacon: THREE.Mesh;
+  callout: THREE.Sprite;
+  calloutMaterial: THREE.SpriteMaterial;
+  calloutNextTexture: THREE.CanvasTexture;
+  calloutTrackedTexture: THREE.CanvasTexture;
 };
 
 type PlayerMotion = {
@@ -23,6 +34,64 @@ type PlayerRig = {
   rightLeg: THREE.Object3D;
   torso: THREE.Object3D;
   shadow: THREE.Object3D;
+  personaAura?: THREE.Mesh;
+  personaAuraMaterial?: THREE.MeshBasicMaterial;
+  trailDots?: Array<{
+    mesh: THREE.Mesh;
+    material: THREE.MeshBasicMaterial;
+    phase: number;
+  }>;
+  shirtMaterial?: THREE.MeshStandardMaterial;
+  trimMaterial?: THREE.MeshStandardMaterial;
+  pantsMaterial?: THREE.MeshStandardMaterial;
+  shoeMaterial?: THREE.MeshStandardMaterial;
+  hairMaterial?: THREE.MeshStandardMaterial;
+};
+
+type CameraLookState = {
+  yaw: number;
+  targetYaw: number;
+  distance: number;
+  targetDistance: number;
+  zoomBy: (amount: number) => void;
+};
+
+type AtmosphereObject = {
+  object: THREE.Object3D;
+  speed: number;
+};
+
+type Citizen = {
+  object: THREE.Group;
+  origin: THREE.Vector3;
+  radius: number;
+  speed: number;
+  phase: number;
+  speechMaterial: THREE.SpriteMaterial;
+};
+
+type RouteBreadcrumb = {
+  mesh: THREE.Mesh;
+  material: THREE.MeshBasicMaterial;
+  rail: THREE.Mesh;
+  railMaterial: THREE.MeshBasicMaterial;
+  phase: number;
+};
+
+type UnlockBurst = {
+  group: THREE.Group;
+  startedAt: number;
+  rings: Array<{
+    mesh: THREE.Mesh;
+    material: THREE.MeshBasicMaterial;
+  }>;
+  sparks: Array<{
+    mesh: THREE.Mesh;
+    material: THREE.MeshBasicMaterial;
+    angle: number;
+    radius: number;
+    height: number;
+  }>;
 };
 
 type CollisionShape =
@@ -35,6 +104,13 @@ const GRAVITY = 18;
 const JUMP_VELOCITY = 7.4;
 const SHADOW_Y = 0.026;
 const PLAYER_RADIUS = 0.42;
+const MAX_CAMERA_YAW = 1.08;
+const CAMERA_OFFSET = new THREE.Vector3(-8.7, 5.25, 9.8);
+const CAMERA_DEFAULT_DISTANCE = CAMERA_OFFSET.length();
+const CAMERA_MIN_DISTANCE = 8.8;
+const CAMERA_MAX_DISTANCE = 21;
+const UNLOCK_BURST_DURATION = 1.45;
+const NEW_DISCOVERY_CARD_DELAY_MS = 620;
 
 let softShadowTexture: THREE.CanvasTexture | null = null;
 let buildingShadowTexture: THREE.CanvasTexture | null = null;
@@ -58,13 +134,11 @@ export function initLoopTown(root: HTMLElement): void {
   const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
   camera.position.set(9, 7, 10);
   camera.lookAt(0, 0, 0);
+  const lookState = bindLookControls(renderer.domElement);
 
   const clock = new THREE.Clock();
   const input = createInput();
-  const hud = createHud(root);
-  bindVirtualControls(root, input);
   const discovered = loadDiscovered();
-  hud.setProgress(discovered);
 
   const player = createPlayer();
   const playerMotion: PlayerMotion = { verticalVelocity: 0, grounded: true, facingAngle: Math.PI, walkTime: 0 };
@@ -72,13 +146,41 @@ export function initLoopTown(root: HTMLElement): void {
   player.rotation.y = Math.PI;
   scene.add(player);
 
+  let selectedWaypointId: string | null = null;
+  const hud = createHud(root, {
+    onPersonaChange: (persona) => {
+      applyPlayerPersona(player, persona);
+      root.dataset.playerPersona = persona.id;
+      root.dataset.personaTrait = persona.trait;
+      root.dataset.personaWalk = persona.movement.walk.toFixed(2);
+      root.dataset.personaSprint = persona.movement.sprint.toFixed(2);
+      root.dataset.personaJump = persona.movement.jump.toFixed(2);
+    },
+    onWaypointSelect: (entry) => {
+      selectedWaypointId = entry.id;
+      root.dataset.trackedDiscovery = entry.id;
+    },
+    onCameraZoom: (amount) => {
+      lookState.zoomBy(amount);
+    }
+  });
+  bindVirtualControls(root, input);
+  hud.setProgress(discovered);
+
   createLights(scene);
   const colliders = createTown(scene);
   const markers = createDiscoveryMarkers(scene);
+  const routeBreadcrumbs = createRouteBreadcrumbs(scene);
+  const citizens = createCitizens(scene);
+  const atmosphere = createAtmosphere(scene);
+  const unlockBursts: UnlockBurst[] = [];
   applySceneShadows(scene);
 
   let nearest: DiscoveryEntry | null = null;
+  let waypointMarker: DiscoveryMarker | null = null;
+  let waypointTracked = false;
   let cardOpen = false;
+  let pendingCardTimer: number | undefined;
   let started = false;
 
   if (new URLSearchParams(window.location.search).has("autostart")) {
@@ -109,30 +211,75 @@ export function initLoopTown(root: HTMLElement): void {
       input.inspectRequested = true;
     }
 
-    if (started && !cardOpen) {
+    if (started && !hud.isModalOpen() && !cardOpen) {
       updatePlayer(player, playerMotion, input, delta, colliders);
       nearest = findNearestDiscovery(player.position, markers);
       hud.setPrompt(nearest);
+      if (selectedWaypointId && discovered.has(selectedWaypointId)) {
+        selectedWaypointId = null;
+        delete root.dataset.trackedDiscovery;
+      }
+      const waypoint = findWaypointSelection(player.position, markers, discovered, selectedWaypointId);
+      waypointMarker = waypoint?.marker ?? null;
+      waypointTracked = waypoint?.tracked ?? false;
+      hud.setWaypoint(waypoint?.marker.entry ?? null, waypoint?.distance, waypoint?.heading, waypoint?.tracked);
     }
 
     if (input.inspectRequested) {
       input.inspectRequested = false;
       if (cardOpen) {
-        hud.closeCard();
+        if (pendingCardTimer !== undefined) {
+          window.clearTimeout(pendingCardTimer);
+          pendingCardTimer = undefined;
+        } else {
+          hud.closeCard();
+        }
         cardOpen = false;
+      } else if (hud.isModalOpen()) {
+        hud.closeCard();
       } else if (nearest) {
+        const savedEntry = nearest;
+        const wasNewDiscovery = !discovered.has(nearest.id);
         discovered.add(nearest.id);
+        if (selectedWaypointId === nearest.id) {
+          selectedWaypointId = null;
+          delete root.dataset.trackedDiscovery;
+        }
         saveDiscovered(discovered);
         hud.setProgress(discovered);
+        hud.setPrompt(savedEntry);
+        const nextWaypoint = findWaypointSelection(player.position, markers, discovered, selectedWaypointId);
+        waypointMarker = nextWaypoint?.marker ?? null;
+        waypointTracked = nextWaypoint?.tracked ?? false;
+        hud.setWaypoint(nextWaypoint?.marker.entry ?? null, nextWaypoint?.distance, nextWaypoint?.heading, nextWaypoint?.tracked);
+        if (wasNewDiscovery) {
+          const savedMarker = markers.find((marker) => marker.entry.id === savedEntry.id);
+          if (savedMarker) {
+            unlockBursts.push(createUnlockBurst(scene, savedMarker, clock.elapsedTime));
+          }
+          hud.showDiscoveryToast(nearest, discovered.size);
+        }
         cardOpen = true;
-        hud.openCard(nearest, () => {
+        const openSavedCard = () => hud.openCard(savedEntry, () => {
           cardOpen = false;
         });
+        if (wasNewDiscovery) {
+          pendingCardTimer = window.setTimeout(() => {
+            pendingCardTimer = undefined;
+            openSavedCard();
+          }, NEW_DISCOVERY_CARD_DELAY_MS);
+        } else {
+          openSavedCard();
+        }
       }
     }
 
-    updateMarkers(markers, discovered, clock.elapsedTime);
-    updateCamera(camera, player.position);
+    updateRouteBreadcrumbs(routeBreadcrumbs, player.position, waypointMarker, clock.elapsedTime, waypointTracked);
+    updateMarkers(markers, discovered, clock.elapsedTime, waypointMarker?.entry.id ?? null, waypointTracked);
+    updateUnlockBursts(scene, unlockBursts, clock.elapsedTime);
+    updateCitizens(citizens, clock.elapsedTime);
+    updateAtmosphere(atmosphere, delta);
+    updateCamera(camera, player.position, lookState);
     renderer.render(scene, camera);
     requestAnimationFrame(animate);
   };
@@ -499,6 +646,64 @@ function addWaterfront(scene: THREE.Scene): void {
   for (let i = 0; i < 16; i += 1) {
     addRock(scene, -18 + i * 2.2, 13.1 + Math.sin(i) * 0.8, 0.45 + (i % 3) * 0.12);
   }
+}
+
+function createAtmosphere(scene: THREE.Scene): AtmosphereObject[] {
+  const atmosphere: AtmosphereObject[] = [];
+
+  const cloudMaterial = new THREE.MeshBasicMaterial({
+    color: "#fff8e7",
+    transparent: true,
+    opacity: 0.62,
+    depthWrite: false
+  });
+
+  for (const [x, y, z, scale, speed] of [
+    [-14, 7.2, -18, 1.05, 0.24],
+    [-2, 8.4, -22, 1.4, 0.18],
+    [12, 7.8, -17, 0.92, 0.2],
+    [18, 8.8, -5, 1.18, 0.16]
+  ] as const) {
+    const cloud = createCloud(cloudMaterial.clone(), scale);
+    cloud.position.set(x, y, z);
+    scene.add(cloud);
+    atmosphere.push({ object: cloud, speed });
+  }
+
+  const hillMaterial = new THREE.MeshStandardMaterial({ color: "#84a878", roughness: 0.95 });
+  for (const [x, z, width, height] of [
+    [-18, -24, 18, 3.2],
+    [-4, -26, 22, 4.1],
+    [13, -24, 16, 3.5]
+  ] as const) {
+    const hill = new THREE.Mesh(new THREE.ConeGeometry(width, height, 4), hillMaterial);
+    hill.position.set(x, height / 2 - 0.15, z);
+    hill.rotation.y = Math.PI / 4;
+    hill.scale.z = 0.42;
+    hill.receiveShadow = true;
+    scene.add(hill);
+  }
+
+  return atmosphere;
+}
+
+function createCloud(material: THREE.Material, scale: number): THREE.Group {
+  const group = new THREE.Group();
+  const pieces = [
+    [-0.9, 0, 0, 0.7],
+    [-0.25, 0.12, 0.05, 0.95],
+    [0.48, 0.02, -0.03, 0.78],
+    [1.05, -0.04, 0.02, 0.52]
+  ] as const;
+
+  for (const [x, y, z, radius] of pieces) {
+    const puff = new THREE.Mesh(new THREE.SphereGeometry(radius * scale, 18, 12), material);
+    puff.position.set(x * scale, y * scale, z * scale);
+    puff.scale.y = 0.58;
+    group.add(puff);
+  }
+
+  return group;
 }
 
 function addPath(scene: THREE.Scene, x: number, z: number, width: number, depth: number, rotation: number): void {
@@ -1344,6 +1549,175 @@ function createPlayer(): THREE.Group {
   shadow.position.y = 0.012;
   group.add(shadow);
 
+  const personaAuraMaterial = new THREE.MeshBasicMaterial({
+    color: "#c95749",
+    transparent: true,
+    opacity: 0.14,
+    depthWrite: false
+  });
+  const personaAura = new THREE.Mesh(new THREE.TorusGeometry(0.56, 0.018, 8, 56), personaAuraMaterial);
+  personaAura.rotation.x = -Math.PI / 2;
+  personaAura.position.y = 0.055;
+  personaAura.renderOrder = 3;
+  personaAura.userData.softShadow = true;
+  group.add(personaAura);
+
+  const trailDots = [
+    { x: -0.22, z: 0.34, phase: 0 },
+    { x: 0.22, z: 0.34, phase: 0.7 },
+    { x: 0, z: 0.52, phase: 1.4 }
+  ].map((dot) => {
+    const material = new THREE.MeshBasicMaterial({
+      color: "#ef765f",
+      transparent: true,
+      opacity: 0,
+      depthWrite: false
+    });
+    const mesh = new THREE.Mesh(new THREE.CircleGeometry(0.075, 18), material);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.set(dot.x, 0.056, dot.z);
+    mesh.renderOrder = 4;
+    mesh.userData.softShadow = true;
+    group.add(mesh);
+    return { mesh, material, phase: dot.phase };
+  });
+
+  group.userData.rig = {
+    leftArm: armRigs[0],
+    rightArm: armRigs[1],
+    leftLeg: legRigs[0],
+    rightLeg: legRigs[1],
+    torso,
+    shadow,
+    personaAura,
+    personaAuraMaterial,
+    trailDots,
+    shirtMaterial: shirt,
+    trimMaterial: shirtDark,
+    pantsMaterial: pants,
+    shoeMaterial: shoes,
+    hairMaterial
+  } satisfies PlayerRig;
+
+  group.scale.setScalar(0.78);
+  return group;
+}
+
+function applyPlayerPersona(player: THREE.Group, persona: PersonaOption): void {
+  const rig = player.userData.rig as PlayerRig | undefined;
+  if (!rig?.shirtMaterial || !rig.trimMaterial || !rig.pantsMaterial || !rig.shoeMaterial || !rig.hairMaterial) return;
+
+  rig.shirtMaterial.color.set(persona.colors.shirt);
+  rig.trimMaterial.color.set(persona.colors.trim);
+  rig.personaAuraMaterial?.color.set(persona.colors.trim);
+  rig.trailDots?.forEach((dot) => dot.material.color.set(persona.colors.shirt));
+  rig.pantsMaterial.color.set(persona.colors.pants);
+  rig.shoeMaterial.color.set(persona.colors.shoes);
+  rig.hairMaterial.color.set(persona.colors.hair);
+  player.userData.personaId = persona.id;
+  player.userData.personaName = persona.name;
+  player.userData.personaTrait = persona.trait;
+  player.userData.walkMultiplier = persona.movement.walk;
+  player.userData.sprintMultiplier = persona.movement.sprint;
+  player.userData.jumpMultiplier = persona.movement.jump;
+}
+
+function createCitizens(scene: THREE.Scene): Citizen[] {
+  const specs = [
+    { x: -4.2, z: -1.4, color: "#f0b35d", radius: 1.25, speed: 0.62, phase: 0.2, speech: "ship signal" },
+    { x: 4.2, z: 2.4, color: "#6fa6a0", radius: 1.45, speed: 0.48, phase: 1.7, speech: "package loop" },
+    { x: 6.6, z: -4.1, color: "#7f8eaa", radius: 1.05, speed: 0.7, phase: 3.1, speech: "price wedge" },
+    { x: -6.3, z: 4.5, color: "#d78c75", radius: 1.18, speed: 0.54, phase: 4.6, speech: "write lesson" }
+  ];
+
+  return specs.map((spec) => {
+    const citizen = createCitizen(spec.color, spec.speech);
+    citizen.object.position.set(spec.x + spec.radius, 0, spec.z);
+    scene.add(citizen.object);
+    return {
+      object: citizen.object,
+      origin: new THREE.Vector3(spec.x, 0, spec.z),
+      radius: spec.radius,
+      speed: spec.speed,
+      phase: spec.phase,
+      speechMaterial: citizen.speechMaterial
+    };
+  });
+}
+
+function createCitizen(shirtColor: string, speechText: string): { object: THREE.Group; speechMaterial: THREE.SpriteMaterial } {
+  const group = new THREE.Group();
+  const skin = new THREE.MeshStandardMaterial({ color: "#8b614b", roughness: 0.7 });
+  const shirt = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.68 });
+  const pants = new THREE.MeshStandardMaterial({ color: "#334856", roughness: 0.75 });
+  const hair = new THREE.MeshStandardMaterial({ color: "#29231f", roughness: 0.85 });
+
+  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.2, 0.32, 8, 16), shirt);
+  torso.position.y = 0.82;
+  torso.castShadow = true;
+  group.add(torso);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 18, 14), skin);
+  head.position.y = 1.23;
+  head.castShadow = true;
+  group.add(head);
+
+  const hairCap = new THREE.Mesh(new THREE.SphereGeometry(0.23, 18, 8, 0, Math.PI * 2, 0, Math.PI / 2), hair);
+  hairCap.position.y = 1.34;
+  hairCap.scale.y = 0.7;
+  hairCap.castShadow = true;
+  group.add(hairCap);
+
+  const eyeMaterial = new THREE.MeshStandardMaterial({ color: "#17120f", roughness: 0.5 });
+  for (const x of [-0.07, 0.07]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 6), eyeMaterial);
+    eye.position.set(x, 1.24, -0.2);
+    group.add(eye);
+  }
+
+  const armRigs: THREE.Group[] = [];
+  for (const x of [-0.32, 0.32]) {
+    const armRig = new THREE.Group();
+    armRig.position.set(x, 0.9, 0);
+    group.add(armRig);
+    armRigs.push(armRig);
+
+    const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.065, 0.28, 6, 10), skin);
+    arm.position.y = -0.22;
+    arm.castShadow = true;
+    armRig.add(arm);
+  }
+
+  const legRigs: THREE.Group[] = [];
+  for (const x of [-0.1, 0.1]) {
+    const legRig = new THREE.Group();
+    legRig.position.set(x, 0.48, 0);
+    group.add(legRig);
+    legRigs.push(legRig);
+
+    const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.07, 0.34, 6, 10), pants);
+    leg.position.y = -0.22;
+    leg.castShadow = true;
+    legRig.add(leg);
+  }
+
+  const shadow = createSoftShadow(0.56, 0.36, 0.16);
+  shadow.position.y = 0.012;
+  group.add(shadow);
+
+  const speechMaterial = new THREE.SpriteMaterial({
+    map: createCitizenSpeechTexture(speechText, shirtColor),
+    transparent: true,
+    depthWrite: false,
+    depthTest: false,
+    opacity: 0
+  });
+  const speech = new THREE.Sprite(speechMaterial);
+  speech.position.set(0, 1.48, 0);
+  speech.scale.set(1.18, 0.36, 1);
+  speech.renderOrder = 6;
+  group.add(speech);
+
   group.userData.rig = {
     leftArm: armRigs[0],
     rightArm: armRigs[1],
@@ -1353,12 +1727,26 @@ function createPlayer(): THREE.Group {
     shadow
   } satisfies PlayerRig;
 
-  return group;
+  return { object: group, speechMaterial };
 }
 
 function createDiscoveryMarkers(scene: THREE.Scene): DiscoveryMarker[] {
   const starTexture = createStarTexture();
+  const ringMaterial = new THREE.MeshBasicMaterial({
+    color: "#ffd868",
+    transparent: true,
+    opacity: 0.44,
+    depthWrite: false
+  });
+  const haloMaterial = new THREE.MeshBasicMaterial({
+    color: "#fff1a8",
+    transparent: true,
+    opacity: 0.18,
+    depthWrite: false
+  });
+
   return DISCOVERIES.map((entry) => {
+    const accent = getDiscoveryAccent(entry);
     const sprite = new THREE.Sprite(
       new THREE.SpriteMaterial({
         map: starTexture,
@@ -1367,19 +1755,314 @@ function createDiscoveryMarkers(scene: THREE.Scene): DiscoveryMarker[] {
       })
     );
     sprite.position.set(entry.position.x, 1.55, entry.position.z);
-    sprite.scale.set(1.15, 1.15, 1.15);
+    sprite.scale.set(0.76, 0.76, 0.76);
     scene.add(sprite);
 
-    const plinth = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.28, 0.35, 0.18, 12),
-      new THREE.MeshStandardMaterial({ color: "#fff4cf", roughness: 0.55 })
-    );
-    plinth.position.set(entry.position.x, 0.09, entry.position.z);
+    const plinthMaterial = new THREE.MeshStandardMaterial({ color: "#fff4cf", roughness: 0.55 });
+    const plinth = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.28, 0.14, 12), plinthMaterial);
+    plinth.position.set(entry.position.x, 0.07, entry.position.z);
     plinth.castShadow = true;
     scene.add(plinth);
 
-    return { entry, object: sprite };
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.48, 0.02, 8, 48), ringMaterial.clone());
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(entry.position.x, 0.045, entry.position.z);
+    ring.renderOrder = 2;
+    scene.add(ring);
+
+    const halo = new THREE.Mesh(new THREE.CircleGeometry(0.68, 40), haloMaterial.clone());
+    halo.rotation.x = -Math.PI / 2;
+    halo.position.set(entry.position.x, 0.034, entry.position.z);
+    halo.renderOrder = 1;
+    scene.add(halo);
+
+    const beacon = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.12, 0.34, 3.2, 32, 1, true),
+      new THREE.MeshBasicMaterial({
+        color: "#ffd868",
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        side: THREE.DoubleSide
+      })
+    );
+    beacon.position.set(entry.position.x, 1.62, entry.position.z);
+    beacon.renderOrder = 1;
+    beacon.visible = false;
+    beacon.userData.softShadow = true;
+    scene.add(beacon);
+
+    const badge = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: createNumberBadgeTexture(entry),
+        transparent: true,
+        depthWrite: false
+      })
+    );
+    badge.position.set(entry.position.x, 2.08, entry.position.z);
+    badge.scale.set(0.78, 0.3, 1);
+    scene.add(badge);
+
+    const savedSeal = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: createSavedSealTexture(accent),
+        transparent: true,
+        depthWrite: false,
+        depthTest: false,
+        opacity: 0
+      })
+    );
+    savedSeal.position.set(entry.position.x, 1.08, entry.position.z);
+    savedSeal.scale.set(0.78, 0.3, 1);
+    savedSeal.renderOrder = 4;
+    savedSeal.visible = false;
+    scene.add(savedSeal);
+
+    const calloutNextTexture = createWaypointCalloutTexture(entry, accent, false);
+    const calloutTrackedTexture = createWaypointCalloutTexture(entry, accent, true);
+    const calloutMaterial = new THREE.SpriteMaterial({
+      map: calloutNextTexture,
+      transparent: true,
+      depthWrite: false,
+      depthTest: false,
+      opacity: 0
+    });
+    const callout = new THREE.Sprite(calloutMaterial);
+    callout.position.set(entry.position.x, 2.88, entry.position.z);
+    callout.scale.set(3.35, 1.05, 1);
+    callout.renderOrder = 5;
+    callout.visible = false;
+    scene.add(callout);
+
+    return {
+      entry,
+      object: sprite,
+      plinth,
+      plinthMaterial,
+      ring,
+      halo,
+      badge,
+      savedSeal,
+      beacon,
+      callout,
+      calloutMaterial,
+      calloutNextTexture,
+      calloutTrackedTexture
+    };
   });
+}
+
+function createRouteBreadcrumbs(scene: THREE.Scene): RouteBreadcrumb[] {
+  return Array.from({ length: 7 }, (_, index) => {
+    const material = new THREE.MeshBasicMaterial({
+      color: "#ffc83d",
+      transparent: true,
+      opacity: 0,
+      depthWrite: false
+    });
+    const mesh = new THREE.Mesh(new THREE.CircleGeometry(0.21, 24), material);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.y = 0.058;
+    mesh.renderOrder = 3;
+    mesh.visible = false;
+    mesh.userData.softShadow = true;
+    const railMaterial = new THREE.MeshBasicMaterial({
+      color: "#ffc83d",
+      transparent: true,
+      opacity: 0,
+      depthWrite: false
+    });
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.024, 1), railMaterial);
+    rail.position.y = 0.052;
+    rail.renderOrder = 2;
+    rail.visible = false;
+    rail.userData.softShadow = true;
+    scene.add(mesh);
+    scene.add(rail);
+    return { mesh, material, rail, railMaterial, phase: index * 0.55 };
+  });
+}
+
+function createUnlockBurst(scene: THREE.Scene, marker: DiscoveryMarker, startedAt: number): UnlockBurst {
+  const accent = getDiscoveryAccent(marker.entry);
+  const group = new THREE.Group();
+  group.position.set(marker.object.position.x, 0, marker.object.position.z);
+  group.renderOrder = 4;
+  scene.add(group);
+
+  const rings = [0.42, 0.68].map((radius, index) => {
+    const material = new THREE.MeshBasicMaterial({
+      color: accent,
+      transparent: true,
+      opacity: index === 0 ? 0.62 : 0.38,
+      depthWrite: false
+    });
+    const mesh = new THREE.Mesh(new THREE.TorusGeometry(radius, 0.018, 8, 56), material);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.y = 0.08 + index * 0.025;
+    mesh.renderOrder = 4;
+    mesh.userData.softShadow = true;
+    group.add(mesh);
+    return { mesh, material };
+  });
+
+  const sparks = Array.from({ length: 12 }, (_, index) => {
+    const material = new THREE.MeshBasicMaterial({
+      color: index % 3 === 0 ? "#fff4cf" : accent,
+      transparent: true,
+      opacity: 0.92,
+      depthWrite: false
+    });
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(index % 3 === 0 ? 0.055 : 0.04, 10, 8), material);
+    mesh.renderOrder = 5;
+    mesh.userData.softShadow = true;
+    group.add(mesh);
+    return {
+      mesh,
+      material,
+      angle: index * ((Math.PI * 2) / 12),
+      radius: 0.65 + (index % 4) * 0.12,
+      height: 0.55 + (index % 5) * 0.1
+    };
+  });
+
+  return { group, startedAt, rings, sparks };
+}
+
+function updateUnlockBursts(scene: THREE.Scene, bursts: UnlockBurst[], time: number): void {
+  for (let index = bursts.length - 1; index >= 0; index -= 1) {
+    const burst = bursts[index];
+    const progress = THREE.MathUtils.clamp((time - burst.startedAt) / UNLOCK_BURST_DURATION, 0, 1);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    const fade = 1 - progress;
+
+    burst.rings.forEach((ring, ringIndex) => {
+      ring.mesh.scale.setScalar(1 + eased * (1.5 + ringIndex * 0.7));
+      ring.material.opacity = fade * (ringIndex === 0 ? 0.62 : 0.38);
+    });
+
+    burst.sparks.forEach((spark, sparkIndex) => {
+      const drift = spark.radius * eased;
+      spark.mesh.position.set(
+        Math.cos(spark.angle) * drift,
+        0.35 + Math.sin(progress * Math.PI) * spark.height + progress * 0.35,
+        Math.sin(spark.angle) * drift
+      );
+      spark.mesh.scale.setScalar(1 + Math.sin(progress * Math.PI) * 0.9 + (sparkIndex % 2) * 0.12);
+      spark.material.opacity = fade * 0.92;
+    });
+
+    if (progress >= 1) {
+      disposeUnlockBurst(scene, burst);
+      bursts.splice(index, 1);
+    }
+  }
+}
+
+function disposeUnlockBurst(scene: THREE.Scene, burst: UnlockBurst): void {
+  scene.remove(burst.group);
+  burst.group.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return;
+    object.geometry.dispose();
+    const material = object.material;
+    if (Array.isArray(material)) {
+      material.forEach((item) => item.dispose());
+    } else {
+      material.dispose();
+    }
+  });
+}
+
+function getDiscoveryAccent(entry: DiscoveryEntry): string {
+  const colors: Record<DiscoveryEntry["theme"], string> = {
+    "ai-agents": "#6fa6a0",
+    saas: "#d78c75",
+    sustainability: "#85ad6f",
+    crypto: "#7f8eaa",
+    devtools: "#f0c86b",
+    founder: "#d2ad6a",
+    story: "#ee765f"
+  };
+  return colors[entry.theme];
+}
+
+function bindLookControls(element: HTMLCanvasElement): CameraLookState {
+  const look: CameraLookState = {
+    yaw: 0,
+    targetYaw: 0,
+    distance: CAMERA_DEFAULT_DISTANCE,
+    targetDistance: CAMERA_DEFAULT_DISTANCE,
+    zoomBy(amount) {
+      look.targetDistance = THREE.MathUtils.clamp(look.targetDistance + amount, CAMERA_MIN_DISTANCE, CAMERA_MAX_DISTANCE);
+    }
+  };
+  let dragging = false;
+  let lastX = 0;
+  let pinchDistance = 0;
+  const pointers = new Map<number, { x: number; y: number }>();
+
+  const getPinchDistance = () => {
+    const [first, second] = [...pointers.values()];
+    if (!first || !second) return 0;
+    return Math.hypot(second.x - first.x, second.y - first.y);
+  };
+
+  element.addEventListener("pointerdown", (event) => {
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    lastX = event.clientX;
+    element.setPointerCapture(event.pointerId);
+    dragging = pointers.size === 1;
+    if (pointers.size >= 2) {
+      pinchDistance = getPinchDistance();
+    }
+  });
+
+  element.addEventListener("pointermove", (event) => {
+    if (!pointers.has(event.pointerId)) return;
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pointers.size >= 2) {
+      const nextPinchDistance = getPinchDistance();
+      if (pinchDistance > 0) look.zoomBy((pinchDistance - nextPinchDistance) * 0.012);
+      pinchDistance = nextPinchDistance;
+      return;
+    }
+    if (!dragging) return;
+    const deltaX = event.clientX - lastX;
+    lastX = event.clientX;
+    look.targetYaw = THREE.MathUtils.clamp(look.targetYaw - deltaX * 0.006, -MAX_CAMERA_YAW, MAX_CAMERA_YAW);
+  });
+
+  element.addEventListener(
+    "wheel",
+    (event) => {
+      event.preventDefault();
+      look.zoomBy(event.deltaY * 0.008);
+    },
+    { passive: false }
+  );
+
+  const release = (event: PointerEvent) => {
+    pointers.delete(event.pointerId);
+    dragging = pointers.size === 1;
+    if (dragging) {
+      const remainingPointer = [...pointers.values()][0];
+      lastX = remainingPointer.x;
+    } else {
+      pinchDistance = 0;
+    }
+    if (element.hasPointerCapture(event.pointerId)) {
+      element.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  element.addEventListener("pointerup", release);
+  element.addEventListener("pointercancel", release);
+  element.addEventListener("dblclick", () => {
+    look.targetYaw = 0;
+    look.targetDistance = CAMERA_DEFAULT_DISTANCE;
+  });
+
+  return look;
 }
 
 function bindVirtualControls(root: HTMLElement, input: ReturnType<typeof createInput>): void {
@@ -1422,14 +2105,17 @@ function updatePlayer(
   if (input.jumpRequested) {
     input.jumpRequested = false;
     if (motion.grounded) {
-      motion.verticalVelocity = JUMP_VELOCITY;
+      const jumpMultiplier = typeof player.userData.jumpMultiplier === "number" ? player.userData.jumpMultiplier : 1;
+      motion.verticalVelocity = JUMP_VELOCITY * jumpMultiplier;
       motion.grounded = false;
     }
   }
 
   if (direction.lengthSq() > 0) {
     direction.normalize();
-    const speed = input.sprint ? 7 : 4.2;
+    const walkMultiplier = typeof player.userData.walkMultiplier === "number" ? player.userData.walkMultiplier : 1;
+    const sprintMultiplier = typeof player.userData.sprintMultiplier === "number" ? player.userData.sprintMultiplier : 1;
+    const speed = input.sprint ? 7 * sprintMultiplier : 4.2 * walkMultiplier;
     const nextPosition = player.position.clone().addScaledVector(direction, speed * delta);
     resolvePlayerCollisions(nextPosition, colliders);
     player.position.copy(nextPosition);
@@ -1437,9 +2123,9 @@ function updatePlayer(
     motion.facingAngle = turnToward(motion.facingAngle, angle, 32 * delta);
     player.rotation.y = motion.facingAngle;
     motion.walkTime += delta * (input.sprint ? 12 : 8.5);
-    updatePlayerRig(player, motion.walkTime, true);
+    updatePlayerRig(player, motion.walkTime, true, input.sprint);
   } else {
-    updatePlayerRig(player, motion.walkTime, false);
+    updatePlayerRig(player, motion.walkTime, false, false);
   }
 
   motion.verticalVelocity -= GRAVITY * delta;
@@ -1524,7 +2210,7 @@ function turnToward(current: number, target: number, maxStep: number): number {
   return current + THREE.MathUtils.clamp(delta, -maxStep, maxStep);
 }
 
-function updatePlayerRig(player: THREE.Group, walkTime: number, moving: boolean): void {
+function updatePlayerRig(player: THREE.Group, walkTime: number, moving: boolean, sprinting = false): void {
   const rig = player.userData.rig as PlayerRig | undefined;
   if (!rig) return;
 
@@ -1540,6 +2226,19 @@ function updatePlayerRig(player: THREE.Group, walkTime: number, moving: boolean)
   const shadowMaterial = rig.shadow instanceof THREE.Mesh ? rig.shadow.material : null;
   if (shadowMaterial instanceof THREE.MeshBasicMaterial) {
     shadowMaterial.opacity = THREE.MathUtils.clamp(0.25 - player.position.y * 0.11, 0.06, 0.25);
+  }
+
+  if (rig.personaAura && rig.personaAuraMaterial && rig.trailDots) {
+    const auraPulse = 1 + Math.sin(walkTime * (moving ? 0.8 : 0.45)) * (moving ? 0.055 : 0.025);
+    rig.personaAura.scale.setScalar((sprinting ? 1.16 : moving ? 1.04 : 0.94) * auraPulse);
+    rig.personaAuraMaterial.opacity = moving ? (sprinting ? 0.38 : 0.26) : 0.13;
+
+    rig.trailDots.forEach((dot, index) => {
+      const pulse = Math.max(0, Math.sin(walkTime * 1.15 - dot.phase));
+      const sprintBoost = sprinting ? 1.4 : 1;
+      dot.mesh.scale.setScalar(0.72 + pulse * 0.8 * sprintBoost + index * 0.04);
+      dot.material.opacity = moving ? (0.16 + pulse * (sprinting ? 0.58 : 0.36)) : 0.035;
+    });
   }
 }
 
@@ -1560,17 +2259,244 @@ function findNearestDiscovery(playerPosition: THREE.Vector3, markers: DiscoveryM
   return nearest;
 }
 
-function updateMarkers(markers: DiscoveryMarker[], discovered: Set<string>, time: number): void {
+function findNearestUndiscovered(
+  playerPosition: THREE.Vector3,
+  markers: DiscoveryMarker[],
+  discovered: Set<string>
+): { marker: DiscoveryMarker; distance: number; heading: string } | null {
+  let nearest: DiscoveryMarker | null = null;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+
+  for (const marker of markers) {
+    if (discovered.has(marker.entry.id)) continue;
+    const dx = marker.object.position.x - playerPosition.x;
+    const dz = marker.object.position.z - playerPosition.z;
+    const distance = Math.hypot(dx, dz);
+    if (distance < nearestDistance) {
+      nearest = marker;
+      nearestDistance = distance;
+    }
+  }
+
+  if (!nearest) return null;
+  return {
+    marker: nearest,
+    distance: nearestDistance,
+    heading: getHeadingLabel(nearest.object.position.x - playerPosition.x, nearest.object.position.z - playerPosition.z)
+  };
+}
+
+function findWaypointSelection(
+  playerPosition: THREE.Vector3,
+  markers: DiscoveryMarker[],
+  discovered: Set<string>,
+  selectedWaypointId: string | null
+): { marker: DiscoveryMarker; distance: number; heading: string; tracked: boolean } | null {
+  if (selectedWaypointId && !discovered.has(selectedWaypointId)) {
+    const trackedMarker = markers.find((marker) => marker.entry.id === selectedWaypointId);
+    if (trackedMarker) {
+      const dx = trackedMarker.object.position.x - playerPosition.x;
+      const dz = trackedMarker.object.position.z - playerPosition.z;
+      return {
+        marker: trackedMarker,
+        distance: Math.hypot(dx, dz),
+        heading: getHeadingLabel(dx, dz),
+        tracked: true
+      };
+    }
+  }
+
+  const nearest = findNearestUndiscovered(playerPosition, markers, discovered);
+  return nearest ? { ...nearest, tracked: false } : null;
+}
+
+function getHeadingLabel(dx: number, dz: number): string {
+  const northSouth = dz < -0.75 ? "N" : dz > 0.75 ? "S" : "";
+  const eastWest = dx > 0.75 ? "E" : dx < -0.75 ? "W" : "";
+  return `${northSouth}${eastWest}` || "here";
+}
+
+function updateRouteBreadcrumbs(
+  breadcrumbs: RouteBreadcrumb[],
+  playerPosition: THREE.Vector3,
+  waypoint: DiscoveryMarker | null,
+  time: number,
+  tracked: boolean
+): void {
+  if (!waypoint) {
+    for (const breadcrumb of breadcrumbs) {
+      breadcrumb.mesh.visible = false;
+      breadcrumb.material.opacity = 0;
+      breadcrumb.rail.visible = false;
+      breadcrumb.railMaterial.opacity = 0;
+    }
+    return;
+  }
+
+  const direction = new THREE.Vector3(
+    waypoint.object.position.x - playerPosition.x,
+    0,
+    waypoint.object.position.z - playerPosition.z
+  );
+  const distance = direction.length();
+  if (distance < 1.35) {
+    for (const breadcrumb of breadcrumbs) {
+      breadcrumb.mesh.visible = false;
+      breadcrumb.material.opacity = 0;
+      breadcrumb.rail.visible = false;
+      breadcrumb.railMaterial.opacity = 0;
+    }
+    return;
+  }
+
+  direction.normalize();
+  const visibleDistance = Math.min(distance - 0.7, 7.2);
+  const step = visibleDistance / (breadcrumbs.length + 0.5);
+  const routeColor = tracked ? "#d2ad6a" : "#ffc83d";
+  const routeGlow = tracked ? "#fff4cf" : "#ffd868";
+  const angle = Math.atan2(direction.x, direction.z);
+
+  breadcrumbs.forEach((breadcrumb, index) => {
+    const travel = 0.72 + step * (index + 0.35);
+    const fadeNearTarget = THREE.MathUtils.clamp((distance - travel) / 1.8, 0, 1);
+    const pulse = 0.92 + Math.sin(time * 4.2 - breadcrumb.phase) * 0.12;
+    const railLength = Math.max(0.34, step * 0.78);
+    const railTravel = Math.max(0.55, travel - railLength * 0.48);
+    const railPulse = 0.88 + Math.sin(time * 3.1 - breadcrumb.phase) * 0.08;
+    const opacity = (0.52 - index * 0.035) * fadeNearTarget;
+    breadcrumb.mesh.visible = true;
+    breadcrumb.mesh.position.set(
+      playerPosition.x + direction.x * travel,
+      0.058 + index * 0.001,
+      playerPosition.z + direction.z * travel
+    );
+    breadcrumb.mesh.scale.setScalar(pulse * (1 - index * 0.035));
+    breadcrumb.material.color.set(index % 2 === 0 ? routeGlow : routeColor);
+    breadcrumb.material.opacity = opacity;
+
+    breadcrumb.rail.visible = true;
+    breadcrumb.rail.position.set(
+      playerPosition.x + direction.x * railTravel,
+      0.052 + index * 0.001,
+      playerPosition.z + direction.z * railTravel
+    );
+    breadcrumb.rail.rotation.y = angle;
+    breadcrumb.rail.scale.set(1 + (tracked ? 0.34 : 0.18) * railPulse, 1, railLength);
+    breadcrumb.railMaterial.color.set(routeColor);
+    breadcrumb.railMaterial.opacity = opacity * (tracked ? 0.92 : 0.72);
+  });
+}
+
+function updateMarkers(
+  markers: DiscoveryMarker[],
+  discovered: Set<string>,
+  time: number,
+  waypointId: string | null,
+  waypointTracked: boolean
+): void {
   for (const marker of markers) {
     const unlocked = discovered.has(marker.entry.id);
-    const scale = unlocked ? 0.92 : 1.1 + Math.sin(time * 3 + marker.entry.number) * 0.08;
+    const isWaypoint = marker.entry.id === waypointId;
+    const scale = unlocked
+      ? 0.58
+      : isWaypoint
+        ? 0.9 + Math.sin(time * 4 + marker.entry.number) * 0.07
+        : 0.72 + Math.sin(time * 3 + marker.entry.number) * 0.05;
     marker.object.scale.setScalar(scale);
-    marker.object.position.y = 1.55 + Math.sin(time * 2.4 + marker.entry.number) * 0.12;
+    marker.object.position.y =
+      (unlocked ? 1.32 : 1.55) + Math.sin(time * (isWaypoint ? 3.1 : 2.4) + marker.entry.number) * (isWaypoint ? 0.18 : 0.12);
+    marker.badge.position.y = marker.object.position.y + 0.5;
+    marker.savedSeal.position.y = 1.08 + Math.sin(time * 1.8 + marker.entry.number) * 0.03;
+    const badgeScale = unlocked ? 0.68 : isWaypoint ? 0.98 : 0.82;
+    marker.badge.scale.set(0.78 * badgeScale, 0.3 * badgeScale, 1);
+    marker.plinth.scale.set(unlocked ? 1.18 : 1, unlocked ? 0.82 : 1, unlocked ? 1.18 : 1);
+    marker.plinthMaterial.color.set(unlocked ? "#dfe9d1" : "#fff4cf");
+    marker.plinthMaterial.roughness = unlocked ? 0.72 : 0.55;
+
+    const pulse = 1 + Math.sin(time * 2.5 + marker.entry.number) * 0.08;
+    marker.ring.scale.setScalar(unlocked ? 0.88 : isWaypoint ? 1.34 + Math.sin(time * 3.4) * 0.1 : pulse);
+    marker.halo.scale.setScalar(
+      unlocked ? 0.72 : isWaypoint ? 1.55 + Math.sin(time * 2.7) * 0.16 : 1.05 + Math.sin(time * 2 + marker.entry.number) * 0.1
+    );
+    const ringMaterial = marker.ring.material;
+    const haloMaterial = marker.halo.material;
+    if (ringMaterial instanceof THREE.MeshBasicMaterial) {
+      ringMaterial.opacity = unlocked ? 0.18 : isWaypoint ? 0.72 : 0.46;
+    }
+    if (haloMaterial instanceof THREE.MeshBasicMaterial) {
+      haloMaterial.opacity = unlocked ? 0.08 : isWaypoint ? 0.32 : 0.19;
+    }
+    const badgeMaterial = marker.badge.material;
+    if (badgeMaterial instanceof THREE.SpriteMaterial) {
+      badgeMaterial.opacity = unlocked ? 0.52 : isWaypoint ? 1 : 0.86;
+    }
+    const spriteMaterial = marker.object instanceof THREE.Sprite ? marker.object.material : null;
+    if (spriteMaterial instanceof THREE.SpriteMaterial) {
+      spriteMaterial.opacity = unlocked ? 0.42 : isWaypoint ? 1 : 0.9;
+    }
+    marker.savedSeal.visible = unlocked;
+    const savedSealMaterial = marker.savedSeal.material;
+    if (savedSealMaterial instanceof THREE.SpriteMaterial) {
+      savedSealMaterial.opacity = unlocked ? 0.94 : 0;
+    }
+    marker.savedSeal.scale.set(0.78 + Math.sin(time * 2 + marker.entry.number) * 0.016, 0.3, 1);
+    marker.beacon.visible = isWaypoint && !unlocked;
+    marker.beacon.rotation.y = time * 0.45;
+    marker.beacon.scale.setScalar(isWaypoint ? 1 + Math.sin(time * 2.1) * 0.06 : 1);
+    const beaconMaterial = marker.beacon.material;
+    if (beaconMaterial instanceof THREE.MeshBasicMaterial) {
+      beaconMaterial.opacity = isWaypoint && !unlocked ? 0.2 + Math.sin(time * 2.7) * 0.045 : 0;
+    }
+    marker.callout.visible = isWaypoint && !unlocked;
+    const calloutOffsetX = marker.object.position.x < -1 ? 5.2 : marker.object.position.x > 1 ? -2.6 : 2.2;
+    const calloutOffsetZ = marker.object.position.z > 0 ? -0.9 : 0.72;
+    marker.callout.position.set(
+      marker.object.position.x + calloutOffsetX,
+      marker.object.position.y + 1.22 + Math.sin(time * 1.9 + marker.entry.number) * 0.04,
+      marker.object.position.z + calloutOffsetZ
+    );
+    marker.callout.scale.setScalar(isWaypoint ? 1 + Math.sin(time * 2.2 + marker.entry.number) * 0.025 : 1);
+    marker.callout.scale.x *= 3.35;
+    marker.callout.scale.y *= 1.05;
+    const calloutMap = waypointTracked && isWaypoint ? marker.calloutTrackedTexture : marker.calloutNextTexture;
+    if (marker.calloutMaterial.map !== calloutMap) {
+      marker.calloutMaterial.map = calloutMap;
+      marker.calloutMaterial.needsUpdate = true;
+    }
+    marker.calloutMaterial.opacity = isWaypoint && !unlocked ? (waypointTracked ? 0.98 : 0.92) : 0;
   }
 }
 
-function updateCamera(camera: THREE.PerspectiveCamera, target: THREE.Vector3): void {
-  const desired = new THREE.Vector3(target.x - 8.7, 5.25, target.z + 9.8);
+function updateCitizens(citizens: Citizen[], time: number): void {
+  for (const citizen of citizens) {
+    const angle = time * citizen.speed + citizen.phase;
+    const nextX = citizen.origin.x + Math.cos(angle) * citizen.radius;
+    const nextZ = citizen.origin.z + Math.sin(angle) * citizen.radius * 0.58;
+    const tangentX = -Math.sin(angle);
+    const tangentZ = Math.cos(angle) * 0.58;
+    citizen.object.position.set(nextX, 0, nextZ);
+    citizen.object.rotation.y = Math.atan2(-tangentX, -tangentZ);
+    updatePlayerRig(citizen.object, time * 8 + citizen.phase, true);
+    const speechWave = Math.sin(time * 0.9 + citizen.phase * 1.7);
+    const speechOpacity = THREE.MathUtils.smoothstep(speechWave, 0.15, 0.92) * 0.62;
+    citizen.speechMaterial.opacity = 0.18 + speechOpacity;
+  }
+}
+
+function updateAtmosphere(atmosphere: AtmosphereObject[], delta: number): void {
+  for (const item of atmosphere) {
+    item.object.position.x += item.speed * delta;
+    if (item.object.position.x > 24) {
+      item.object.position.x = -24;
+    }
+  }
+}
+
+function updateCamera(camera: THREE.PerspectiveCamera, target: THREE.Vector3, look: CameraLookState): void {
+  look.yaw = THREE.MathUtils.lerp(look.yaw, look.targetYaw, 0.12);
+  look.distance = THREE.MathUtils.lerp(look.distance, look.targetDistance, 0.12);
+  const offset = CAMERA_OFFSET.clone().setLength(look.distance).applyAxisAngle(new THREE.Vector3(0, 1, 0), look.yaw);
+  const desired = new THREE.Vector3(target.x + offset.x, target.y + offset.y, target.z + offset.z);
   camera.position.lerp(desired, 0.075);
   camera.lookAt(target.x, 0.82, target.z);
 }
@@ -1632,4 +2558,212 @@ function createStarTexture(): THREE.CanvasTexture {
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   return texture;
+}
+
+function createNumberBadgeTexture(entry: DiscoveryEntry): THREE.CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 96;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Could not create marker badge canvas");
+
+  const label = entry.number === 0 ? "START" : `#${entry.number.toString().padStart(2, "0")}`;
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.shadowColor = "rgba(55, 42, 25, 0.28)";
+  context.shadowBlur = 14;
+  roundRect(context, 18, 14, 220, 64, 18);
+  context.fillStyle = "#fffaf0";
+  context.fill();
+  context.shadowBlur = 0;
+  context.lineWidth = 5;
+  context.strokeStyle = "#ffc83d";
+  context.stroke();
+  context.fillStyle = "#3e352a";
+  context.font = entry.number === 0 ? "800 28px Inter, sans-serif" : "900 34px Inter, sans-serif";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillText(label, canvas.width / 2, canvas.height / 2 + 1);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function createWaypointCalloutTexture(entry: DiscoveryEntry, accent: string, tracked: boolean): THREE.CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 168;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Could not create waypoint callout canvas");
+
+  const label = tracked ? "TRACKED STORY" : "NEXT STORY";
+  const number = entry.number === 0 ? "START" : `#${entry.number.toString().padStart(3, "0")}`;
+  const titleLines = splitCanvasLines(context, entry.title, 330, "900 34px Georgia, serif", 2);
+
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.shadowColor = "rgba(55, 42, 25, 0.3)";
+  context.shadowBlur = 18;
+  roundRect(context, 20, 18, 472, 128, 18);
+  context.fillStyle = tracked ? "rgba(255, 250, 240, 0.96)" : "rgba(255, 250, 240, 0.93)";
+  context.fill();
+  context.shadowBlur = 0;
+  context.lineWidth = 5;
+  context.strokeStyle = tracked ? "#d2ad6a" : accent;
+  context.stroke();
+
+  context.fillStyle = tracked ? "#8d6428" : accent;
+  context.font = "900 20px Inter, sans-serif";
+  context.textAlign = "left";
+  context.textBaseline = "middle";
+  context.fillText(label, 44, 48);
+
+  context.fillStyle = "#6f675a";
+  context.font = "900 18px Inter, sans-serif";
+  context.textAlign = "right";
+  context.fillText(number, 468, 48);
+
+  context.fillStyle = "#2f2922";
+  context.font = "900 34px Georgia, serif";
+  context.textAlign = "left";
+  titleLines.forEach((line, index) => {
+    context.fillText(line, 44, 87 + index * 35);
+  });
+
+  context.fillStyle = "#71685b";
+  context.font = "800 18px Inter, sans-serif";
+  context.fillText(entry.district, 44, titleLines.length > 1 ? 148 : 126);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function createCitizenSpeechTexture(text: string, accent: string): THREE.CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 160;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Could not create citizen speech canvas");
+
+  const line = splitCanvasLines(context, text.toUpperCase(), 340, "900 32px Inter, sans-serif", 1)[0];
+
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.shadowColor = "rgba(55, 42, 25, 0.26)";
+  context.shadowBlur = 16;
+  roundRect(context, 42, 22, 428, 88, 20);
+  context.fillStyle = "rgba(255, 250, 240, 0.95)";
+  context.fill();
+  context.beginPath();
+  context.moveTo(224, 108);
+  context.lineTo(256, 136);
+  context.lineTo(276, 108);
+  context.closePath();
+  context.fill();
+
+  context.shadowBlur = 0;
+  roundRect(context, 42, 22, 428, 88, 20);
+  context.lineWidth = 5;
+  context.strokeStyle = accent;
+  context.stroke();
+
+  context.fillStyle = accent;
+  context.font = "900 16px Inter, sans-serif";
+  context.textAlign = "left";
+  context.textBaseline = "middle";
+  context.fillText("TOWN SIGNAL", 64, 48);
+
+  context.fillStyle = "#2f2922";
+  context.font = "900 32px Inter, sans-serif";
+  context.fillText(line, 64, 82);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function createSavedSealTexture(accent: string): THREE.CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 96;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Could not create saved seal canvas");
+
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.shadowColor = "rgba(55, 42, 25, 0.22)";
+  context.shadowBlur = 12;
+  roundRect(context, 28, 20, 200, 56, 18);
+  context.fillStyle = "#fffaf0";
+  context.fill();
+  context.shadowBlur = 0;
+  context.lineWidth = 5;
+  context.strokeStyle = accent;
+  context.stroke();
+
+  context.fillStyle = accent;
+  context.beginPath();
+  context.arc(64, 48, 15, 0, Math.PI * 2);
+  context.fill();
+  context.fillStyle = "#fffaf0";
+  context.font = "900 18px Inter, sans-serif";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillText("OK", 64, 49);
+
+  context.fillStyle = "#3e352a";
+  context.font = "900 24px Inter, sans-serif";
+  context.textAlign = "left";
+  context.fillText("SAVED", 88, 50);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function splitCanvasLines(
+  context: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  font: string,
+  maxLines: number
+): string[] {
+  context.font = font;
+  const words = text.split(/\s+/);
+  const lines: string[] = [];
+  let current = "";
+
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (context.measureText(candidate).width <= maxWidth || !current) {
+      current = candidate;
+      continue;
+    }
+
+    lines.push(current);
+    current = word;
+    if (lines.length === maxLines - 1) break;
+  }
+
+  if (current && lines.length < maxLines) lines.push(current);
+  if (!lines.length) lines.push(text);
+
+  const lastIndex = lines.length - 1;
+  while (context.measureText(lines[lastIndex]).width > maxWidth && lines[lastIndex].length > 4) {
+    lines[lastIndex] = `${lines[lastIndex].slice(0, -4).trim()}...`;
+  }
+
+  return lines;
+}
+
+function roundRect(context: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number): void {
+  context.beginPath();
+  context.moveTo(x + radius, y);
+  context.lineTo(x + width - radius, y);
+  context.quadraticCurveTo(x + width, y, x + width, y + radius);
+  context.lineTo(x + width, y + height - radius);
+  context.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  context.lineTo(x + radius, y + height);
+  context.quadraticCurveTo(x, y + height, x, y + height - radius);
+  context.lineTo(x, y + radius);
+  context.quadraticCurveTo(x, y, x + radius, y);
+  context.closePath();
 }

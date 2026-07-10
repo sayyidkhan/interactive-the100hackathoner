@@ -2,6 +2,12 @@ const STORAGE_KEY = "the100hackathoner.discovered.v1";
 
 export function loadDiscovered(): Set<string> {
   try {
+    if (new URLSearchParams(window.location.search).has("resetProgress")) {
+      const reset = new Set<string>();
+      saveDiscovered(reset);
+      return reset;
+    }
+
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return new Set(["welcome"]);
     const parsed = JSON.parse(raw);
