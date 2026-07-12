@@ -104,7 +104,6 @@ const GRAVITY = 18;
 const JUMP_VELOCITY = 7.4;
 const SHADOW_Y = 0.026;
 const PLAYER_RADIUS = 0.42;
-const MAX_CAMERA_YAW = 1.08;
 const CAMERA_OFFSET = new THREE.Vector3(-8.7, 5.25, 9.8);
 const CAMERA_DEFAULT_DISTANCE = CAMERA_OFFSET.length();
 const CAMERA_MIN_DISTANCE = 8.8;
@@ -145,6 +144,8 @@ export function initLoopTown(root: HTMLElement): void {
   player.position.set(1, 0, 2);
   player.rotation.y = Math.PI;
   scene.add(player);
+  camera.position.copy(player.position).add(CAMERA_OFFSET);
+  camera.lookAt(player.position.x, 0.82, player.position.z);
 
   let selectedWaypointId: string | null = null;
   const hud = createHud(root, {
@@ -212,7 +213,7 @@ export function initLoopTown(root: HTMLElement): void {
     }
 
     if (started && !hud.isModalOpen() && !cardOpen) {
-      updatePlayer(player, playerMotion, input, delta, colliders);
+      updatePlayer(player, playerMotion, input, delta, colliders, camera);
       nearest = findNearestDiscovery(player.position, markers);
       hud.setPrompt(nearest);
       if (selectedWaypointId && discovered.has(selectedWaypointId)) {
@@ -288,9 +289,9 @@ export function initLoopTown(root: HTMLElement): void {
 }
 
 function createLights(scene: THREE.Scene): void {
-  scene.add(new THREE.HemisphereLight("#fff8e5", "#58794f", 0.42));
+  scene.add(new THREE.HemisphereLight("#fff8e5", "#748a68", 1));
 
-  const sun = new THREE.DirectionalLight("#fff7dd", 5.45);
+  const sun = new THREE.DirectionalLight("#fff7dd", 4.15);
   sun.position.set(-11, 9.5, 8.5);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
@@ -305,6 +306,10 @@ function createLights(scene: THREE.Scene): void {
   sun.shadow.radius = 5;
   sun.shadow.blurSamples = 14;
   scene.add(sun);
+
+  const fill = new THREE.DirectionalLight("#dce9dd", 0.65);
+  fill.position.set(10, 6, -9);
+  scene.add(fill);
 }
 
 function getSoftShadowTexture(): THREE.CanvasTexture {
@@ -2029,7 +2034,7 @@ function bindLookControls(element: HTMLCanvasElement): CameraLookState {
     if (!dragging) return;
     const deltaX = event.clientX - lastX;
     lastX = event.clientX;
-    look.targetYaw = THREE.MathUtils.clamp(look.targetYaw - deltaX * 0.006, -MAX_CAMERA_YAW, MAX_CAMERA_YAW);
+    look.targetYaw -= deltaX * 0.006;
   });
 
   element.addEventListener(
@@ -2087,6 +2092,49 @@ function bindVirtualControls(root: HTMLElement, input: ReturnType<typeof createI
       if (control === "jump" || control === "inspect") setInputControl(input, control, true);
     });
   }
+
+  const joystick = root.querySelector<HTMLElement>("[data-joystick]");
+  const knob = joystick?.querySelector<HTMLElement>(".joystick-knob");
+  if (!joystick || !knob) return;
+
+  let activePointerId: number | null = null;
+
+  const updateJoystick = (event: PointerEvent) => {
+    const rect = joystick.getBoundingClientRect();
+    const radius = rect.width * 0.3;
+    const rawX = event.clientX - (rect.left + rect.width / 2);
+    const rawY = event.clientY - (rect.top + rect.height / 2);
+    const distance = Math.hypot(rawX, rawY);
+    const scale = distance > radius ? radius / distance : 1;
+    const x = rawX * scale;
+    const y = rawY * scale;
+    input.moveX = x / radius;
+    input.moveY = -y / radius;
+    knob.style.transform = `translate(${x}px, ${y}px)`;
+  };
+
+  const releaseJoystick = (event: PointerEvent) => {
+    if (activePointerId !== event.pointerId) return;
+    input.moveX = 0;
+    input.moveY = 0;
+    knob.style.transform = "translate(0, 0)";
+    joystick.classList.remove("active");
+    if (joystick.hasPointerCapture(event.pointerId)) joystick.releasePointerCapture(event.pointerId);
+    activePointerId = null;
+  };
+
+  joystick.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    activePointerId = event.pointerId;
+    joystick.setPointerCapture(event.pointerId);
+    joystick.classList.add("active");
+    updateJoystick(event);
+  });
+  joystick.addEventListener("pointermove", (event) => {
+    if (activePointerId === event.pointerId) updateJoystick(event);
+  });
+  joystick.addEventListener("pointerup", releaseJoystick);
+  joystick.addEventListener("pointercancel", releaseJoystick);
 }
 
 function updatePlayer(
@@ -2094,13 +2142,20 @@ function updatePlayer(
   motion: PlayerMotion,
   input: ReturnType<typeof createInput>,
   delta: number,
-  colliders: CollisionShape[]
+  colliders: CollisionShape[],
+  camera: THREE.PerspectiveCamera
 ): void {
-  const direction = new THREE.Vector3();
-  if (input.forward) direction.z -= 1;
-  if (input.backward) direction.z += 1;
-  if (input.left) direction.x -= 1;
-  if (input.right) direction.x += 1;
+  const forwardInput = THREE.MathUtils.clamp(Number(input.forward) - Number(input.backward) + input.moveY, -1, 1);
+  const rightInput = THREE.MathUtils.clamp(Number(input.right) - Number(input.left) + input.moveX, -1, 1);
+  const viewForward = new THREE.Vector3(
+    player.position.x - camera.position.x,
+    0,
+    player.position.z - camera.position.z
+  );
+  if (viewForward.lengthSq() < 0.0001) viewForward.set(0, 0, -1);
+  viewForward.normalize();
+  const viewRight = new THREE.Vector3(-viewForward.z, 0, viewForward.x);
+  const direction = viewForward.multiplyScalar(forwardInput).addScaledVector(viewRight, rightInput);
 
   if (input.jumpRequested) {
     input.jumpRequested = false;
@@ -2111,12 +2166,13 @@ function updatePlayer(
     }
   }
 
-  if (direction.lengthSq() > 0) {
+  const movementStrength = Math.min(direction.length(), 1);
+  if (movementStrength > 0) {
     direction.normalize();
     const walkMultiplier = typeof player.userData.walkMultiplier === "number" ? player.userData.walkMultiplier : 1;
     const sprintMultiplier = typeof player.userData.sprintMultiplier === "number" ? player.userData.sprintMultiplier : 1;
     const speed = input.sprint ? 7 * sprintMultiplier : 4.2 * walkMultiplier;
-    const nextPosition = player.position.clone().addScaledVector(direction, speed * delta);
+    const nextPosition = player.position.clone().addScaledVector(direction, speed * movementStrength * delta);
     resolvePlayerCollisions(nextPosition, colliders);
     player.position.copy(nextPosition);
     const angle = Math.atan2(-direction.x, -direction.z);

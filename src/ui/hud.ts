@@ -221,7 +221,7 @@ export function createHud(
     </button>
 
     <div class="controls-hint">
-      <b>WASD</b> walk <span>·</span> <b>shift</b> jog <span>·</span> drag look <span>·</span> scroll zoom <span>·</span> <b>E</b> read
+      <b>WASD</b> move <span>·</span> drag orbit <span>·</span> scroll zoom <span>·</span> <b>E</b> read
     </div>
 
     <div class="action-prompt" hidden>
@@ -255,56 +255,30 @@ export function createHud(
       <span class="waypoint-action">Follow the closest glow</span>
     </section>
 
-    <button class="operator-pulse" type="button" aria-label="Open live operator brief">
-      <span class="operator-pulse-kicker">Operator loop</span>
-      <span class="operator-pulse-row">
-        <strong>First proof loop</strong>
-        <em>0% mapped</em>
-      </span>
-      <span class="operator-pulse-proof">Welcome Plaza</span>
-      <span class="operator-pulse-next">
-        <b>Next move</b>
-        <span>Save Welcome Plaza</span>
-      </span>
-    </button>
-
-    <section class="trail-card" aria-live="polite">
-      <span class="trail-label">Town trail</span>
-      <span class="trail-title-row">
-        <strong class="trail-heading">First route</strong>
-        <span class="trail-count">0/${DISCOVERIES.length}</span>
-      </span>
-      <span class="trail-route-meter" aria-hidden="true"><i></i></span>
-      <div class="trail-steps"></div>
-    </section>
-
     <button class="town-map" type="button" aria-label="Open discovery map">
       <span class="town-map-label">Town map</span>
       <span class="town-map-grid" aria-hidden="true"></span>
       <span class="town-map-caption">0/${DISCOVERIES.length} found</span>
     </button>
 
-    <div class="corner-controls" aria-label="Settings">
-      <button type="button" title="zoom out" aria-label="Zoom out" data-camera-zoom="out">-</button>
-      <button type="button" title="zoom in" aria-label="Zoom in" data-camera-zoom="in">+</button>
-      <button class="sound-toggle" type="button" title="sound off" aria-label="Turn sound on" data-sound="off">🔇</button>
-      <button class="music-toggle" type="button" title="music: Focus loop" aria-label="Change music mode" data-music="focus">♪</button>
-      <button type="button" title="change persona" aria-label="Change persona" data-persona-button>🏁</button>
+    <div class="corner-controls" aria-label="View and sound controls" data-tool-dock>
+      <button type="button" title="open controls" aria-label="Open view and sound controls" aria-expanded="false" data-tools-toggle>⚙</button>
+      <button class="tool-control" type="button" title="zoom out" aria-label="Zoom out" data-camera-zoom="out">-</button>
+      <button class="tool-control" type="button" title="zoom in" aria-label="Zoom in" data-camera-zoom="in">+</button>
+      <button class="sound-toggle tool-control" type="button" title="sound off" aria-label="Turn sound on" data-sound="off">🔇</button>
+      <button class="music-toggle tool-control" type="button" title="music: Focus loop" aria-label="Change music mode" data-music="focus">♪</button>
+      <button class="tool-control" type="button" title="change persona" aria-label="Change persona" data-persona-button>🏁</button>
     </div>
 
-    <button class="persona-badge" type="button" aria-label="Change active persona" data-persona-badge>
-      <span class="persona-badge-icon">🏁</span>
-      <span>
-        <strong>Hackathoner</strong>
-        <em>Sprint bias: faster scouting</em>
-      </span>
-    </button>
+    <div class="joystick" role="group" aria-label="Movement joystick. Drag to move; WASD also works." data-joystick>
+      <span class="joystick-key joystick-key-w">W</span>
+      <span class="joystick-key joystick-key-a">A</span>
+      <span class="joystick-key joystick-key-s">S</span>
+      <span class="joystick-key joystick-key-d">D</span>
+      <span class="joystick-knob" aria-hidden="true"></span>
+    </div>
 
-    <div class="keypad" aria-label="Movement tester controls">
-      <button type="button" data-control="forward">W</button>
-      <button type="button" data-control="left">A</button>
-      <button type="button" data-control="backward">S</button>
-      <button type="button" data-control="right">D</button>
+    <div class="movement-actions" aria-label="Movement actions">
       <button type="button" data-control="sprint">Shift</button>
       <button type="button" data-control="jump">Space</button>
       <button type="button" data-control="inspect">E</button>
@@ -332,11 +306,6 @@ export function createHud(
   const waypointMeta = hud.querySelector<HTMLElement>(".waypoint-meta")!;
   const waypointClue = hud.querySelector<HTMLElement>(".waypoint-clue")!;
   const waypointAction = hud.querySelector<HTMLElement>(".waypoint-action")!;
-  const operatorPulse = hud.querySelector<HTMLButtonElement>(".operator-pulse")!;
-  const trailCard = hud.querySelector<HTMLElement>(".trail-card")!;
-  const trailHeading = hud.querySelector<HTMLElement>(".trail-heading")!;
-  const trailCount = hud.querySelector<HTMLElement>(".trail-count")!;
-  const trailSteps = hud.querySelector<HTMLElement>(".trail-steps")!;
   const townMap = hud.querySelector<HTMLButtonElement>(".town-map")!;
   const townMapGrid = hud.querySelector<HTMLElement>(".town-map-grid")!;
   const townMapCaption = hud.querySelector<HTMLElement>(".town-map-caption")!;
@@ -346,17 +315,14 @@ export function createHud(
   const personaButton = hud.querySelector<HTMLButtonElement>("[data-persona-button]")!;
   const zoomOutButton = hud.querySelector<HTMLButtonElement>("[data-camera-zoom=\"out\"]")!;
   const zoomInButton = hud.querySelector<HTMLButtonElement>("[data-camera-zoom=\"in\"]")!;
-  const personaBadge = hud.querySelector<HTMLButtonElement>("[data-persona-badge]")!;
-  const personaBadgeIcon = hud.querySelector<HTMLElement>(".persona-badge-icon")!;
-  const personaBadgeName = hud.querySelector<HTMLElement>(".persona-badge strong")!;
-  const personaBadgeTrait = hud.querySelector<HTMLElement>(".persona-badge em")!;
+  const toolDock = hud.querySelector<HTMLElement>("[data-tool-dock]")!;
+  const toolsToggle = hud.querySelector<HTMLButtonElement>("[data-tools-toggle]")!;
   let selectedPersonaIndex = 0;
   let soundEnabled = false;
   let musicModeIndex = 0;
   let toastTimer: number | undefined;
   let activeWaypointId: string | null = "welcome";
   let activeWaypointTracked = false;
-  let operatorPulseSignature = "";
   let activeCardCloseHandler: (() => void) | undefined;
   const audio = createAmbientAudio();
 
@@ -391,12 +357,7 @@ export function createHud(
     personaButton.textContent = persona.emoji;
     personaButton.title = `persona: ${persona.name}`;
     personaButton.dataset.persona = persona.id;
-    personaBadgeIcon.textContent = persona.emoji;
-    personaBadgeName.textContent = persona.name;
-    personaBadgeTrait.textContent = persona.trait;
     proximityPersona.textContent = `${persona.emoji} ${persona.name} · ${persona.trait}`;
-    personaBadge.style.setProperty("--persona-shirt", persona.colors.shirt);
-    personaBadge.style.setProperty("--persona-trim", persona.colors.trim);
     hud.dataset.selectedPersona = persona.id;
     hud.dataset.personaTrait = persona.trait;
     options.onPersonaChange?.(persona);
@@ -516,120 +477,6 @@ export function createHud(
     townMapCaption.textContent = `${discovered.size}/${DISCOVERIES.length} found`;
   };
 
-  const bindTrailButtons = () => {
-    trailSteps.querySelectorAll<HTMLButtonElement>("[data-trail-track]").forEach((button) => {
-      button.addEventListener("click", () => {
-        const entry = DISCOVERIES.find((item) => item.id === button.dataset.trailTrack);
-        if (!entry) return;
-        options.onWaypointSelect?.(entry);
-      });
-    });
-  };
-
-  const renderTrail = (discovered: Set<string>) => {
-    const locked = DISCOVERIES.filter((entry) => !discovered.has(entry.id));
-    const routeProgress = Math.round((discovered.size / DISCOVERIES.length) * 100);
-    trailCount.textContent = `${discovered.size}/${DISCOVERIES.length}`;
-    trailCard.style.setProperty("--trail-progress", `${routeProgress}%`);
-    const activeLocked = activeWaypointId
-      ? DISCOVERIES.find((entry) => entry.id === activeWaypointId && !discovered.has(entry.id))
-      : undefined;
-    const target = activeLocked ?? locked[0];
-
-    if (!target) {
-      trailCard.classList.add("complete");
-      trailCard.classList.remove("tracked");
-      trailHeading.textContent = "Archive complete";
-      trailCount.textContent = `${DISCOVERIES.length}/${DISCOVERIES.length}`;
-      trailCard.style.setProperty("--trail-progress", "100%");
-      trailSteps.innerHTML = `
-        <span class="trail-complete">
-          All current town stories are in the journal.
-        </span>
-      `;
-      return;
-    }
-
-    trailCard.classList.remove("complete");
-    trailCard.classList.toggle("tracked", activeWaypointTracked);
-    const trailItems = [target, ...locked.filter((entry) => entry.id !== target.id).slice(0, 2)];
-    trailHeading.textContent = activeWaypointTracked ? "Tracked route" : "Suggested route";
-    trailSteps.innerHTML = trailItems
-      .map((entry, index) => {
-        const theme = THEME_META[entry.theme];
-        const active = entry.id === target.id;
-        const tracking = active && activeWaypointTracked;
-        const markerLabel = entry.number ? `#${entry.number.toString().padStart(3, "0")}` : "start";
-        const stage = tracking ? "tracking" : index === 0 ? "now" : index === 1 ? "next" : "later";
-        return `
-          <button
-            class="trail-step ${active ? "active" : ""} ${tracking ? "tracking" : ""}"
-            type="button"
-            data-trail-track="${entry.id}"
-            style="--artifact-accent:${theme.accent}; --artifact-tint:${theme.tint};"
-            aria-label="Track ${escapeHtml(entry.title)}"
-          >
-            <span class="trail-index">
-              <b>${stage}</b>
-              <em>${markerLabel}</em>
-            </span>
-            <span class="trail-copy">
-              <strong>${entry.title}</strong>
-              <small>${entry.clue}</small>
-            </span>
-            <span class="trail-track-label">${tracking ? "On" : active ? "Track" : "Queue"}</span>
-          </button>
-        `;
-      })
-      .join("");
-    bindTrailButtons();
-  };
-
-  const renderOperatorPulse = (discovered: Set<string>) => {
-    const brief = getOperatorBrief(discovered);
-    const activeRouteEntry = activeWaypointId
-      ? DISCOVERIES.find((entry) => entry.id === activeWaypointId && !discovered.has(entry.id))
-      : undefined;
-    const nextEntry = activeRouteEntry ?? brief.nextEntry;
-    const proofTheme = THEME_META[brief.proofEntry.theme];
-    const nextTheme = nextEntry ? THEME_META[nextEntry.theme] : proofTheme;
-    const proofLabel = discovered.has(brief.proofEntry.id)
-      ? brief.proofEntry.title
-      : `Unlock ${brief.proofEntry.title}`;
-    const nextLabel = nextEntry
-      ? activeRouteEntry?.id === brief.proofEntry.id && !discovered.has(brief.proofEntry.id)
-        ? `Save ${nextEntry.title}`
-        : activeWaypointTracked && activeRouteEntry
-          ? `Track ${nextEntry.title}`
-          : `Go to ${nextEntry.title}`
-      : "Archive loop complete";
-    const signature = [
-      discovered.size,
-      brief.primarySignal,
-      brief.proofEntry.id,
-      nextEntry?.id ?? "complete",
-      activeWaypointTracked ? "tracked" : "suggested"
-    ].join("|");
-
-    if (signature === operatorPulseSignature) return;
-    operatorPulseSignature = signature;
-    operatorPulse.style.setProperty("--artifact-accent", nextTheme.accent);
-    operatorPulse.style.setProperty("--artifact-tint", nextTheme.tint);
-    operatorPulse.classList.toggle("tracked", Boolean(activeRouteEntry && activeWaypointTracked));
-    operatorPulse.innerHTML = `
-      <span class="operator-pulse-kicker">${activeRouteEntry && activeWaypointTracked ? "Tracked operator loop" : "Operator loop"}</span>
-      <span class="operator-pulse-row">
-        <strong>${brief.primarySignal}</strong>
-        <em>${brief.completion}% mapped</em>
-      </span>
-      <span class="operator-pulse-proof">${proofLabel}</span>
-      <span class="operator-pulse-next">
-        <b>Next move</b>
-        <span>${nextLabel}</span>
-      </span>
-    `;
-  };
-
   const openPersona = () => {
     openModal(`
       <section class="modal persona-modal">
@@ -645,7 +492,11 @@ export function createHud(
   };
 
   personaButton.addEventListener("click", openPersona);
-  personaBadge.addEventListener("click", openPersona);
+  toolsToggle.addEventListener("click", () => {
+    const expanded = toolDock.classList.toggle("expanded");
+    toolsToggle.setAttribute("aria-expanded", String(expanded));
+    toolsToggle.setAttribute("aria-label", expanded ? "Close view and sound controls" : "Open view and sound controls");
+  });
   zoomOutButton.addEventListener("click", () => options.onCameraZoom?.(1.6));
   zoomInButton.addEventListener("click", () => options.onCameraZoom?.(-1.6));
   soundButton.addEventListener("click", () => setSoundEnabled(!soundEnabled));
@@ -661,7 +512,6 @@ export function createHud(
   progressPill.addEventListener("click", () => api.openJournal(currentDiscovered));
   townMap.addEventListener("click", () => api.openJournal(currentDiscovered));
   renderTownMap(currentDiscovered);
-  renderTrail(currentDiscovered);
 
   const renderDiscoveryCard = (entry: DiscoveryEntry) => {
     const theme = THEME_META[entry.theme];
@@ -990,9 +840,6 @@ export function createHud(
     });
   };
 
-  operatorPulse.addEventListener("click", () => openOperatorBrief(currentDiscovered));
-  renderOperatorPulse(currentDiscovered);
-
   const api: HudApi = {
     setPrompt(entry) {
       prompt.hidden = !entry;
@@ -1015,8 +862,6 @@ export function createHud(
       currentDiscovered = discovered;
       progressText.textContent = formatProgress(discovered);
       renderTownMap(discovered);
-      renderTrail(discovered);
-      renderOperatorPulse(discovered);
     },
     openCard(entry, onClose) {
       openModal(renderDiscoveryCard(entry));
@@ -1130,8 +975,6 @@ export function createHud(
         waypoint.style.setProperty("--route-progress", "100%");
         waypoint.querySelector<HTMLElement>(".waypoint-label")!.textContent = "Next story";
         renderTownMap(currentDiscovered);
-        renderTrail(currentDiscovered);
-        renderOperatorPulse(currentDiscovered);
         return;
       }
 
@@ -1154,8 +997,6 @@ export function createHud(
           ? "Follow the gold route"
           : "Follow the nearest signal";
       renderTownMap(currentDiscovered);
-      renderTrail(currentDiscovered);
-      renderOperatorPulse(currentDiscovered);
     },
     showDiscoveryToast(entry, discoveredCount) {
       const theme = THEME_META[entry.theme];

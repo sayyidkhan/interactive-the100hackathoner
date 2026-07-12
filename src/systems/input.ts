@@ -3,6 +3,8 @@ export type InputState = {
   backward: boolean;
   left: boolean;
   right: boolean;
+  moveX: number;
+  moveY: number;
   sprint: boolean;
   jumpRequested: boolean;
   inspectRequested: boolean;
@@ -16,6 +18,8 @@ export function createInput(): InputState {
     backward: false,
     left: false,
     right: false,
+    moveX: 0,
+    moveY: 0,
     sprint: false,
     jumpRequested: false,
     inspectRequested: false

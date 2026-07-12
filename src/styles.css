@@ -67,12 +67,10 @@ button {
 .proximity-card,
 .discovery-toast,
 .waypoint-card,
-.operator-pulse,
-.trail-card,
 .town-map,
 .corner-controls,
-.persona-badge,
-.keypad {
+.joystick,
+.movement-actions {
   position: absolute;
   z-index: 5;
 }
@@ -80,8 +78,8 @@ button {
 .brand-card {
   top: 24px;
   left: 24px;
-  width: min(280px, calc(100vw - 48px));
-  padding: 18px 20px 17px;
+  width: min(238px, calc(100vw - 48px));
+  padding: 14px 16px;
   color: var(--ink);
   background: rgba(255, 250, 240, 0.9);
   border: 1px solid rgba(255, 255, 255, 0.66);
@@ -93,22 +91,23 @@ button {
 .brand-card h1 {
   margin: 0;
   font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(25px, 3vw, 38px);
+  font-size: 18px;
   font-weight: 700;
   line-height: 0.98;
   letter-spacing: 0;
+  white-space: nowrap;
 }
 
 .brand-card p {
-  margin: 8px 0 0;
+  margin: 6px 0 0;
   color: var(--muted);
   font-size: 13px;
   line-height: 1.35;
 }
 
 .progress-pill {
-  top: 28px;
-  right: 28px;
+  top: 24px;
+  right: 24px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -131,14 +130,14 @@ button {
 }
 
 .controls-hint {
-  top: 28px;
+  top: 24px;
   left: 50%;
   transform: translateX(-50%);
-  padding: 10px 16px;
+  padding: 9px 14px;
   color: rgba(53, 45, 36, 0.78);
   background: rgba(255, 250, 240, 0.76);
   border-radius: 999px;
-  font-size: 13px;
+  font-size: 12px;
   box-shadow: 0 10px 28px rgba(60, 48, 36, 0.1);
   backdrop-filter: blur(12px);
 }
@@ -149,17 +148,17 @@ button {
 }
 
 .corner-controls {
-  bottom: 24px;
+  bottom: 158px;
   left: 24px;
   display: flex;
-  gap: 10px;
+  gap: 7px;
   pointer-events: auto;
 }
 
 .corner-controls button {
   display: grid;
-  width: 46px;
-  height: 46px;
+  width: 40px;
+  height: 40px;
   place-items: center;
   color: var(--ink);
   background: rgba(255, 250, 240, 0.92);
@@ -170,6 +169,14 @@ button {
   transition:
     transform 160ms ease,
     background 160ms ease;
+}
+
+.corner-controls .tool-control {
+  display: none;
+}
+
+.corner-controls.expanded .tool-control {
+  display: grid;
 }
 
 .corner-controls button:hover {
@@ -198,175 +205,130 @@ button {
   line-height: 1;
 }
 
-.persona-badge {
-  bottom: 82px;
+.joystick {
   left: 24px;
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr);
-  gap: 9px;
-  align-items: center;
-  width: min(246px, calc(100vw - 48px));
-  min-height: 58px;
-  padding: 9px 11px;
-  color: var(--ink);
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--persona-shirt, #ef765f) 20%, transparent), rgba(255, 250, 240, 0.92)),
-    rgba(255, 250, 240, 0.92);
-  border: 1px solid color-mix(in srgb, var(--persona-trim, #c95749) 24%, rgba(255, 255, 255, 0.72));
-  border-radius: 7px;
-  box-shadow: 0 12px 34px rgba(60, 48, 36, 0.12);
-  cursor: pointer;
-  pointer-events: auto;
-  text-align: left;
-  backdrop-filter: blur(14px);
-  transition:
-    border-color 160ms ease,
-    transform 160ms ease,
-    background 160ms ease;
-}
-
-.persona-badge:hover,
-.persona-badge:focus-visible {
-  border-color: color-mix(in srgb, var(--persona-trim, #c95749) 46%, transparent);
-  outline: 0;
-  transform: translateY(-1px);
-}
-
-.persona-badge-icon {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  place-items: center;
-  background: color-mix(in srgb, var(--persona-shirt, #ef765f) 24%, rgba(255, 250, 240, 0.8));
-  border: 1px solid color-mix(in srgb, var(--persona-trim, #c95749) 30%, transparent);
+  bottom: 24px;
+  width: 118px;
+  height: 118px;
+  color: rgba(53, 45, 36, 0.58);
+  background: rgba(255, 250, 240, 0.58);
+  border: 1px solid rgba(255, 255, 255, 0.62);
   border-radius: 50%;
-  font-size: 17px;
+  box-shadow: 0 14px 38px rgba(60, 48, 36, 0.14);
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  backdrop-filter: blur(10px);
 }
 
-.persona-badge strong,
-.persona-badge em {
-  display: block;
-  min-width: 0;
+.joystick::before {
+  position: absolute;
+  inset: 24px;
+  border: 1px dashed rgba(87, 67, 41, 0.2);
+  border-radius: 50%;
+  content: "";
 }
 
-.persona-badge strong {
-  overflow: hidden;
-  color: var(--ink);
-  font-size: 13px;
+.joystick-key {
+  position: absolute;
+  font-size: 9px;
   font-weight: 900;
-  line-height: 1.1;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.persona-badge em {
-  display: -webkit-box;
-  margin-top: 4px;
-  overflow: hidden;
-  color: color-mix(in srgb, var(--persona-trim, #c95749) 78%, #352d24);
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  font-size: 10px;
-  font-style: normal;
-  font-weight: 900;
-  line-height: 1.15;
-  text-transform: uppercase;
+.joystick-key-w {
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
 }
 
-.hud.proximity-active .persona-badge,
-.hud.modal-open .persona-badge {
-  display: none;
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(8px);
+.joystick-key-a {
+  top: 50%;
+  left: 10px;
+  transform: translateY(-50%);
 }
 
-.keypad {
+.joystick-key-s {
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.joystick-key-d {
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+}
+
+.joystick-knob {
+  position: absolute;
+  top: calc(50% - 22px);
+  left: calc(50% - 22px);
+  width: 44px;
+  height: 44px;
+  background: rgba(255, 250, 240, 0.96);
+  border: 1px solid rgba(87, 67, 41, 0.16);
+  border-radius: 50%;
+  box-shadow: 0 8px 20px rgba(60, 48, 36, 0.18);
+  transition: box-shadow 120ms ease;
+}
+
+.joystick.active .joystick-knob {
+  background: #ffc83d;
+  box-shadow: 0 10px 24px rgba(97, 68, 18, 0.28);
+  transition: none;
+}
+
+.movement-actions {
   right: 24px;
   bottom: 24px;
-  display: grid;
-  grid-template-columns: repeat(3, 44px);
-  grid-auto-rows: 38px;
-  gap: 6px;
+  display: flex;
+  gap: 8px;
+  align-items: end;
   pointer-events: auto;
 }
 
-.keypad button {
+.movement-actions button {
+  display: grid;
+  width: 54px;
+  height: 54px;
+  place-items: center;
   color: var(--ink);
   background: rgba(255, 250, 240, 0.9);
   border: 1px solid rgba(87, 67, 41, 0.16);
-  border-radius: 6px;
+  border-radius: 50%;
   box-shadow: 0 10px 24px rgba(60, 48, 36, 0.12);
   cursor: pointer;
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 900;
-  transition:
-    transform 120ms ease,
-    background 120ms ease,
-    box-shadow 120ms ease;
   user-select: none;
 }
 
-.keypad button[data-control="forward"] {
-  grid-column: 2;
-}
-
-.keypad button[data-control="left"] {
-  grid-column: 1;
-}
-
-.keypad button[data-control="backward"] {
-  grid-column: 2;
-}
-
-.keypad button[data-control="right"] {
-  grid-column: 3;
-}
-
-.keypad button[data-control="sprint"],
-.keypad button[data-control="jump"],
-.keypad button[data-control="inspect"] {
-  width: auto;
-}
-
-.keypad button[data-control="sprint"] {
-  grid-column: 1;
-}
-
-.keypad button[data-control="jump"] {
-  grid-column: 2;
-}
-
-.keypad button[data-control="inspect"] {
-  grid-column: 3;
-}
-
-.keypad button:hover,
-.keypad button.active {
+.movement-actions button:hover,
+.movement-actions button.active {
   transform: translateY(-2px);
   background: #ffc83d;
   box-shadow: 0 14px 30px rgba(97, 68, 18, 0.22);
 }
 
 .action-prompt {
-  bottom: 28px;
+  bottom: 22px;
   left: 50%;
   transform: translateX(-50%);
-  padding: 13px 20px;
+  padding: 10px 16px;
   color: #3d2f17;
   background: #ffc83d;
   border: 1px solid rgba(255, 255, 255, 0.52);
   border-radius: 999px;
   box-shadow: 0 14px 36px rgba(97, 68, 18, 0.24);
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 700;
 }
 
 .proximity-card {
-  bottom: 88px;
+  bottom: 72px;
   left: 50%;
-  width: min(390px, calc(100vw - 48px));
-  padding: 14px 16px 15px;
+  width: min(300px, calc(100vw - 48px));
+  padding: 10px 12px;
   color: var(--ink);
   background:
     linear-gradient(135deg, color-mix(in srgb, var(--artifact-tint, #f6d9d1) 78%, transparent), rgba(255, 250, 240, 0.94)),
@@ -384,10 +346,10 @@ button {
 
 .proximity-card::before {
   position: absolute;
-  top: 14px;
-  right: 14px;
-  width: 10px;
-  height: 10px;
+  top: 11px;
+  right: 11px;
+  width: 8px;
+  height: 8px;
   background: var(--artifact-accent, var(--accent));
   border-radius: 50%;
   box-shadow: 0 0 0 6px color-mix(in srgb, var(--artifact-accent, var(--accent)) 16%, transparent);
@@ -413,44 +375,35 @@ button {
 .proximity-title {
   display: block;
   max-width: calc(100% - 28px);
-  margin-top: 5px;
+  margin-top: 3px;
   overflow-wrap: anywhere;
   font-family: Georgia, "Times New Roman", serif;
-  font-size: 24px;
+  font-size: 18px;
   line-height: 1.02;
 }
 
 .proximity-meta {
-  margin-top: 7px;
+  margin-top: 4px;
   color: rgba(53, 45, 36, 0.62);
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 900;
 }
 
 .proximity-clue {
-  margin-top: 7px;
+  display: none;
   color: var(--muted);
   font-size: 12px;
   line-height: 1.35;
 }
 
 .proximity-persona {
-  margin-top: 10px;
-  padding: 7px 9px;
-  color: color-mix(in srgb, var(--artifact-accent, var(--accent)) 72%, #352d24);
-  background: rgba(255, 250, 240, 0.62);
-  border: 1px solid color-mix(in srgb, var(--artifact-accent, var(--accent)) 18%, transparent);
-  border-radius: 6px;
-  font-size: 10px;
-  font-weight: 900;
-  line-height: 1.18;
-  text-transform: uppercase;
+  display: none;
 }
 
 .proximity-status {
-  margin-top: 10px;
+  margin-top: 6px;
   color: color-mix(in srgb, var(--artifact-accent, var(--accent)) 78%, #352d24);
-  font-size: 11px;
+  font-size: 9px;
   font-weight: 900;
   text-transform: uppercase;
 }
@@ -552,10 +505,11 @@ button {
 }
 
 .waypoint-card {
+  top: 230px;
   right: 24px;
-  bottom: 184px;
-  width: min(260px, calc(100vw - 48px));
-  padding: 14px 16px 15px;
+  bottom: auto;
+  width: min(200px, calc(100vw - 48px));
+  padding: 10px 12px;
   color: var(--ink);
   background: rgba(255, 250, 240, 0.88);
   border: 1px solid rgba(255, 255, 255, 0.7);
@@ -580,24 +534,21 @@ button {
 
 .waypoint-title {
   display: block;
-  margin-top: 5px;
+  margin-top: 3px;
   font-family: Georgia, "Times New Roman", serif;
-  font-size: 22px;
+  font-size: 17px;
   line-height: 1.02;
 }
 
 .waypoint-meta {
-  margin-top: 7px;
+  margin-top: 4px;
   color: rgba(53, 45, 36, 0.58);
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 800;
 }
 
 .waypoint-clue {
-  margin-top: 9px;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.35;
+  display: none;
 }
 
 .waypoint-card.complete .waypoint-label {
@@ -627,7 +578,7 @@ button {
 }
 
 .waypoint-progress {
-  display: block;
+  display: none;
   height: 7px;
   margin-top: 12px;
   overflow: hidden;
@@ -649,7 +600,7 @@ button {
 }
 
 .waypoint-action {
-  display: block;
+  display: none;
   margin-top: 9px;
   color: rgba(53, 45, 36, 0.62);
   font-size: 10px;
@@ -662,326 +613,13 @@ button {
   color: #6d4b1f;
 }
 
-.operator-pulse {
-  top: 88px;
-  right: 28px;
-  display: grid;
-  width: min(260px, calc(100vw - 56px));
-  min-height: 116px;
-  padding: 14px 16px 15px;
-  color: var(--ink);
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--artifact-tint, #f2e3c4) 52%, transparent), rgba(255, 250, 240, 0.9));
-  border: 1px solid color-mix(in srgb, var(--artifact-accent, #d2ad6a) 32%, rgba(255, 255, 255, 0.66));
-  border-radius: 7px;
-  box-shadow: 0 12px 34px rgba(60, 48, 36, 0.12);
-  cursor: pointer;
-  gap: 8px;
-  pointer-events: auto;
-  text-align: left;
-  backdrop-filter: blur(14px);
-  transition:
-    background 160ms ease,
-    border-color 160ms ease,
-    box-shadow 160ms ease,
-    transform 160ms ease;
-}
-
-.operator-pulse:hover,
-.operator-pulse:focus-visible {
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--artifact-tint, #f2e3c4) 72%, transparent), rgba(255, 250, 240, 0.96));
-  border-color: color-mix(in srgb, var(--artifact-accent, #d2ad6a) 52%, rgba(255, 255, 255, 0.72));
-  box-shadow: 0 16px 44px rgba(60, 48, 36, 0.16);
-  outline: 0;
-  transform: translateY(-2px);
-}
-
-.operator-pulse.tracked {
-  box-shadow:
-    0 14px 38px rgba(60, 48, 36, 0.14),
-    inset 3px 0 0 #d2ad6a;
-}
-
-.operator-pulse-kicker,
-.operator-pulse-row,
-.operator-pulse-proof,
-.operator-pulse-next,
-.operator-pulse-next b,
-.operator-pulse-next span {
-  display: block;
-  min-width: 0;
-}
-
-.operator-pulse-kicker {
-  color: color-mix(in srgb, var(--artifact-accent, #d2ad6a) 76%, #352d24);
-  font-size: 10px;
-  font-weight: 900;
-  line-height: 1.1;
-  text-transform: uppercase;
-}
-
-.operator-pulse-row {
-  display: flex;
-  align-items: start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.operator-pulse-row strong {
-  overflow-wrap: anywhere;
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 20px;
-  line-height: 1.03;
-}
-
-.operator-pulse-row em {
-  flex: 0 0 auto;
-  padding: 4px 6px;
-  color: color-mix(in srgb, var(--artifact-accent, #d2ad6a) 76%, #352d24);
-  background: rgba(255, 250, 240, 0.66);
-  border: 1px solid color-mix(in srgb, var(--artifact-accent, #d2ad6a) 22%, transparent);
-  border-radius: 999px;
-  font-size: 10px;
-  font-style: normal;
-  font-weight: 900;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.operator-pulse-proof {
-  overflow: hidden;
-  color: rgba(53, 45, 36, 0.68);
-  font-size: 12px;
-  font-weight: 850;
-  line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.operator-pulse-next {
-  display: grid;
-  gap: 3px;
-  padding-top: 8px;
-  border-top: 1px solid rgba(87, 67, 41, 0.1);
-}
-
-.operator-pulse-next b {
-  color: rgba(53, 45, 36, 0.52);
-  font-size: 9px;
-  font-weight: 900;
-  line-height: 1.1;
-  text-transform: uppercase;
-}
-
-.operator-pulse-next span {
-  overflow-wrap: anywhere;
-  color: var(--ink);
-  font-size: 12px;
-  font-weight: 900;
-  line-height: 1.18;
-}
-
-.trail-card {
-  top: 160px;
-  left: 24px;
-  width: min(282px, calc(100vw - 48px));
-  padding: 13px;
-  color: var(--ink);
-  background: rgba(255, 250, 240, 0.84);
-  border: 1px solid rgba(255, 255, 255, 0.68);
-  border-radius: 7px;
-  box-shadow: 0 12px 34px rgba(60, 48, 36, 0.12);
-  pointer-events: auto;
-  backdrop-filter: blur(14px);
-}
-
-.trail-label,
-.trail-title-row,
-.trail-heading,
-.trail-count {
-  display: block;
-}
-
-.trail-label {
-  color: var(--accent-dark);
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
-
-.trail-heading {
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 20px;
-  line-height: 1.05;
-}
-
-.trail-title-row {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 5px;
-}
-
-.trail-count {
-  flex: 0 0 auto;
-  color: rgba(53, 45, 36, 0.58);
-  font-size: 10px;
-  font-weight: 900;
-  line-height: 1;
-  text-transform: uppercase;
-}
-
-.trail-route-meter {
-  position: relative;
-  display: block;
-  height: 6px;
-  margin-top: 10px;
-  overflow: hidden;
-  background: rgba(87, 67, 41, 0.1);
-  border-radius: 999px;
-}
-
-.trail-route-meter i {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: var(--trail-progress, 0%);
-  background:
-    linear-gradient(90deg, rgba(238, 118, 95, 0.9), rgba(210, 173, 106, 0.92), rgba(111, 166, 160, 0.88));
-  border-radius: inherit;
-  transition: width 220ms ease;
-}
-
-.trail-steps {
-  display: grid;
-  gap: 7px;
-  margin-top: 10px;
-}
-
-.trail-step {
-  display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) 38px;
-  align-items: center;
-  gap: 3px 9px;
-  width: 100%;
-  min-height: 66px;
-  padding: 9px 10px;
-  color: inherit;
-  background: rgba(255, 250, 240, 0.66);
-  border: 1px solid rgba(87, 67, 41, 0.1);
-  border-radius: 6px;
-  cursor: pointer;
-  text-align: left;
-  transition:
-    background 160ms ease,
-    border-color 160ms ease,
-    transform 160ms ease;
-}
-
-.trail-step:hover,
-.trail-step:focus-visible {
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--artifact-tint) 54%, transparent), rgba(255, 250, 240, 0.9));
-  border-color: color-mix(in srgb, var(--artifact-accent) 30%, transparent);
-  outline: 0;
-  transform: translateX(2px);
-}
-
-.trail-step.active {
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--artifact-tint) 72%, transparent), rgba(255, 250, 240, 0.88));
-  border-color: color-mix(in srgb, var(--artifact-accent) 38%, transparent);
-  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--artifact-accent) 86%, #352d24);
-}
-
-.trail-step.tracking {
-  border-color: rgba(210, 173, 106, 0.5);
-  box-shadow:
-    inset 3px 0 0 #d2ad6a,
-    0 8px 20px rgba(60, 48, 36, 0.08);
-}
-
-.trail-card.tracked .trail-label {
-  color: #9c7032;
-}
-
-.trail-index {
-  display: grid;
-  gap: 4px;
-}
-
-.trail-index b,
-.trail-index em,
-.trail-track-label {
-  color: color-mix(in srgb, var(--artifact-accent) 80%, #352d24);
-  font-size: 10px;
-  font-weight: 900;
-  line-height: 1.1;
-  font-style: normal;
-  text-transform: uppercase;
-}
-
-.trail-index b {
-  color: rgba(53, 45, 36, 0.52);
-  font-size: 9px;
-}
-
-.trail-copy {
-  display: grid;
-  min-width: 0;
-  gap: 3px;
-}
-
-.trail-track-label {
-  justify-self: end;
-  padding: 5px 0;
-  color: rgba(53, 45, 36, 0.54);
-}
-
-.trail-step.active .trail-track-label,
-.trail-step.tracking .trail-track-label {
-  color: color-mix(in srgb, var(--artifact-accent) 82%, #352d24);
-}
-
-.trail-step strong,
-.trail-step small {
-  display: block;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.trail-step strong {
-  font-size: 12px;
-  line-height: 1.16;
-}
-
-.trail-step small {
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1.22;
-}
-
-.trail-complete {
-  display: block;
-  padding: 10px;
-  color: var(--muted);
-  background: rgba(255, 250, 240, 0.7);
-  border: 1px solid rgba(81, 120, 63, 0.16);
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 1.3;
-}
-
 .town-map {
+  top: 84px;
   right: 24px;
-  bottom: 356px;
+  bottom: auto;
   display: block;
-  width: 184px;
-  padding: 12px;
+  width: 132px;
+  padding: 9px;
   color: var(--ink);
   background: rgba(255, 250, 240, 0.86);
   border: 1px solid rgba(255, 255, 255, 0.68);
@@ -1015,9 +653,9 @@ button {
 }
 
 .town-map-caption {
-  margin-top: 8px;
+  margin-top: 5px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 800;
 }
 
@@ -1036,8 +674,8 @@ button {
 }
 
 .town-map-grid {
-  height: 116px;
-  margin-top: 9px;
+  height: 68px;
+  margin-top: 6px;
 }
 
 .town-map-grid::before,
@@ -2646,31 +2284,17 @@ dd {
   .brand-card {
     top: 16px;
     left: 16px;
-    width: 220px;
+    width: 210px;
   }
 
-  .trail-card {
-    top: 136px;
-    left: 16px;
-    width: min(240px, calc(100vw - 32px));
+  .brand-card h1 {
+    font-size: 15px;
   }
 
   .progress-pill {
     top: 18px;
     right: 16px;
     max-width: 270px;
-  }
-
-  .operator-pulse {
-    top: 72px;
-    right: 16px;
-    width: min(250px, calc(100vw - 32px));
-    min-height: 108px;
-    padding: 12px 13px;
-  }
-
-  .operator-pulse-row strong {
-    font-size: 18px;
   }
 
   .discovery-card {
@@ -2683,35 +2307,45 @@ dd {
     grid-template-columns: 1fr;
   }
 
-  .keypad {
-    right: 16px;
-    bottom: 16px;
-    grid-template-columns: repeat(3, 40px);
-    grid-auto-rows: 36px;
-  }
-
   .waypoint-card {
     right: 16px;
-    bottom: 160px;
-    width: min(230px, calc(100vw - 32px));
+    top: 204px;
+    bottom: auto;
+    width: min(180px, calc(100vw - 32px));
   }
 
   .town-map {
     right: 16px;
-    bottom: 314px;
-    width: 150px;
+    top: 74px;
+    bottom: auto;
+    width: 120px;
   }
 
   .town-map-grid {
-    height: 92px;
+    height: 58px;
+  }
+
+  .joystick {
+    left: 16px;
+    bottom: 16px;
+  }
+
+  .corner-controls {
+    left: 16px;
+    bottom: 150px;
+  }
+
+  .movement-actions {
+    right: 16px;
+    bottom: 16px;
   }
 }
 
 @media (max-width: 980px), (max-height: 650px) {
   .proximity-card {
-    left: 24px;
-    width: min(360px, calc(100vw - 48px));
-    transform: none;
+    left: 50%;
+    width: min(300px, calc(100vw - 48px));
+    transform: translateX(-50%);
   }
 
   .hud.toast-active .proximity-card {
@@ -2814,25 +2448,17 @@ dd {
 }
 
 @media (max-height: 650px) {
-  .operator-pulse {
-    display: none;
-  }
-
-  .persona-badge {
-    display: none;
-  }
-
   .town-map {
-    top: 84px;
+    top: 74px;
     right: 24px;
     bottom: auto;
-    width: 150px;
-    padding: 10px;
+    width: 120px;
+    padding: 8px;
   }
 
   .town-map-grid {
-    height: 76px;
-    margin-top: 8px;
+    height: 56px;
+    margin-top: 6px;
   }
 
   .town-map-caption {
@@ -2840,30 +2466,15 @@ dd {
   }
 
   .waypoint-card {
-    right: 190px;
-    bottom: 148px;
-    width: min(236px, calc(100vw - 420px));
-    padding: 12px 13px 13px;
+    top: 190px;
+    right: 24px;
+    bottom: auto;
+    width: 176px;
+    padding: 9px 11px;
   }
 
   .waypoint-title {
-    font-size: 20px;
-  }
-
-  .waypoint-clue {
-    font-size: 11px;
-  }
-
-  .waypoint-progress {
-    margin-top: 9px;
-  }
-
-  .waypoint-action {
-    margin-top: 7px;
-  }
-
-  .trail-card {
-    display: none;
+    font-size: 16px;
   }
 }
 
