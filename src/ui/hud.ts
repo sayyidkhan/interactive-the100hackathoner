@@ -5,7 +5,6 @@ export type HudApi = {
   setProgress: (discovered: Set<string>) => void;
   openCard: (entry: DiscoveryEntry, onClose: () => void) => void;
   closeCard: () => void;
-  openIntro: (onStart: () => void) => void;
   openPersona: () => void;
   openJournal: (discovered: Set<string>) => void;
   isModalOpen: () => boolean;
@@ -33,18 +32,6 @@ export type PersonaOption = {
     shoes: string;
     hair: string;
   };
-};
-
-type MusicModeId = "focus" | "drift" | "sprint";
-
-type MusicMode = {
-  id: MusicModeId;
-  icon: string;
-  label: string;
-  notes: number[];
-  harmony: number[];
-  intervalMs: number;
-  volume: number;
 };
 
 type ThemeMeta = {
@@ -86,12 +73,6 @@ type MomentumMilestone = {
 
 const MAP_MIN = -15;
 const MAP_SIZE = 30;
-
-const MUSIC_MODES: MusicMode[] = [
-  { id: "focus", icon: "♪", label: "Focus loop", notes: [196, 247, 294, 247], harmony: [98, 123, 147, 123], intervalMs: 1100, volume: 0.018 },
-  { id: "drift", icon: "♬", label: "Drift loop", notes: [174, 220, 261, 220], harmony: [87, 110, 130, 110], intervalMs: 1400, volume: 0.016 },
-  { id: "sprint", icon: "♫", label: "Sprint loop", notes: [220, 277, 330, 370], harmony: [110, 138, 165, 185], intervalMs: 760, volume: 0.014 }
-];
 
 const THEME_META: Record<DiscoveryEntry["theme"], ThemeMeta> = {
   "ai-agents": { label: "Agent loop", accent: "#6fa6a0", tint: "#d7ebe6", signal: "automation" },
@@ -212,12 +193,10 @@ export function createHud(
   hud.innerHTML = `
     <section class="brand-card">
       <h1>The 100 Hackathoner</h1>
-      <p>a walkable proof-of-work archive</p>
     </section>
 
-    <button class="progress-pill" type="button" aria-label="Open discovery journal">
-      <span class="star">✦</span>
-      <span class="progress-text">${formatProgress(new Set())}</span>
+    <button class="progress-pill" type="button" aria-label="Open the 100 Hackathoner Ville journal">
+      <span class="progress-text">100-hackathoner-ville</span>
     </button>
 
     <div class="controls-hint">
@@ -263,11 +242,12 @@ export function createHud(
 
     <div class="corner-controls" aria-label="View and sound controls" data-tool-dock>
       <button type="button" title="open controls" aria-label="Open view and sound controls" aria-expanded="false" data-tools-toggle>⚙</button>
-      <button class="tool-control" type="button" title="zoom out" aria-label="Zoom out" data-camera-zoom="out">-</button>
-      <button class="tool-control" type="button" title="zoom in" aria-label="Zoom in" data-camera-zoom="in">+</button>
-      <button class="sound-toggle tool-control" type="button" title="sound off" aria-label="Turn sound on" data-sound="off">🔇</button>
-      <button class="music-toggle tool-control" type="button" title="music: Focus loop" aria-label="Change music mode" data-music="focus">♪</button>
-      <button class="tool-control" type="button" title="change persona" aria-label="Change persona" data-persona-button>🏁</button>
+      <div class="tool-panel" aria-label="View and sound options">
+        <button class="tool-control" type="button" title="zoom out" aria-label="Zoom out" data-camera-zoom="out">-</button>
+        <button class="tool-control" type="button" title="zoom in" aria-label="Zoom in" data-camera-zoom="in">+</button>
+        <button class="sound-toggle tool-control" type="button" title="village music off" aria-label="Play village music" data-sound="off">♪</button>
+        <button class="tool-control" type="button" title="change persona" aria-label="Change persona" data-persona-button>🏁</button>
+      </div>
     </div>
 
     <div class="joystick" role="group" aria-label="Movement joystick. Drag to move; WASD also works." data-joystick>
@@ -284,12 +264,15 @@ export function createHud(
       <button type="button" data-control="inspect">E</button>
     </div>
 
+    <div class="cinematic-frame" aria-hidden="true">
+      <span>The 100 Hackathoner</span>
+    </div>
+
     <div class="modal-layer" hidden></div>
   `;
   root.appendChild(hud);
 
   const progressPill = hud.querySelector<HTMLButtonElement>(".progress-pill")!;
-  const progressText = hud.querySelector<HTMLElement>(".progress-text")!;
   const prompt = hud.querySelector<HTMLElement>(".action-prompt")!;
   const proximityCard = hud.querySelector<HTMLElement>(".proximity-card")!;
   const proximityTitle = hud.querySelector<HTMLElement>(".proximity-title")!;
@@ -311,7 +294,6 @@ export function createHud(
   const townMapCaption = hud.querySelector<HTMLElement>(".town-map-caption")!;
   const modalLayer = hud.querySelector<HTMLElement>(".modal-layer")!;
   const soundButton = hud.querySelector<HTMLButtonElement>("[data-sound]")!;
-  const musicButton = hud.querySelector<HTMLButtonElement>("[data-music]")!;
   const personaButton = hud.querySelector<HTMLButtonElement>("[data-persona-button]")!;
   const zoomOutButton = hud.querySelector<HTMLButtonElement>("[data-camera-zoom=\"out\"]")!;
   const zoomInButton = hud.querySelector<HTMLButtonElement>("[data-camera-zoom=\"in\"]")!;
@@ -319,7 +301,6 @@ export function createHud(
   const toolsToggle = hud.querySelector<HTMLButtonElement>("[data-tools-toggle]")!;
   let selectedPersonaIndex = 0;
   let soundEnabled = false;
-  let musicModeIndex = 0;
   let toastTimer: number | undefined;
   let activeWaypointId: string | null = "welcome";
   let activeWaypointTracked = false;
@@ -367,22 +348,11 @@ export function createHud(
     soundEnabled = enabled && audio.supported;
     hud.dataset.audioState = soundEnabled ? "on" : "off";
     soundButton.dataset.sound = soundEnabled ? "on" : "off";
-    soundButton.textContent = soundEnabled ? "🔊" : "🔇";
-    soundButton.title = soundEnabled ? "sound on" : "sound off";
-    soundButton.setAttribute("aria-label", soundEnabled ? "Turn sound off" : "Turn sound on");
+    soundButton.textContent = soundEnabled ? "♫" : "♪";
+    soundButton.title = soundEnabled ? "pause village music" : "play village music";
+    soundButton.setAttribute("aria-label", soundEnabled ? "Pause village music" : "Play village music");
     soundButton.classList.toggle("active", soundEnabled);
     void audio.setEnabled(soundEnabled);
-  };
-
-  const setMusicMode = (index: number) => {
-    musicModeIndex = (index + MUSIC_MODES.length) % MUSIC_MODES.length;
-    const mode = MUSIC_MODES[musicModeIndex];
-    hud.dataset.musicMode = mode.id;
-    musicButton.dataset.music = mode.id;
-    musicButton.textContent = mode.icon;
-    musicButton.title = `music: ${mode.label}`;
-    musicButton.setAttribute("aria-label", `Change music mode. Current: ${mode.label}`);
-    audio.setMode(mode);
   };
 
   const renderPersonaOptions = () =>
@@ -405,43 +375,6 @@ export function createHud(
         `
       )
       .join("");
-
-  const renderIntroRoutePreview = () => {
-    const route = ["welcome", "operator-bench", "agentic-lab"]
-      .map((id) => DISCOVERIES.find((entry) => entry.id === id))
-      .filter((entry): entry is DiscoveryEntry => Boolean(entry));
-    const firstMilestone = MOMENTUM_MILESTONES[0];
-
-    return `
-      <section class="intro-mission" aria-label="Starter route">
-        <div class="intro-mission-topline">
-          <span>Starter route</span>
-          <strong>${JOURNEY_PROGRESS.completed}/${JOURNEY_PROGRESS.target} shipped</strong>
-        </div>
-        <ol class="intro-route">
-          ${route
-            .map((entry, index) => {
-              const theme = THEME_META[entry.theme];
-              return `
-                <li style="--artifact-accent:${theme.accent}; --artifact-tint:${theme.tint};">
-                  <b>${index === 0 ? "start" : `0${index + 1}`}</b>
-                  <span>
-                    <strong>${entry.title}</strong>
-                    <small>${entry.clue}</small>
-                  </span>
-                </li>
-              `;
-            })
-            .join("")}
-        </ol>
-        <div class="intro-checkpoint">
-          <span>First checkpoint</span>
-          <strong>${firstMilestone.label}</strong>
-          <small>${firstMilestone.action}</small>
-        </div>
-      </section>
-    `;
-  };
 
   const bindPersonaSelection = () => {
     modalLayer.querySelectorAll<HTMLButtonElement>("[data-persona-index]").forEach((button) => {
@@ -500,11 +433,6 @@ export function createHud(
   zoomOutButton.addEventListener("click", () => options.onCameraZoom?.(1.6));
   zoomInButton.addEventListener("click", () => options.onCameraZoom?.(-1.6));
   soundButton.addEventListener("click", () => setSoundEnabled(!soundEnabled));
-  musicButton.addEventListener("click", () => {
-    setMusicMode(musicModeIndex + 1);
-    if (soundEnabled) audio.ping(440 + musicModeIndex * 110);
-  });
-  setMusicMode(musicModeIndex);
   setSoundEnabled(false);
   selectPersona(selectedPersonaIndex);
 
@@ -860,7 +788,6 @@ export function createHud(
     },
     setProgress(discovered) {
       currentDiscovered = discovered;
-      progressText.textContent = formatProgress(discovered);
       renderTownMap(discovered);
     },
     openCard(entry, onClose) {
@@ -892,32 +819,6 @@ export function createHud(
     },
     isModalOpen() {
       return !modalLayer.hasAttribute("hidden");
-    },
-    openIntro(onStart) {
-      openModal(`
-        <section class="modal intro-modal">
-          <div class="modal-emoji">🏘️</div>
-          <h2>Welcome to Hackathoner Loop Town</h2>
-          <p>
-            A tiny town built out of Sayyid's hackathons, experiments, and operator lessons.
-            Wander around - every glowing marker is a story to turn into leverage.
-          </p>
-          ${renderIntroRoutePreview()}
-          <p class="choose-label">choose your wanderer:</p>
-          <div class="persona-grid intro-personas">
-            ${renderPersonaOptions()}
-          </div>
-          <div class="walk-hint">
-            WASD or arrows to walk · hold shift to jog · drag to look around · scroll or pinch to zoom · space or E to read
-          </div>
-          <button class="primary-action" type="button" data-start>Start the proof walk</button>
-        </section>
-      `);
-      bindPersonaSelection();
-      modalLayer.querySelector("[data-start]")?.addEventListener("click", () => {
-        closeModal();
-        onStart();
-      });
     },
     openPersona,
     openJournal(discovered) {
@@ -1366,45 +1267,25 @@ function getArtifactStats(entry: DiscoveryEntry): Array<{ label: string; value: 
 function createAmbientAudio(): {
   supported: boolean;
   setEnabled: (enabled: boolean) => Promise<void>;
-  setMode: (mode: MusicMode) => void;
   ping: (frequency: number) => void;
 } {
   const AudioContextConstructor =
     window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  const music = new Audio("/audio/peaceful-ville.ogg");
+  music.loop = true;
+  music.preload = "auto";
+  music.volume = 0.24;
   let context: AudioContext | null = null;
   let master: GainNode | null = null;
-  let lead: OscillatorNode | null = null;
-  let harmony: OscillatorNode | null = null;
-  let timer: number | undefined;
-  let mode = MUSIC_MODES[0];
   let enabled = false;
-  let step = 0;
 
   const ensureContext = async () => {
     if (!AudioContextConstructor) return null;
     if (!context) {
       context = new AudioContextConstructor();
       master = context.createGain();
-      master.gain.value = 0;
+      master.gain.value = 0.7;
       master.connect(context.destination);
-
-      const filter = context.createBiquadFilter();
-      filter.type = "lowpass";
-      filter.frequency.value = 720;
-      filter.connect(master);
-
-      lead = context.createOscillator();
-      lead.type = "sine";
-      lead.frequency.value = mode.notes[0];
-      lead.connect(filter);
-
-      harmony = context.createOscillator();
-      harmony.type = "triangle";
-      harmony.frequency.value = mode.harmony[0];
-      harmony.connect(filter);
-
-      lead.start();
-      harmony.start();
     }
 
     if (context.state === "suspended") {
@@ -1414,44 +1295,20 @@ function createAmbientAudio(): {
     return context;
   };
 
-  const scheduleStep = () => {
-    if (!context || !lead || !harmony) return;
-    const now = context.currentTime;
-    const noteIndex = step % mode.notes.length;
-    lead.frequency.setTargetAtTime(mode.notes[noteIndex], now, 0.08);
-    harmony.frequency.setTargetAtTime(mode.harmony[noteIndex], now, 0.12);
-    step += 1;
-  };
-
-  const stopTimer = () => {
-    if (timer) {
-      window.clearInterval(timer);
-      timer = undefined;
-    }
-  };
-
-  const startTimer = () => {
-    stopTimer();
-    scheduleStep();
-    timer = window.setInterval(scheduleStep, mode.intervalMs);
-  };
-
   return {
-    supported: Boolean(AudioContextConstructor),
+    supported: true,
     async setEnabled(nextEnabled) {
       enabled = nextEnabled;
-      if (!enabled && !context) return;
-      const currentContext = await ensureContext();
-      if (!currentContext || !master) return;
-      const target = enabled ? mode.volume : 0;
-      master.gain.setTargetAtTime(target, currentContext.currentTime, 0.1);
-      if (enabled) startTimer();
-      else stopTimer();
-    },
-    setMode(nextMode) {
-      mode = nextMode;
-      step = 0;
-      if (enabled) startTimer();
+      if (!enabled) {
+        music.pause();
+        return;
+      }
+      await ensureContext();
+      try {
+        await music.play();
+      } catch {
+        enabled = false;
+      }
     },
     ping(frequency) {
       if (!enabled || !context || !master) return;
@@ -1469,10 +1326,6 @@ function createAmbientAudio(): {
       oscillator.stop(now + 0.26);
     }
   };
-}
-
-function formatProgress(discovered: Set<string>): string {
-  return `${JOURNEY_PROGRESS.completed}/${JOURNEY_PROGRESS.target} shipped · ${discovered.size}/${DISCOVERIES.length} found`;
 }
 
 function themeIcon(theme: DiscoveryEntry["theme"]): string {
