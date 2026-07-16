@@ -150,7 +150,7 @@ export const DISCOVERIES: DiscoveryEntry[] = [
     operatorInsight: "Distribution for devtools starts with a painful repeated workflow and a sharp demo.",
     businessAngle: "Use demos, templates, and open-source hooks to earn developer trust.",
     nextClue: "Return to the plaza and open the journal.",
-    position: { x: 12, z: 1 }
+    position: { x: 16.1, z: 4.5 }
   },
   {
     id: "distribution-market",

@@ -567,7 +567,8 @@ function createTown(scene: THREE.Scene): CollisionShape[] {
   addBuilding(scene, "Crypto Alley", -9, 7, "#929eae", "#6c7787");
   addBuilding(scene, "Founder School", -1.5, 13.1, "#cfb889", "#9d835c");
   addBuilding(scene, "Winners Hall", 0, -11, "#bc967c", "#896957");
-  addMarket(scene, "Devtools", 12, 1, "#d9bd7b");
+  addMarketLawn(scene, 17.2, 5.2, 5, 4.4);
+  addMarket(scene, "Devtools", 16.1, 4.5, "#d9bd7b", Math.PI);
   addMarketLawn(scene, 7.4, 2.85);
   addMarketBooth(scene, 7.4, 2.85, "Idea Exchange", "#d5745c", "#f2d583");
   addMarketBooth(scene, -4.9, -7.3, "Demo Bar", "#5f8f83", "#f2ead8");
@@ -614,7 +615,7 @@ function createTownColliders(): CollisionShape[] {
     addBox(x, z, 4.9, 4.25);
   }
 
-  addBox(12, 1, 3.3, 2);
+  addBox(16.1, 4.5, 3.3, 2);
   addCircle(0, 0, 1.75, 0.45);
   addCircle(-2.85, 2.15, 1.55, 0.42);
 
@@ -628,7 +629,7 @@ function createTownColliders(): CollisionShape[] {
     [-15.2, -4.1],
     [-5, -12],
     [5.5, -12],
-    [13.5, 0.5],
+    [15.7, 12.6],
     [-1.2, 13],
     [10.8, 10.5]
   ] as const) {
@@ -1413,7 +1414,7 @@ function addBuildingCharacter(group: THREE.Group, label: string, width: number, 
   }
 }
 
-function addMarket(scene: THREE.Scene, label: string, x: number, z: number, color: string): void {
+function addMarket(scene: THREE.Scene, label: string, x: number, z: number, color: string, rotationY = 0): void {
   const stall = new THREE.Group();
   const counter = new THREE.Mesh(
     new THREE.BoxGeometry(2.8, 1, 1.5),
@@ -1437,6 +1438,7 @@ function addMarket(scene: THREE.Scene, label: string, x: number, z: number, colo
 
   addSoftShadow(stall, 0.6, 0.45, 3.4, 1.9, -0.12, 0.2);
   stall.position.set(x, 0, z);
+  stall.rotation.y = rotationY;
   scene.add(stall);
 }
 
@@ -1504,9 +1506,9 @@ function addMarketBooth(
   scene.add(booth);
 }
 
-function addMarketLawn(scene: THREE.Scene, x: number, z: number): void {
+function addMarketLawn(scene: THREE.Scene, x: number, z: number, width = 3.75, depth = 2.55): void {
   const lawn = new THREE.Mesh(
-    new THREE.PlaneGeometry(3.75, 2.55),
+    new THREE.PlaneGeometry(width, depth),
     new THREE.MeshStandardMaterial({ color: "#96af78", roughness: 0.96 })
   );
   lawn.rotation.x = -Math.PI / 2;
@@ -1928,6 +1930,7 @@ function addDistrictProps(scene: THREE.Scene): void {
 }
 
 function addTrees(scene: THREE.Scene): void {
+  const treeLawnMaterial = new THREE.MeshStandardMaterial({ color: "#9fba79", roughness: 0.94 });
   const positions = [
     [-13, -8],
     [-12, 8],
@@ -1938,7 +1941,7 @@ function addTrees(scene: THREE.Scene): void {
     [-15.2, -4.1],
     [-5, -12],
     [5.5, -12],
-    [13.5, 0.5],
+    [15.7, 12.6],
     [-1.2, 13],
     [10.8, 10.5],
     [-20, -14],
@@ -1952,6 +1955,14 @@ function addTrees(scene: THREE.Scene): void {
   ];
   for (const [index, [x, z]] of positions.entries()) {
     const treeScale = 0.88 + (index % 4) * 0.08;
+    const lawn = new THREE.Mesh(new THREE.CircleGeometry(0.94 * treeScale, 12), treeLawnMaterial);
+    lawn.rotation.x = -Math.PI / 2;
+    lawn.rotation.z = index * 0.47;
+    lawn.scale.set(1.24, 0.78, 1);
+    lawn.position.set(x, 0.016, z);
+    lawn.receiveShadow = true;
+    scene.add(lawn);
+
     const trunk = new THREE.Mesh(
       new THREE.CylinderGeometry(0.14, 0.18, 1.2, 8),
       new THREE.MeshStandardMaterial({ color: "#7b5636", roughness: 0.85 })
