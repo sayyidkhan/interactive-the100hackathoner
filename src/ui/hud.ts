@@ -10,6 +10,7 @@ export type HudApi = {
   isModalOpen: () => boolean;
   setWaypoint: (entry: DiscoveryEntry | null, distance?: number, heading?: string, tracked?: boolean) => void;
   showDiscoveryToast: (entry: DiscoveryEntry, discoveredCount: number) => void;
+  showGoalToast: () => void;
 };
 
 export type PersonaId = "hackathoner" | "operator" | "founder" | "agentic" | "investor" | "builder";
@@ -191,12 +192,10 @@ export function createHud(
   const hud = document.createElement("div");
   hud.className = "hud";
   hud.innerHTML = `
-    <section class="brand-card">
-      <h1>The 100 Hackathoner</h1>
-    </section>
-
     <button class="progress-pill" type="button" aria-label="Open the 100 Hackathoner Ville journal">
-      <span class="progress-text">100-hackathoner-ville</span>
+      <span class="town-plaque-kicker">The 100th</span>
+      <span class="progress-text">Hackathoner Ville</span>
+      <span class="town-plaque-meta">19 of 100 shipped</span>
     </button>
 
     <div class="controls-hint">
@@ -265,7 +264,7 @@ export function createHud(
     </div>
 
     <div class="cinematic-frame" aria-hidden="true">
-      <span>The 100 Hackathoner</span>
+      <span>The 100th Hackathoner Ville</span>
     </div>
 
     <div class="modal-layer" hidden></div>
@@ -281,6 +280,7 @@ export function createHud(
   const proximityPersona = hud.querySelector<HTMLElement>(".proximity-persona")!;
   const proximityStatus = hud.querySelector<HTMLElement>(".proximity-status")!;
   const toast = hud.querySelector<HTMLElement>(".discovery-toast")!;
+  const toastIcon = hud.querySelector<HTMLElement>(".toast-icon")!;
   const toastTitle = hud.querySelector<HTMLElement>(".toast-title")!;
   const toastMeta = hud.querySelector<HTMLElement>(".toast-meta")!;
   const toastSignal = hud.querySelector<HTMLElement>(".toast-signal")!;
@@ -880,7 +880,7 @@ export function createHud(
       }
 
       const roundedDistance = Math.max(0, Math.round(distance));
-      const routeProgress = Math.round((1 - Math.min(distance / 18, 1)) * 100);
+      const routeProgress = Math.round((1 - Math.min(distance / 30, 1)) * 100);
       const arrived = distance <= 2.7;
       activeWaypointId = entry.id;
       activeWaypointTracked = tracked;
@@ -907,6 +907,7 @@ export function createHud(
       window.clearTimeout(toastTimer);
       toast.style.setProperty("--artifact-accent", theme.accent);
       toast.style.setProperty("--artifact-tint", theme.tint);
+      toastIcon.textContent = "✦";
       toast.classList.toggle("milestone", Boolean(unlockedMilestone));
       toastTitle.textContent = `Saved: ${entry.title}`;
       toastMeta.textContent = unlockedMilestone
@@ -927,6 +928,28 @@ export function createHud(
           toast.classList.remove("milestone");
         }, 220);
       }, 2600);
+    },
+    showGoalToast() {
+      audio.ping(880);
+      window.clearTimeout(toastTimer);
+      toast.style.setProperty("--artifact-accent", "#e7b956");
+      toast.style.setProperty("--artifact-tint", "#f8edc7");
+      toast.classList.remove("milestone");
+      toastIcon.textContent = "!";
+      toastTitle.textContent = "GOAL!";
+      toastMeta.textContent = "Through the posts";
+      toastSignal.textContent = "The pitch is live.";
+      toast.hidden = false;
+      hud.classList.add("toast-active");
+      toast.classList.remove("show");
+      requestAnimationFrame(() => toast.classList.add("show"));
+      toastTimer = window.setTimeout(() => {
+        toast.classList.remove("show");
+        window.setTimeout(() => {
+          toast.hidden = true;
+          hud.classList.remove("toast-active");
+        }, 220);
+      }, 2200);
     }
   };
 
