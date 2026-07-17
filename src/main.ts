@@ -11,6 +11,8 @@ if (!root) {
 try {
   if (window.location.pathname === "/dev/discoveries") {
     renderDevDiscoveries(root);
+  } else if (window.location.pathname === "/local-builder") {
+    initLoopTown(root, { initialBuilder: true });
   } else {
     initLoopTown(root);
   }

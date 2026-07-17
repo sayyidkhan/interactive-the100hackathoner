@@ -1,7 +1,16 @@
 import * as THREE from "three";
 import { DISCOVERIES, DiscoveryEntry } from "../data/discoveries";
+import {
+  CharacterAppearance,
+  CharacterSchema,
+  TownAsset,
+  TownSchema,
+  SHIPPED_TOWN_SCHEMA,
+  loadTownSchemaDraft
+} from "../data/townSchema";
 import { createInput, InputControl, setInputControl } from "../systems/input";
 import { loadDiscovered, saveDiscovered } from "../systems/storage";
+import { createTownBuilder } from "../ui/builder";
 import { createHud, PersonaOption } from "../ui/hud";
 
 type DiscoveryMarker = {
@@ -31,6 +40,15 @@ type WaterTowerClimbState = {
   mode: "ground" | "ascending" | "platform" | "descending";
 };
 
+type WaterTowerAnchor = {
+  x: number;
+  z: number;
+  ladderX: number;
+  ladderZ: number;
+  platformRadius: number;
+  platformHeight: number;
+};
+
 type PlayerRig = {
   leftArm: THREE.Object3D;
   rightArm: THREE.Object3D;
@@ -50,6 +68,13 @@ type PlayerRig = {
   pantsMaterial?: THREE.MeshStandardMaterial;
   shoeMaterial?: THREE.MeshStandardMaterial;
   hairMaterial?: THREE.MeshStandardMaterial;
+  skinMaterial?: THREE.MeshStandardMaterial;
+  hairGroup?: THREE.Group;
+};
+
+type TownRuntime = {
+  colliders: CollisionShape[];
+  assetLayer: THREE.Group;
 };
 
 type CameraLookState = {
@@ -58,6 +83,13 @@ type CameraLookState = {
   distance: number;
   targetDistance: number;
   zoomBy: (amount: number) => void;
+};
+
+type BuilderCameraState = {
+  focus: THREE.Vector3;
+  targetFocus: THREE.Vector3;
+  height: number;
+  targetHeight: number;
 };
 
 type AtmosphereObject = {
@@ -164,7 +196,6 @@ const SHADOW_Y = 0.026;
 const PLAYER_RADIUS = 0.42;
 const PLAYER_STEP_HEIGHT = 0.48;
 const SURFACE_CLEARANCE = 0.06;
-const WATER_TOWER_LOCATION = { x: -14, z: 11 } as const;
 const WATER_TOWER_PLATFORM_RADIUS = 2.55;
 const WATER_TOWER_LADDER_Z_OFFSET = -2.02;
 const WATER_TOWER_PLATFORM_HEIGHT = 4.82;
@@ -178,11 +209,20 @@ const CINEMATIC_IDLE_MS = 60_000;
 const CINEMATIC_TRANSITION_MS = 4_000;
 const CINEMATIC_EXIT_MS = 900;
 const CINEMATIC_RADIUS = 31;
+const BUILDER_CAMERA_DEFAULT_HEIGHT = 54;
+const BUILDER_CAMERA_MIN_HEIGHT = 22;
+const BUILDER_CAMERA_MAX_HEIGHT = 88;
 
 let softShadowTexture: THREE.CanvasTexture | null = null;
 
-export function initLoopTown(root: HTMLElement): void {
+type LoopTownOptions = {
+  initialBuilder?: boolean;
+};
+
+export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): void {
   root.className = "game-root";
+  const dedicatedBuilderRoute = options.initialBuilder || window.location.pathname === "/local-builder";
+  root.classList.toggle("local-builder-route", dedicatedBuilderRoute);
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -201,12 +241,16 @@ export function initLoopTown(root: HTMLElement): void {
   camera.position.set(9, 7, 10);
   camera.lookAt(0, 0, 0);
   const lookState = bindLookControls(renderer.domElement);
+  let builderActive = dedicatedBuilderRoute;
+  const builderCamera = createBuilderCameraState();
 
   const clock = new THREE.Clock();
   const input = createInput();
   const discovered = loadDiscovered();
 
+  let townSchema = loadTownSchemaDraft();
   const player = createPlayer();
+  applyCharacterAppearance(player, townSchema.player.appearance, townSchema.player.movement);
   const playerMotion: PlayerMotion = { verticalVelocity: 0, grounded: true, facingAngle: 0, walkTime: 0 };
   player.position.set(1, 0, 2);
   player.rotation.y = 0;
@@ -230,24 +274,92 @@ export function initLoopTown(root: HTMLElement): void {
     },
     onCameraZoom: (amount) => {
       lookState.zoomBy(amount);
+    },
+    onBuilderToggle: () => {
+      if (dedicatedBuilderRoute) {
+        root.dispatchEvent(new Event("builder:toggle"));
+      } else {
+        window.location.assign("/local-builder");
+      }
     }
   });
   bindVirtualControls(root, input);
   hud.setProgress(discovered);
 
   createLights(scene);
-  const colliders = createTown(scene);
+  const town = createTown(scene, townSchema);
+  const builderSelectionMarker = createBuilderSelectionMarker(scene);
+  const builderGrid = createBuilderGrid(scene);
+  let colliders = town.colliders;
   const waterTowerClimb: WaterTowerClimbState = { mode: "ground" };
   const football = createFootballPitch(scene);
   const markers = createDiscoveryMarkers(scene);
   const routeBreadcrumbs = createRouteBreadcrumbs(scene);
-  const citizens = createCitizens(scene);
+  const citizenLayer = new THREE.Group();
+  citizenLayer.name = "town-schema-citizens";
+  scene.add(citizenLayer);
+  let citizens = createCitizens(citizenLayer, townSchema.citizens);
   const atmosphere = createAtmosphere(scene);
   const animals = createTownAnimals(scene);
   const sakuraPetals = createSakuraPetals(scene);
   const fireflies = createFireflies(scene);
   const unlockBursts: UnlockBurst[] = [];
   applySceneShadows(scene);
+
+  const townBuilder = createTownBuilder(root, {
+    initialSchema: townSchema,
+    shippedSchema: SHIPPED_TOWN_SCHEMA,
+    startActive: dedicatedBuilderRoute,
+    onSchemaChange: (nextSchema) => {
+      townSchema = nextSchema;
+      clearGroup(town.assetLayer);
+      renderTownAssets(town.assetLayer, townSchema.assets);
+      colliders = createTownColliders(townSchema);
+      applyCharacterAppearance(player, townSchema.player.appearance, townSchema.player.movement);
+      clearGroup(citizenLayer);
+      citizens = createCitizens(citizenLayer, townSchema.citizens);
+      applySceneShadows(town.assetLayer);
+      applySceneShadows(citizenLayer);
+    },
+    onSelectionChange: (asset) => {
+      if (builderActive) updateBuilderSelectionMarker(builderSelectionMarker, asset);
+    },
+    onAssetPositionPreview: (asset) => {
+      const root = town.assetLayer.getObjectByName(`asset:${asset.id}`);
+      root?.position.set(asset.position[0] * TOWN_SPREAD, 0, asset.position[1] * TOWN_SPREAD);
+      if (builderActive) updateBuilderSelectionMarker(builderSelectionMarker, asset);
+    },
+    createAssetPreview: (asset) => town.assetLayer.getObjectByName(`asset:${asset.id}`)?.clone(true) ?? null,
+    onCameraZoom: (amount) => {
+      builderCamera.targetHeight = THREE.MathUtils.clamp(
+        builderCamera.targetHeight + amount,
+        BUILDER_CAMERA_MIN_HEIGHT,
+        BUILDER_CAMERA_MAX_HEIGHT
+      );
+    },
+    onCameraReset: () => {
+      builderCamera.targetFocus.set(0, 0, 0);
+      builderCamera.targetHeight = BUILDER_CAMERA_DEFAULT_HEIGHT;
+    },
+    onActiveChange: (active) => {
+      builderActive = active;
+      builderGrid.visible = active;
+      if (!active) {
+        builderSelectionMarker.visible = false;
+        return;
+      }
+      input.forward = false;
+      input.backward = false;
+      input.left = false;
+      input.right = false;
+      input.moveX = 0;
+      input.moveY = 0;
+      input.sprint = false;
+      input.jumpRequested = false;
+      input.inspectRequested = false;
+    }
+  });
+  bindBuilderCanvasInteractions(renderer.domElement, camera, town.assetLayer, () => builderActive, townBuilder, builderCamera);
 
   const cinematic: CinematicState = {
     active: false,
@@ -301,7 +413,7 @@ export function initLoopTown(root: HTMLElement): void {
     const delta = Math.min(clock.getDelta(), 0.05);
     const now = performance.now();
 
-    if (!cinematic.active && !cinematic.exiting && !hud.isModalOpen() && !cardOpen && now - cinematic.lastInteraction >= CINEMATIC_IDLE_MS) {
+    if (!builderActive && !cinematic.active && !cinematic.exiting && !hud.isModalOpen() && !cardOpen && now - cinematic.lastInteraction >= CINEMATIC_IDLE_MS) {
       cinematic.active = true;
       cinematic.startedAt = now;
       cinematic.startPosition.copy(camera.position);
@@ -310,17 +422,24 @@ export function initLoopTown(root: HTMLElement): void {
       root.classList.add("cinematic-mode");
     }
 
-    if (input.jumpRequested && nearest) {
+    if (builderActive) {
+      input.jumpRequested = false;
+      input.inspectRequested = false;
+    }
+
+    const waterTowerAnchor = getWaterTowerAnchor(townSchema);
+
+    if (!builderActive && input.jumpRequested && nearest) {
       input.jumpRequested = false;
       input.inspectRequested = true;
     }
 
-    if (input.inspectRequested && toggleWaterTowerClimb(player, playerMotion, waterTowerClimb)) {
+    if (!builderActive && input.inspectRequested && toggleWaterTowerClimb(player, playerMotion, waterTowerClimb, waterTowerAnchor)) {
       input.inspectRequested = false;
     }
 
-    if (started && !cinematic.active && !hud.isModalOpen() && !cardOpen) {
-      const climbing = updateWaterTowerClimb(player, playerMotion, waterTowerClimb, delta);
+    if (started && !builderActive && !cinematic.active && !hud.isModalOpen() && !cardOpen) {
+      const climbing = updateWaterTowerClimb(player, playerMotion, waterTowerClimb, delta, waterTowerAnchor);
       if (!climbing) updatePlayer(player, playerMotion, input, delta, colliders, camera);
       nearest = findNearestDiscovery(player.position, markers);
       hud.setPrompt(nearest);
@@ -334,7 +453,7 @@ export function initLoopTown(root: HTMLElement): void {
       hud.setWaypoint(waypoint?.marker.entry ?? null, waypoint?.distance, waypoint?.heading, waypoint?.tracked);
     }
 
-    if (input.inspectRequested) {
+    if (!builderActive && input.inspectRequested) {
       input.inspectRequested = false;
       if (cardOpen) {
         if (pendingCardTimer !== undefined) {
@@ -400,12 +519,14 @@ export function initLoopTown(root: HTMLElement): void {
     updateTownAnimals(animals, clock.elapsedTime, delta);
     updateSakuraPetals(sakuraPetals, clock.elapsedTime);
     updateFireflies(fireflies, clock.elapsedTime);
-    if (cinematic.active) {
+    if (builderActive) {
+      updateBuilderCamera(camera, builderCamera, delta);
+    } else if (cinematic.active) {
       updateCinematicCamera(camera, cinematic, now);
     } else if (cinematic.exiting) {
       updateCinematicExit(camera, cinematic, player.position, lookState, now, root);
-    } else if (waterTowerClimb.mode === "platform") {
-      updateWaterTowerCamera(camera, lookState);
+    } else if (waterTowerClimb.mode === "platform" && waterTowerAnchor) {
+      updateWaterTowerCamera(camera, waterTowerAnchor);
     } else {
       updateCamera(camera, player.position, lookState);
     }
@@ -514,7 +635,7 @@ function createGable(width: number, rise: number, material: THREE.Material): THR
   return new THREE.Mesh(new THREE.ShapeGeometry(shape), material);
 }
 
-function applySceneShadows(scene: THREE.Scene): void {
+function applySceneShadows(scene: THREE.Object3D): void {
   scene.traverse((object) => {
     if (!(object instanceof THREE.Mesh)) return;
 
@@ -531,7 +652,7 @@ function applySceneShadows(scene: THREE.Scene): void {
   });
 }
 
-function createTown(scene: THREE.Scene): CollisionShape[] {
+function createTown(scene: THREE.Scene, schema: TownSchema): TownRuntime {
   addWaterfront(scene);
 
   const ground = new THREE.Mesh(
@@ -560,41 +681,174 @@ function createTown(scene: THREE.Scene): CollisionShape[] {
   addPathStones(scene);
 
   const townObjectsStart = scene.children.length;
-
-  addBuilding(scene, "AI Agents Lab", -8, -7, "#88aaa2", "#5f817a");
-  addBuilding(scene, "SaaS Studio", 8, -6, "#d3a08c", "#a96f63");
-  addBuilding(scene, "Sustainability Garden", 12, 7.8, "#95ae83", "#6b8563");
-  addBuilding(scene, "Crypto Alley", -9, 7, "#929eae", "#6c7787");
-  addBuilding(scene, "Founder School", -1.5, 13.1, "#cfb889", "#9d835c");
-  addBuilding(scene, "Winners Hall", 0, -11, "#bc967c", "#896957");
-  addMarketLawn(scene, 17.2, 5.2, 5, 4.4);
-  addMarket(scene, "Devtools", 16.1, 4.5, "#d9bd7b", Math.PI);
-  addMarketLawn(scene, 7.4, 2.85);
-  addMarketBooth(scene, 7.4, 2.85, "Idea Exchange", "#d5745c", "#f2d583");
-  addMarketBooth(scene, -4.9, -7.3, "Demo Bar", "#5f8f83", "#f2ead8");
-  addParcelCart(scene, 5.2, -7.4, -0.18);
-  addCommunityBoard(scene, -6.4, 4.1, 0.08);
-  addTownWelcomeSign(scene, -10.8, -1.8);
-
-  addFountain(scene, 0, 0);
-  addLoopMonument(scene, -2.85, 2.15);
-  addDistrictProps(scene);
-  addWaterTower(scene, WATER_TOWER_LOCATION.x, WATER_TOWER_LOCATION.z);
-  addTrees(scene);
-  addLamp(scene, -3.5, -2.5);
-  addLamp(scene, 4, 3.5);
-  addLamp(scene, 7.2, -1.8);
-  addLamp(scene, -2, 7.8);
+  const assetLayer = new THREE.Group();
+  assetLayer.name = "town-schema-assets";
+  scene.add(assetLayer);
+  renderTownAssets(assetLayer, schema.assets);
 
   for (const object of scene.children.slice(townObjectsStart)) {
+    if (object === assetLayer) continue;
     object.position.x *= TOWN_SPREAD;
     object.position.z *= TOWN_SPREAD;
   }
 
-  return createTownColliders();
+  return { colliders: createTownColliders(schema), assetLayer };
 }
 
-function createTownColliders(): CollisionShape[] {
+function renderTownAssets(layer: THREE.Group, assets: TownAsset[]): void {
+  for (const asset of assets) {
+    const root = new THREE.Group();
+    root.name = `asset:${asset.id}`;
+    root.userData.schemaAssetId = asset.id;
+    root.userData.schemaAssetType = asset.type;
+    root.userData.builderSelectable = true;
+    layer.add(root);
+
+    const [x, z] = asset.position;
+    if (asset.lawn) {
+      const [lawnX, lawnZ] = asset.lawn.position;
+      addMarketLawn(root as unknown as THREE.Scene, lawnX, lawnZ, asset.lawn.width, asset.lawn.depth);
+    }
+
+    switch (asset.type) {
+      case "building":
+        addBuilding(root as unknown as THREE.Scene, asset.label ?? "Building", x, z, asset.color ?? "#a6a19a", asset.roofColor ?? "#805c48");
+        break;
+      case "market":
+        addMarket(root as unknown as THREE.Scene, asset.label ?? "Market", x, z, asset.color ?? "#d9bd7b");
+        break;
+      case "booth":
+        addMarketBooth(root as unknown as THREE.Scene, x, z, asset.label ?? "Market booth", asset.color ?? "#d5745c", asset.stripeColor ?? "#f2ead8");
+        break;
+      case "parcelCart":
+        addParcelCart(root as unknown as THREE.Scene, x, z, 0);
+        break;
+      case "communityBoard":
+        addCommunityBoard(root as unknown as THREE.Scene, x, z, 0);
+        break;
+      case "welcomeSign":
+        addTownWelcomeSign(root as unknown as THREE.Scene, x, z);
+        break;
+      case "fountain":
+        addFountain(root as unknown as THREE.Scene, x, z);
+        break;
+      case "monument":
+        addLoopMonument(root as unknown as THREE.Scene, x, z);
+        break;
+      case "waterTower":
+        addWaterTower(root as unknown as THREE.Scene, x, z);
+        break;
+      case "tree":
+        addTree(root as unknown as THREE.Scene, x, z, asset.variant ?? 0);
+        break;
+      case "lamp":
+        addLamp(root as unknown as THREE.Scene, x, z);
+        break;
+      case "shrub":
+        addShrub(root as unknown as THREE.Scene, x, z, 1);
+        break;
+      case "picnicTable":
+        addPicnicLawn(root as unknown as THREE.Scene, x, z, 0);
+        addPicnicTable(root as unknown as THREE.Scene, x, z, 0);
+        break;
+      case "bench":
+        addBench(root as unknown as THREE.Scene, x, z, 0);
+        break;
+      case "flowerBed":
+        addFlowerBed(root as unknown as THREE.Scene, x, z, asset.color ?? "#f2b35f");
+        break;
+      case "fence":
+        addFence(root as unknown as THREE.Scene, x, z, 4.8, 0);
+        break;
+      case "rock":
+        addRock(root as unknown as THREE.Scene, x, z, 1);
+        break;
+      case "tinyFlag":
+        addTinyFlag(root as unknown as THREE.Scene, x, z, asset.color ?? "#2e6f72");
+        break;
+      case "gardenPlot":
+        addGardenPlot(root as unknown as THREE.Scene, x, z, 0);
+        break;
+      case "grassClump":
+        addGrassClump(root as unknown as THREE.Scene, x, z, 1);
+        break;
+    }
+
+    root.position.set(x * TOWN_SPREAD, 0, z * TOWN_SPREAD);
+    for (const object of root.children) {
+      object.position.x = (object.position.x - x) * TOWN_SPREAD;
+      object.position.z = (object.position.z - z) * TOWN_SPREAD;
+    }
+    root.rotation.y = asset.rotation ?? 0;
+    root.scale.setScalar(asset.scale ?? 1);
+  }
+}
+
+function createBuilderSelectionMarker(scene: THREE.Scene): THREE.Mesh {
+  const marker = new THREE.Mesh(
+    new THREE.RingGeometry(0.74, 0.92, 40),
+    new THREE.MeshBasicMaterial({
+      color: "#f1b936",
+      transparent: true,
+      opacity: 0.88,
+      depthTest: false
+    })
+  );
+  marker.rotation.x = -Math.PI / 2;
+  marker.position.y = 0.19;
+  marker.visible = false;
+  marker.renderOrder = 4;
+  scene.add(marker);
+  return marker;
+}
+
+function createBuilderGrid(scene: THREE.Scene): THREE.GridHelper {
+  const size = WORLD_LIMIT * 2 * TOWN_SPREAD;
+  const divisions = Math.round(size / (0.5 * TOWN_SPREAD));
+  const grid = new THREE.GridHelper(size, divisions, "#81906f", "#bdc89f");
+  const materials = Array.isArray(grid.material) ? grid.material : [grid.material];
+
+  materials.forEach((material) => {
+    material.transparent = true;
+    material.opacity = 0.52;
+    material.depthWrite = false;
+  });
+
+  grid.position.y = 0.035;
+  grid.visible = false;
+  scene.add(grid);
+  return grid;
+}
+
+function updateBuilderSelectionMarker(marker: THREE.Mesh, asset: TownAsset | null): void {
+  if (!asset) {
+    marker.visible = false;
+    return;
+  }
+
+  const collision = asset.collision;
+  const baseRadius = collision?.kind === "circle"
+    ? collision.radius
+    : collision?.kind === "box"
+      ? Math.max(collision.width, collision.depth) * 0.52
+      : 0.85;
+  const scale = Math.max(0.95, baseRadius * (asset.scale ?? 1) * 1.16);
+  marker.position.set(asset.position[0] * TOWN_SPREAD, 0.19, asset.position[1] * TOWN_SPREAD);
+  marker.scale.setScalar(scale);
+  marker.visible = true;
+}
+
+function clearGroup(group: THREE.Group): void {
+  group.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return;
+    object.geometry.dispose();
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    materials.forEach((material) => material.dispose());
+  });
+  group.clear();
+}
+
+function createTownColliders(schema: TownSchema): CollisionShape[] {
   const colliders: CollisionShape[] = [];
 
   const addBox = (x: number, z: number, width: number, depth: number, top?: number) => {
@@ -604,45 +858,16 @@ function createTownColliders(): CollisionShape[] {
     colliders.push({ kind: "circle", x: x * TOWN_SPREAD, z: z * TOWN_SPREAD, radius, top });
   };
 
-  for (const [x, z] of [
-    [-8, -7],
-    [8, -6],
-    [12, 7.8],
-    [-9, 7],
-    [-1.5, 13.1],
-    [0, -11]
-  ] as const) {
-    addBox(x, z, 4.9, 4.25);
-  }
-
-  addBox(16.1, 4.5, 3.3, 2);
-  addCircle(0, 0, 1.75, 0.45);
-  addCircle(-2.85, 2.15, 1.55, 0.42);
-
-  for (const [x, z] of [
-    [-13, -8],
-    [-12, 8],
-    [13, -9],
-    [13, 8],
-    [5, 12],
-    [-6, 12],
-    [-15.2, -4.1],
-    [-5, -12],
-    [5.5, -12],
-    [15.7, 12.6],
-    [-1.2, 13],
-    [10.8, 10.5]
-  ] as const) {
-    addCircle(x, z, 0.55);
-  }
-
-  for (const [x, z] of [
-    [-3.5, -2.5],
-    [4, 3.5],
-    [7.2, -1.8],
-    [-2, 7.8]
-  ] as const) {
-    addCircle(x, z, 0.32);
+  for (const asset of schema.assets) {
+    if (!asset.collision) continue;
+    const [x, z] = asset.position;
+    const scale = asset.scale ?? 1;
+    const top = asset.collision.top === undefined ? undefined : asset.collision.top * scale;
+    if (asset.collision.kind === "box") {
+      addBox(x, z, asset.collision.width * scale, asset.collision.depth * scale, top);
+    } else {
+      addCircle(x, z, asset.collision.radius * scale, top);
+    }
   }
 
   addBox(-5.1, -2.5, 0.9, 2.05, 1.04);
@@ -650,12 +875,6 @@ function createTownColliders(): CollisionShape[] {
   addBox(2.3, 6.4, 1.95, 0.9, 1.04);
   addBox(9.4, 7.2, 5.1, 0.35);
   addBox(-9.5, 9.2, 4.7, 0.35);
-  addBox(7.4, 2.85, 2.5, 1.45);
-  addBox(-4.9, -7.3, 2.5, 1.45);
-  addBox(5.2, -7.4, 1.5, 0.9, 1.08);
-  addBox(-6.4, 4.1, 1.8, 0.35);
-  addBox(-9.2, -7, 4.1, 0.55);
-  addCircle(WATER_TOWER_LOCATION.x, WATER_TOWER_LOCATION.z, WATER_TOWER_PLATFORM_RADIUS, WATER_TOWER_PLATFORM_HEIGHT);
   addBox(-13.4, 2.5, 1.9, 1.18, 0.32);
   addBox(6.5, 11.7, 1.9, 1.18, 0.32);
 
@@ -1885,50 +2104,6 @@ function addFountain(scene: THREE.Scene, x: number, z: number): void {
   scene.add(group);
 }
 
-function addDistrictProps(scene: THREE.Scene): void {
-  addBench(scene, -5.1, -2.5, rotationTowardPlaza(-5.1, -2.5));
-  addBench(scene, 4.9, -2.7, rotationTowardPlaza(4.9, -2.7));
-  addBench(scene, 2.3, 6.4, rotationTowardPlaza(2.3, 6.4));
-  addFlowerBed(scene, -12.2, 8.1, "#f2b35f");
-  addFlowerBed(scene, 6.7, -2.4, "#ef765f");
-  addFlowerBed(scene, 9.2, 2.65, "#f7d35d");
-  addShrub(scene, -5.8, -4.4, 0.82);
-  addShrub(scene, 5.5, -4.1, 0.72);
-  addShrub(scene, -6.5, 7, 0.74);
-  addShrub(scene, 5.9, 7.2, 0.78);
-  addShrub(scene, -1.55, 7.1, 0.68);
-  addShrub(scene, 2, -6.3, 0.7);
-  addFence(scene, 9.4, 7.2, 4.8, 0);
-  addFence(scene, -9.5, 9.2, 4.4, 0);
-  addRock(scene, -12.4, -5.4, 0.7);
-  addRock(scene, 11.4, -8.2, 0.6);
-  addRock(scene, 12.4, 5.8, 0.75);
-  addTinyFlag(scene, -7.8, -4.5, "#2e6f72");
-  addTinyFlag(scene, 7.6, -3.9, "#a94d42");
-  addTinyFlag(scene, 0.9, 8.3, "#9c7032");
-  addGardenPlot(scene, -13.4, 2.5, -0.12);
-  addGardenPlot(scene, 6.5, 11.7, 0.18);
-  addPicnicLawn(scene, -12.2, 4.9, -0.12);
-  addPicnicTable(scene, -12.2, 4.9, -0.12);
-  addPicnicLawn(scene, 3.8, 10.8, 0.14);
-  addPicnicTable(scene, 3.8, 10.8, 0.14);
-
-  for (const [x, z, size] of [
-    [-15.2, -1.6, 0.8],
-    [-14.4, 5.1, 0.62],
-    [-10.8, 12.4, 0.7],
-    [1.4, 15.2, 0.68],
-    [13.6, 11.1, 0.78],
-    [15.1, 4.2, 0.62],
-    [14.6, -3.8, 0.76],
-    [10.1, -13.2, 0.66],
-    [-10.6, -12.7, 0.74],
-    [-15.6, -7.1, 0.6]
-  ] as const) {
-    addGrassClump(scene, x, z, size);
-  }
-}
-
 function addTrees(scene: THREE.Scene): void {
   const treeLawnMaterial = new THREE.MeshStandardMaterial({ color: "#9fba79", roughness: 0.94 });
   const positions = [
@@ -1954,49 +2129,54 @@ function addTrees(scene: THREE.Scene): void {
     [9, 19]
   ];
   for (const [index, [x, z]] of positions.entries()) {
-    const treeScale = 0.88 + (index % 4) * 0.08;
-    const lawn = new THREE.Mesh(new THREE.CircleGeometry(0.94 * treeScale, 12), treeLawnMaterial);
-    lawn.rotation.x = -Math.PI / 2;
-    lawn.rotation.z = index * 0.47;
-    lawn.scale.set(1.24, 0.78, 1);
-    lawn.position.set(x, 0.016, z);
-    lawn.receiveShadow = true;
-    scene.add(lawn);
+    addTree(scene, x, z, index, treeLawnMaterial);
+  }
+}
 
-    const trunk = new THREE.Mesh(
+function addTree(scene: THREE.Scene, x: number, z: number, variant = 0, lawnMaterial?: THREE.MeshStandardMaterial): void {
+  const treeScale = 0.88 + (variant % 4) * 0.08;
+  const treeLawnMaterial = lawnMaterial ?? new THREE.MeshStandardMaterial({ color: "#9fba79", roughness: 0.94 });
+  const lawn = new THREE.Mesh(new THREE.CircleGeometry(0.94 * treeScale, 12), treeLawnMaterial);
+  lawn.rotation.x = -Math.PI / 2;
+  lawn.rotation.z = variant * 0.47;
+  lawn.scale.set(1.24, 0.78, 1);
+  lawn.position.set(x, 0.016, z);
+  lawn.receiveShadow = true;
+  scene.add(lawn);
+
+  const trunk = new THREE.Mesh(
       new THREE.CylinderGeometry(0.14, 0.18, 1.2, 8),
       new THREE.MeshStandardMaterial({ color: "#7b5636", roughness: 0.85 })
-    );
-    trunk.position.set(x, 0.6 * treeScale, z);
-    trunk.scale.setScalar(treeScale);
-    trunk.castShadow = true;
-    scene.add(trunk);
+  );
+  trunk.position.set(x, 0.6 * treeScale, z);
+  trunk.scale.setScalar(treeScale);
+  trunk.castShadow = true;
+  scene.add(trunk);
 
-    const leaves = new THREE.Mesh(
-      new THREE.IcosahedronGeometry(0.95, 0),
-      new THREE.MeshStandardMaterial({ color: "#68965d", roughness: 0.9 })
-    );
-    leaves.position.set(x, 1.55 * treeScale, z);
-    leaves.scale.setScalar(treeScale);
-    leaves.castShadow = true;
-    scene.add(leaves);
+  const leaves = new THREE.Mesh(
+    new THREE.IcosahedronGeometry(0.95, 0),
+    new THREE.MeshStandardMaterial({ color: "#68965d", roughness: 0.9 })
+  );
+  leaves.position.set(x, 1.55 * treeScale, z);
+  leaves.scale.setScalar(treeScale);
+  leaves.castShadow = true;
+  scene.add(leaves);
 
-    const leafMaterial = new THREE.MeshStandardMaterial({ color: "#527f50", roughness: 0.88 });
-    const leafClusterA = new THREE.Mesh(new THREE.IcosahedronGeometry(0.72, 0), leafMaterial);
-    leafClusterA.position.set(x - 0.38 * treeScale, 1.42 * treeScale, z + 0.14 * treeScale);
-    leafClusterA.scale.setScalar(treeScale);
-    leafClusterA.castShadow = true;
-    scene.add(leafClusterA);
+  const leafMaterial = new THREE.MeshStandardMaterial({ color: "#527f50", roughness: 0.88 });
+  const leafClusterA = new THREE.Mesh(new THREE.IcosahedronGeometry(0.72, 0), leafMaterial);
+  leafClusterA.position.set(x - 0.38 * treeScale, 1.42 * treeScale, z + 0.14 * treeScale);
+  leafClusterA.scale.setScalar(treeScale);
+  leafClusterA.castShadow = true;
+  scene.add(leafClusterA);
 
-    const leafClusterB = new THREE.Mesh(new THREE.IcosahedronGeometry(0.64, 0), leafMaterial);
-    leafClusterB.position.set(x + 0.42 * treeScale, 1.5 * treeScale, z - 0.18 * treeScale);
-    leafClusterB.scale.setScalar(treeScale);
-    leafClusterB.castShadow = true;
-    scene.add(leafClusterB);
+  const leafClusterB = new THREE.Mesh(new THREE.IcosahedronGeometry(0.64, 0), leafMaterial);
+  leafClusterB.position.set(x + 0.42 * treeScale, 1.5 * treeScale, z - 0.18 * treeScale);
+  leafClusterB.scale.setScalar(treeScale);
+  leafClusterB.castShadow = true;
+  scene.add(leafClusterB);
 
-    addSoftShadow(scene, x + 0.88 * treeScale, z + 0.48 * treeScale, 2.35 * treeScale, 0.72 * treeScale, -0.22, 0.22);
-    addSoftShadow(scene, x + 0.05 * treeScale, z + 0.04 * treeScale, 0.76 * treeScale, 0.5 * treeScale, 0, 0.12);
-  }
+  addSoftShadow(scene, x + 0.88 * treeScale, z + 0.48 * treeScale, 2.35 * treeScale, 0.72 * treeScale, -0.22, 0.22);
+  addSoftShadow(scene, x + 0.05 * treeScale, z + 0.04 * treeScale, 0.76 * treeScale, 0.5 * treeScale, 0, 0.12);
 }
 
 function addWaterTower(scene: THREE.Scene, x: number, z: number): void {
@@ -2502,6 +2682,8 @@ function createPlayer(): THREE.Group {
   head.castShadow = true;
   group.add(head);
 
+  const hairGroup = new THREE.Group();
+  group.add(hairGroup);
   const hair = new THREE.Mesh(
     new THREE.SphereGeometry(0.375, 28, 14, 0, Math.PI * 2, 0, Math.PI / 2),
     hairMaterial
@@ -2509,7 +2691,7 @@ function createPlayer(): THREE.Group {
   hair.position.y = 1.84;
   hair.scale.set(1.02, 0.78, 0.95);
   hair.castShadow = true;
-  group.add(hair);
+  hairGroup.add(hair);
 
   for (const [x, scale] of [
     [-0.18, 0.95],
@@ -2520,7 +2702,7 @@ function createPlayer(): THREE.Group {
     fringe.position.set(x, 1.82, -0.28);
     fringe.scale.y = 0.55;
     fringe.castShadow = true;
-    group.add(fringe);
+    hairGroup.add(fringe);
   }
 
   for (const x of [-0.32, 0.32]) {
@@ -2540,7 +2722,7 @@ function createPlayer(): THREE.Group {
     brow.position.set(x, 1.81, -0.34);
     brow.rotation.x = Math.PI / 2;
     brow.rotation.z = x > 0 ? -0.12 : 0.12;
-    group.add(brow);
+    hairGroup.add(brow);
   }
 
   const nose = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.1, 10), skin);
@@ -2653,7 +2835,9 @@ function createPlayer(): THREE.Group {
     trimMaterial: shirtDark,
     pantsMaterial: pants,
     shoeMaterial: shoes,
-    hairMaterial
+    hairMaterial,
+    skinMaterial: skin,
+    hairGroup
   } satisfies PlayerRig;
 
   group.scale.setScalar(0.78);
@@ -2679,39 +2863,59 @@ function applyPlayerPersona(player: THREE.Group, persona: PersonaOption): void {
   player.userData.jumpMultiplier = persona.movement.jump;
 }
 
-function createCitizens(scene: THREE.Scene): Citizen[] {
-  const specs = [
-    { x: -4.2, z: -1.4, color: "#f0b35d", radius: 1.25, speed: 0.62, phase: 0.2, speech: "ship signal" },
-    { x: 4.2, z: 2.4, color: "#6fa6a0", radius: 1.45, speed: 0.48, phase: 1.7, speech: "package loop" },
-    { x: 6.6, z: -4.1, color: "#7f8eaa", radius: 1.05, speed: 0.7, phase: 3.1, speech: "price wedge" },
-    { x: -6.3, z: 4.5, color: "#d78c75", radius: 1.18, speed: 0.54, phase: 4.6, speech: "write lesson" }
-  ];
+function applyCharacterAppearance(
+  player: THREE.Group,
+  appearance: CharacterAppearance,
+  movement?: { walk: number; sprint: number; jump: number }
+): void {
+  const rig = player.userData.rig as PlayerRig | undefined;
+  if (!rig?.shirtMaterial || !rig.trimMaterial || !rig.pantsMaterial || !rig.shoeMaterial || !rig.hairMaterial || !rig.skinMaterial) return;
 
+  rig.skinMaterial.color.set(appearance.skin);
+  rig.shirtMaterial.color.set(appearance.shirt);
+  rig.trimMaterial.color.set(appearance.trim);
+  rig.pantsMaterial.color.set(appearance.pants);
+  rig.shoeMaterial.color.set(appearance.shoes);
+  rig.hairMaterial.color.set(appearance.hair);
+  rig.personaAuraMaterial?.color.set(appearance.trim);
+  rig.trailDots?.forEach((dot) => dot.material.color.set(appearance.shirt));
+  if (rig.hairGroup) {
+    rig.hairGroup.visible = appearance.hairStyle !== "bald";
+    const hairScale = appearance.hairStyle === "afro" ? 1.22 : appearance.hairStyle === "crop" ? 0.86 : 1;
+    rig.hairGroup.scale.set(hairScale, appearance.hairStyle === "afro" ? 1.14 : 1, hairScale);
+  }
+  if (movement) {
+    player.userData.walkMultiplier = movement.walk;
+    player.userData.sprintMultiplier = movement.sprint;
+    player.userData.jumpMultiplier = movement.jump;
+  }
+  player.userData.characterAppearance = appearance;
+}
+
+function createCitizens(scene: THREE.Object3D, specs: CharacterSchema[]): Citizen[] {
   return specs.map((spec) => {
-    const citizen = createCitizen(spec.color, spec.speech);
-    const x = spec.x * TOWN_SPREAD;
-    const z = spec.z * TOWN_SPREAD;
-    citizen.object.position.set(x + spec.radius, 0, z);
+    const citizen = createCitizen(spec.appearance, spec.speech ?? "town signal");
+    const [logicalX, logicalZ] = spec.position ?? [0, 0];
+    const radius = spec.radius ?? 1;
+    const x = logicalX * TOWN_SPREAD;
+    const z = logicalZ * TOWN_SPREAD;
+    citizen.object.position.set(x + radius, 0, z);
     scene.add(citizen.object);
     return {
       object: citizen.object,
       origin: new THREE.Vector3(x, 0, z),
-      radius: spec.radius,
-      speed: spec.speed,
-      phase: spec.phase,
+      radius,
+      speed: spec.speed ?? 0.5,
+      phase: spec.phase ?? 0,
       speechMaterial: citizen.speechMaterial
     };
   });
 }
 
-function createCitizen(shirtColor: string, speechText: string): { object: THREE.Group; speechMaterial: THREE.SpriteMaterial } {
+function createCitizen(appearance: CharacterAppearance, speechText: string): { object: THREE.Group; speechMaterial: THREE.SpriteMaterial } {
   const group = createPlayer();
+  applyCharacterAppearance(group, appearance);
   const rig = group.userData.rig as PlayerRig;
-  rig.shirtMaterial?.color.set(shirtColor);
-  rig.trimMaterial?.color.copy(new THREE.Color(shirtColor).lerp(new THREE.Color("#493b30"), 0.22));
-  rig.pantsMaterial?.color.set("#334856");
-  rig.shoeMaterial?.color.set("#eee5d5");
-  rig.hairMaterial?.color.set("#29231f");
   if (rig.personaAura) rig.personaAura.visible = false;
   rig.trailDots?.forEach((dot) => {
     dot.mesh.visible = false;
@@ -2719,7 +2923,7 @@ function createCitizen(shirtColor: string, speechText: string): { object: THREE.
   group.scale.setScalar(0.7);
 
   const speechMaterial = new THREE.SpriteMaterial({
-    map: createCitizenSpeechTexture(speechText, shirtColor),
+    map: createCitizenSpeechTexture(speechText, appearance.shirt),
     transparent: true,
     depthWrite: false,
     depthTest: false,
@@ -3072,6 +3276,152 @@ function bindLookControls(element: HTMLCanvasElement): CameraLookState {
   return look;
 }
 
+function createBuilderCameraState(): BuilderCameraState {
+  return {
+    focus: new THREE.Vector3(0, 0, 0),
+    targetFocus: new THREE.Vector3(0, 0, 0),
+    height: BUILDER_CAMERA_DEFAULT_HEIGHT,
+    targetHeight: BUILDER_CAMERA_DEFAULT_HEIGHT
+  };
+}
+
+function bindBuilderCanvasInteractions(
+  element: HTMLCanvasElement,
+  camera: THREE.PerspectiveCamera,
+  assetLayer: THREE.Group,
+  isActive: () => boolean,
+  builder: ReturnType<typeof createTownBuilder>,
+  cameraState: BuilderCameraState
+): void {
+  const raycaster = new THREE.Raycaster();
+  const pointer = new THREE.Vector2();
+  const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  const groundPoint = new THREE.Vector3();
+  let interaction:
+    | { kind: "pan"; pointerId: number; x: number; y: number }
+    | { kind: "asset"; pointerId: number; id: string; offsetX: number; offsetZ: number }
+    | null = null;
+
+  const getGroundPoint = (event: MouseEvent): THREE.Vector3 | null => {
+    const bounds = element.getBoundingClientRect();
+    pointer.set(((event.clientX - bounds.left) / bounds.width) * 2 - 1, -((event.clientY - bounds.top) / bounds.height) * 2 + 1);
+    raycaster.setFromCamera(pointer, camera);
+    return raycaster.ray.intersectPlane(ground, groundPoint) ? groundPoint.clone() : null;
+  };
+
+  const getAssetIdAtPointer = (event: PointerEvent): string | null => {
+    const bounds = element.getBoundingClientRect();
+    pointer.set(((event.clientX - bounds.left) / bounds.width) * 2 - 1, -((event.clientY - bounds.top) / bounds.height) * 2 + 1);
+    raycaster.setFromCamera(pointer, camera);
+    const hit = raycaster.intersectObjects(assetLayer.children, true).find((candidate) => {
+      let object: THREE.Object3D | null = candidate.object;
+      while (object) {
+        if (typeof object.userData.schemaAssetId === "string") return true;
+        object = object.parent;
+      }
+      return false;
+    });
+    if (!hit) return null;
+
+    let object: THREE.Object3D | null = hit.object;
+    while (object && typeof object.userData.schemaAssetId !== "string") object = object.parent;
+    return object ? String(object.userData.schemaAssetId) : null;
+  };
+
+  element.addEventListener("pointerdown", (event) => {
+    if (!isActive() || event.button !== 0) return;
+    const assetId = getAssetIdAtPointer(event);
+    const point = getGroundPoint(event);
+    element.setPointerCapture(event.pointerId);
+
+    if (assetId && point) {
+      const asset = builder.getSchema().assets.find((candidate) => candidate.id === assetId);
+      if (!asset) return;
+      builder.selectAsset(assetId);
+      interaction = {
+        kind: "asset",
+        pointerId: event.pointerId,
+        id: assetId,
+        offsetX: asset.position[0] * TOWN_SPREAD - point.x,
+        offsetZ: asset.position[1] * TOWN_SPREAD - point.z
+      };
+      element.style.cursor = "grabbing";
+      return;
+    }
+
+    interaction = { kind: "pan", pointerId: event.pointerId, x: event.clientX, y: event.clientY };
+    element.style.cursor = "grabbing";
+  });
+
+  element.addEventListener("pointermove", (event) => {
+    if (!isActive()) return;
+    if (!interaction) {
+      element.style.cursor = getAssetIdAtPointer(event) ? "grab" : "default";
+      return;
+    }
+    if (interaction.pointerId !== event.pointerId) return;
+
+    if (interaction.kind === "asset") {
+      const point = getGroundPoint(event);
+      if (!point) return;
+      builder.moveAsset(interaction.id, (point.x + interaction.offsetX) / TOWN_SPREAD, (point.z + interaction.offsetZ) / TOWN_SPREAD);
+      return;
+    }
+
+    const worldPerPixel = cameraState.targetHeight * 0.00072;
+    const worldLimit = WORLD_LIMIT * TOWN_SPREAD;
+    cameraState.targetFocus.x = THREE.MathUtils.clamp(
+      cameraState.targetFocus.x - (event.clientX - interaction.x) * worldPerPixel,
+      -worldLimit,
+      worldLimit
+    );
+    cameraState.targetFocus.z = THREE.MathUtils.clamp(
+      cameraState.targetFocus.z - (event.clientY - interaction.y) * worldPerPixel,
+      -worldLimit,
+      worldLimit
+    );
+    interaction.x = event.clientX;
+    interaction.y = event.clientY;
+  });
+
+  const finishInteraction = (event: PointerEvent) => {
+    const current = interaction;
+    interaction = null;
+    if (current?.kind === "asset" && current.pointerId === event.pointerId) builder.commitAssetMove();
+    if (element.hasPointerCapture(event.pointerId)) element.releasePointerCapture(event.pointerId);
+    if (isActive()) element.style.cursor = "default";
+  };
+  element.addEventListener("pointerup", finishInteraction);
+  element.addEventListener("pointercancel", finishInteraction);
+  element.addEventListener(
+    "wheel",
+    (event) => {
+      if (!isActive()) return;
+      event.preventDefault();
+      const cursorPoint = getGroundPoint(event);
+      const previousHeight = cameraState.targetHeight;
+      const nextHeight = THREE.MathUtils.clamp(
+        previousHeight * Math.exp(event.deltaY * 0.0012),
+        BUILDER_CAMERA_MIN_HEIGHT,
+        BUILDER_CAMERA_MAX_HEIGHT
+      );
+
+      if (cursorPoint && nextHeight < previousHeight) {
+        const pull = (1 - nextHeight / previousHeight) * 0.72;
+        cameraState.targetFocus.lerp(cursorPoint, pull);
+      }
+
+      cameraState.targetHeight = nextHeight;
+    },
+    { passive: false }
+  );
+  element.addEventListener("dblclick", () => {
+    if (!isActive()) return;
+    cameraState.targetFocus.set(0, 0, 0);
+    cameraState.targetHeight = BUILDER_CAMERA_DEFAULT_HEIGHT;
+  });
+}
+
 function bindVirtualControls(root: HTMLElement, input: ReturnType<typeof createInput>): void {
   const buttons = root.querySelectorAll<HTMLButtonElement>("[data-control]");
 
@@ -3142,12 +3492,11 @@ function bindVirtualControls(root: HTMLElement, input: ReturnType<typeof createI
 function toggleWaterTowerClimb(
   player: THREE.Group,
   motion: PlayerMotion,
-  state: WaterTowerClimbState
+  state: WaterTowerClimbState,
+  tower: WaterTowerAnchor | null
 ): boolean {
-  const towerX = WATER_TOWER_LOCATION.x * TOWN_SPREAD;
-  const towerZ = WATER_TOWER_LOCATION.z * TOWN_SPREAD;
-  const ladderZ = towerZ + WATER_TOWER_LADDER_Z_OFFSET;
-  const distanceToLadder = Math.hypot(player.position.x - towerX, player.position.z - ladderZ);
+  if (!tower) return false;
+  const distanceToLadder = Math.hypot(player.position.x - tower.ladderX, player.position.z - tower.ladderZ);
 
   if (state.mode === "ground") {
     if (distanceToLadder > 1.3 || player.position.y > 0.35) return false;
@@ -3158,8 +3507,8 @@ function toggleWaterTowerClimb(
   }
 
   if (state.mode === "platform") {
-    const distanceToTower = Math.hypot(player.position.x - towerX, player.position.z - towerZ);
-    if (distanceToTower > WATER_TOWER_PLATFORM_RADIUS + 0.35) return false;
+    const distanceToTower = Math.hypot(player.position.x - tower.x, player.position.z - tower.z);
+    if (distanceToTower > tower.platformRadius + 0.35) return false;
     state.mode = "descending";
     motion.verticalVelocity = 0;
     motion.grounded = false;
@@ -3173,35 +3522,43 @@ function updateWaterTowerClimb(
   player: THREE.Group,
   motion: PlayerMotion,
   state: WaterTowerClimbState,
-  delta: number
+  delta: number,
+  tower: WaterTowerAnchor | null
 ): boolean {
+  if (!tower) {
+    state.mode = "ground";
+    return false;
+  }
+
   if (state.mode === "platform") {
     if (player.position.y < 0.5) state.mode = "ground";
     return false;
   }
   if (state.mode === "ground") return false;
 
-  const towerX = WATER_TOWER_LOCATION.x * TOWN_SPREAD;
-  const towerZ = WATER_TOWER_LOCATION.z * TOWN_SPREAD;
-  const ladderZ = towerZ + WATER_TOWER_LADDER_Z_OFFSET;
   const climbSpeed = 2.55;
   const anchorBlend = 1 - Math.exp(-20 * delta);
-  player.position.x = THREE.MathUtils.lerp(player.position.x, towerX, anchorBlend);
-  player.position.z = THREE.MathUtils.lerp(player.position.z, ladderZ, anchorBlend);
+  player.position.x = THREE.MathUtils.lerp(player.position.x, tower.ladderX, anchorBlend);
+  player.position.z = THREE.MathUtils.lerp(player.position.z, tower.ladderZ, anchorBlend);
   player.rotation.y = Math.PI;
   motion.facingAngle = Math.PI;
   motion.walkTime += delta * 6;
 
   if (state.mode === "ascending") {
-    player.position.y = Math.min(WATER_TOWER_PLATFORM_HEIGHT, player.position.y + climbSpeed * delta);
-    if (player.position.y >= WATER_TOWER_PLATFORM_HEIGHT) {
+    player.position.y = Math.min(tower.platformHeight, player.position.y + climbSpeed * delta);
+    if (player.position.y >= tower.platformHeight) {
       state.mode = "platform";
       motion.grounded = true;
     }
   } else {
     player.position.y = Math.max(0, player.position.y - climbSpeed * delta);
     if (player.position.y <= 0) {
-      player.position.set(towerX, 0, towerZ - WATER_TOWER_PLATFORM_RADIUS - PLAYER_RADIUS - 0.08);
+      const ladderDirection = new THREE.Vector2(tower.ladderX - tower.x, tower.ladderZ - tower.z).normalize();
+      player.position.set(
+        tower.x + ladderDirection.x * (tower.platformRadius + PLAYER_RADIUS + 0.08),
+        0,
+        tower.z + ladderDirection.y * (tower.platformRadius + PLAYER_RADIUS + 0.08)
+      );
       state.mode = "ground";
       motion.grounded = true;
     }
@@ -3210,6 +3567,32 @@ function updateWaterTowerClimb(
   motion.verticalVelocity = 0;
   updatePlayerRig(player, motion.walkTime, true, false);
   return true;
+}
+
+function getWaterTowerAnchor(schema: TownSchema): WaterTowerAnchor | null {
+  const tower = schema.assets.find((asset) => asset.type === "waterTower");
+  if (!tower) return null;
+
+  const scale = tower.scale ?? 1;
+  const platformRadius = tower.collision?.kind === "circle"
+    ? tower.collision.radius * scale
+    : WATER_TOWER_PLATFORM_RADIUS * scale;
+  const platformHeight = (tower.collision?.top ?? WATER_TOWER_PLATFORM_HEIGHT) * scale;
+  const [x, z] = tower.position;
+  const rotation = tower.rotation ?? 0;
+  const ladderOffset = new THREE.Vector3(0, 0, WATER_TOWER_LADDER_Z_OFFSET * scale)
+    .applyAxisAngle(new THREE.Vector3(0, 1, 0), rotation);
+  const worldX = x * TOWN_SPREAD;
+  const worldZ = z * TOWN_SPREAD;
+
+  return {
+    x: worldX,
+    z: worldZ,
+    ladderX: worldX + ladderOffset.x,
+    ladderZ: worldZ + ladderOffset.z,
+    platformRadius,
+    platformHeight
+  };
 }
 
 function updatePlayer(
@@ -3799,31 +4182,39 @@ function getGameplayCameraPosition(target: THREE.Vector3, look: CameraLookState)
 }
 
 function updateCamera(camera: THREE.PerspectiveCamera, target: THREE.Vector3, look: CameraLookState): void {
+  camera.up.set(0, 1, 0);
   const desired = getGameplayCameraPosition(target, look);
   camera.position.lerp(desired, 0.075);
   camera.lookAt(target.x, 0.82, target.z);
 }
 
-function updateWaterTowerCamera(camera: THREE.PerspectiveCamera, look: CameraLookState): void {
-  look.yaw = THREE.MathUtils.lerp(look.yaw, look.targetYaw, 0.09);
-  look.distance = THREE.MathUtils.lerp(look.distance, look.targetDistance, 0.09);
+function updateBuilderCamera(camera: THREE.PerspectiveCamera, state: BuilderCameraState, delta: number): void {
+  const stableDelta = Math.min(delta, 0.05);
+  state.focus.x = THREE.MathUtils.damp(state.focus.x, state.targetFocus.x, 8.5, stableDelta);
+  state.focus.z = THREE.MathUtils.damp(state.focus.z, state.targetFocus.z, 8.5, stableDelta);
+  state.height = THREE.MathUtils.damp(state.height, state.targetHeight, 9.5, stableDelta);
+  camera.up.set(0, 0, -1);
+  camera.position.set(state.focus.x, state.height, state.focus.z);
+  camera.lookAt(state.focus.x, 0, state.focus.z);
+}
 
-  const tower = new THREE.Vector3(
-    WATER_TOWER_LOCATION.x * TOWN_SPREAD,
-    WATER_TOWER_PLATFORM_HEIGHT,
-    WATER_TOWER_LOCATION.z * TOWN_SPREAD
-  );
+function updateWaterTowerCamera(camera: THREE.PerspectiveCamera, towerAnchor: WaterTowerAnchor): void {
+  const tower = new THREE.Vector3(towerAnchor.x, towerAnchor.platformHeight, towerAnchor.z);
   const townFocus = new THREE.Vector3(-0.8, 1.15, 0.8);
-  const townFacingAngle = Math.atan2(townFocus.z - tower.z, townFocus.x - tower.x) + look.yaw * 0.42;
-  const zoomProgress = THREE.MathUtils.inverseLerp(CAMERA_MIN_DISTANCE, CAMERA_MAX_DISTANCE, look.distance);
-  const overlookDistance = THREE.MathUtils.lerp(8.6, 13.2, zoomProgress);
-  const desired = tower
-    .clone()
-    .add(new THREE.Vector3(Math.cos(townFacingAngle), 0, Math.sin(townFacingAngle)).multiplyScalar(overlookDistance));
-  desired.y += THREE.MathUtils.lerp(3.6, 5.3, zoomProgress);
+  const towardTown = townFocus.clone().sub(tower).setY(0);
+  if (towardTown.lengthSq() < 0.001) towardTown.set(0, 0, -1);
+  towardTown.normalize();
+
+  // Keep the tower in the foreground and frame the town as a stable lookout shot.
+  const outward = towardTown.clone().multiplyScalar(-1);
+  const side = new THREE.Vector3(-outward.z, 0, outward.x).multiplyScalar(1.65);
+  const desired = tower.clone().addScaledVector(outward, 6.5).add(side);
+  desired.y += 4.25;
+  const target = tower.clone().addScaledVector(towardTown, 18);
+  target.y = 1.2;
 
   camera.position.lerp(desired, 0.065);
-  camera.lookAt(townFocus);
+  camera.lookAt(target);
 }
 
 function updateCinematicExit(
@@ -3851,6 +4242,7 @@ function updateCinematicExit(
 }
 
 function updateCinematicCamera(camera: THREE.PerspectiveCamera, state: CinematicState, now: number): void {
+  camera.up.set(0, 1, 0);
   const elapsedSeconds = (now - state.startedAt) / 1000;
   const transition = THREE.MathUtils.smoothstep(
     Math.min((now - state.startedAt) / CINEMATIC_TRANSITION_MS, 1),

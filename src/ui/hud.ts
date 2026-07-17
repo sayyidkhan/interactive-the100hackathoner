@@ -187,6 +187,7 @@ export function createHud(
     onPersonaChange?: (persona: PersonaOption) => void;
     onWaypointSelect?: (entry: DiscoveryEntry) => void;
     onCameraZoom?: (amount: number) => void;
+    onBuilderToggle?: () => void;
   } = {}
 ): HudApi {
   const hud = document.createElement("div");
@@ -246,6 +247,7 @@ export function createHud(
         <button class="tool-control" type="button" title="zoom in" aria-label="Zoom in" data-camera-zoom="in">+</button>
         <button class="sound-toggle tool-control" type="button" title="village music off" aria-label="Play village music" data-sound="off">♪</button>
         <button class="tool-control" type="button" title="change persona" aria-label="Change persona" data-persona-button>🏁</button>
+        <button class="tool-control" type="button" title="open town builder" aria-label="Open town builder" data-builder-button>⌘</button>
       </div>
     </div>
 
@@ -295,6 +297,7 @@ export function createHud(
   const modalLayer = hud.querySelector<HTMLElement>(".modal-layer")!;
   const soundButton = hud.querySelector<HTMLButtonElement>("[data-sound]")!;
   const personaButton = hud.querySelector<HTMLButtonElement>("[data-persona-button]")!;
+  const builderButton = hud.querySelector<HTMLButtonElement>("[data-builder-button]")!;
   const zoomOutButton = hud.querySelector<HTMLButtonElement>("[data-camera-zoom=\"out\"]")!;
   const zoomInButton = hud.querySelector<HTMLButtonElement>("[data-camera-zoom=\"in\"]")!;
   const toolDock = hud.querySelector<HTMLElement>("[data-tool-dock]")!;
@@ -425,6 +428,7 @@ export function createHud(
   };
 
   personaButton.addEventListener("click", openPersona);
+  builderButton.addEventListener("click", () => options.onBuilderToggle?.());
   toolsToggle.addEventListener("click", () => {
     const expanded = toolDock.classList.toggle("expanded");
     toolsToggle.setAttribute("aria-expanded", String(expanded));

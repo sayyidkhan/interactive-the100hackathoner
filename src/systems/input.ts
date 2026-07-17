@@ -26,6 +26,7 @@ export function createInput(): InputState {
   };
 
   const setKey = (event: KeyboardEvent, active: boolean) => {
+    if (isEditableTarget(event.target)) return;
     const key = event.key.toLowerCase();
     if (["w", "arrowup"].includes(key)) input.forward = active;
     if (["s", "arrowdown"].includes(key)) input.backward = active;
@@ -46,6 +47,14 @@ export function createInput(): InputState {
   window.addEventListener("keyup", (event) => setKey(event, false));
 
   return input;
+}
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return target.isContentEditable
+    || target instanceof HTMLInputElement
+    || target instanceof HTMLTextAreaElement
+    || target instanceof HTMLSelectElement;
 }
 
 export function setInputControl(input: InputState, control: InputControl, active: boolean): void {
