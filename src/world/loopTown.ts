@@ -56,6 +56,24 @@ import {
   toggleWaterTowerClimb,
   updateWaterTowerClimb
 } from "./interactions/waterTower";
+import {
+  bindLookControls,
+  createCinematicState,
+  initializeGameplayCamera,
+  registerCinematicActivity,
+  startIdleCinematic,
+  updateCinematicCamera,
+  updateCinematicExit,
+  updateGameplayCamera,
+  updateWaterTowerCamera
+} from "./camera/gameplay";
+import {
+  bindBuilderCanvasInteractions,
+  createBuilderCameraState,
+  resetBuilderCamera,
+  updateBuilderCamera,
+  zoomBuilderCamera
+} from "./camera/builder";
 import { applySceneShadows, createSoftShadow, createTownLights } from "./rendering/shadows";
 import {
   addLandscapeDetails,
@@ -76,46 +94,7 @@ type TownRuntime = {
   assetLayer: THREE.Group;
 };
 
-type CameraLookState = {
-  yaw: number;
-  targetYaw: number;
-  distance: number;
-  targetDistance: number;
-  zoomBy: (amount: number) => void;
-};
-
-type BuilderCameraState = {
-  focus: THREE.Vector3;
-  targetFocus: THREE.Vector3;
-  height: number;
-  targetHeight: number;
-};
-
-type CinematicState = {
-  active: boolean;
-  exiting: boolean;
-  lastInteraction: number;
-  startedAt: number;
-  exitStartedAt: number;
-  startAngle: number;
-  startPosition: THREE.Vector3;
-  startTarget: THREE.Vector3;
-  exitPosition: THREE.Vector3;
-  exitTarget: THREE.Vector3;
-};
-
-const CAMERA_OFFSET = new THREE.Vector3(-5.8, 5.05, 8.75);
-const CAMERA_DEFAULT_DISTANCE = CAMERA_OFFSET.length();
-const CAMERA_MIN_DISTANCE = 9.5;
-const CAMERA_MAX_DISTANCE = 20;
 const NEW_DISCOVERY_CARD_DELAY_MS = 620;
-const CINEMATIC_IDLE_MS = 60_000;
-const CINEMATIC_TRANSITION_MS = 4_000;
-const CINEMATIC_EXIT_MS = 900;
-const CINEMATIC_RADIUS = 31;
-const BUILDER_CAMERA_DEFAULT_HEIGHT = 54;
-const BUILDER_CAMERA_MIN_HEIGHT = 22;
-const BUILDER_CAMERA_MAX_HEIGHT = 88;
 
 type LoopTownOptions = {
   initialBuilder?: boolean;
@@ -157,8 +136,7 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
   player.position.set(1, 0, 2);
   player.rotation.y = 0;
   scene.add(player);
-  camera.position.copy(player.position).add(CAMERA_OFFSET);
-  camera.lookAt(player.position.x, 0.82, player.position.z);
+  initializeGameplayCamera(camera, player.position);
 
   let selectedWaypointId: string | null = null;
   const hud = createHud(root, {
@@ -233,15 +211,10 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
     },
     createAssetPreview: (asset) => town.assetLayer.getObjectByName(`asset:${asset.id}`)?.clone(true) ?? null,
     onCameraZoom: (amount) => {
-      builderCamera.targetHeight = THREE.MathUtils.clamp(
-        builderCamera.targetHeight + amount,
-        BUILDER_CAMERA_MIN_HEIGHT,
-        BUILDER_CAMERA_MAX_HEIGHT
-      );
+      zoomBuilderCamera(builderCamera, amount);
     },
     onCameraReset: () => {
-      builderCamera.targetFocus.set(0, 0, 0);
-      builderCamera.targetHeight = BUILDER_CAMERA_DEFAULT_HEIGHT;
+      resetBuilderCamera(builderCamera);
     },
     onActiveChange: (active) => {
       builderActive = active;
@@ -263,34 +236,8 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
   });
   bindBuilderCanvasInteractions(renderer.domElement, camera, town.assetLayer, () => builderActive, townBuilder, builderCamera);
 
-  const cinematic: CinematicState = {
-    active: false,
-    exiting: false,
-    lastInteraction: performance.now(),
-    startedAt: 0,
-    exitStartedAt: 0,
-    startAngle: 0,
-    startPosition: camera.position.clone(),
-    startTarget: player.position.clone(),
-    exitPosition: camera.position.clone(),
-    exitTarget: player.position.clone()
-  };
-
-  const registerActivity = () => {
-    cinematic.lastInteraction = performance.now();
-    if (!cinematic.active) return;
-    cinematic.active = false;
-    cinematic.exiting = true;
-    cinematic.exitStartedAt = performance.now();
-    cinematic.exitPosition.copy(camera.position);
-    camera.getWorldDirection(cinematic.exitTarget);
-    cinematic.exitTarget.multiplyScalar(12).add(camera.position);
-    root.classList.remove("cinematic-mode");
-  };
-  window.addEventListener("keydown", registerActivity, { passive: true });
-  renderer.domElement.addEventListener("pointerdown", registerActivity, { passive: true });
-  renderer.domElement.addEventListener("pointermove", registerActivity, { passive: true });
-  renderer.domElement.addEventListener("wheel", registerActivity, { passive: true });
+  const cinematic = createCinematicState(camera, player.position);
+  registerCinematicActivity(root, renderer.domElement, camera, cinematic);
 
   let nearest: DiscoveryEntry | null = null;
   let waypointMarker: DiscoveryMarker | null = null;
@@ -315,13 +262,8 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
     const delta = Math.min(clock.getDelta(), 0.05);
     const now = performance.now();
 
-    if (!builderActive && !cinematic.active && !cinematic.exiting && !hud.isModalOpen() && !cardOpen && now - cinematic.lastInteraction >= CINEMATIC_IDLE_MS) {
-      cinematic.active = true;
-      cinematic.startedAt = now;
-      cinematic.startPosition.copy(camera.position);
-      cinematic.startTarget.set(player.position.x, 0.82, player.position.z);
-      cinematic.startAngle = Math.atan2(camera.position.z, camera.position.x);
-      root.classList.add("cinematic-mode");
+    if (!builderActive && !hud.isModalOpen() && !cardOpen) {
+      startIdleCinematic(camera, player.position, cinematic, now, root);
     }
 
     if (builderActive) {
@@ -433,11 +375,11 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
     } else if (cinematic.active) {
       updateCinematicCamera(camera, cinematic, now);
     } else if (cinematic.exiting) {
-      updateCinematicExit(camera, cinematic, player.position, lookState, now, root);
+      updateCinematicExit(camera, cinematic, player.position, lookState, now);
     } else if (waterTowerClimb.mode === "platform" && waterTowerAnchor) {
       updateWaterTowerCamera(camera, waterTowerAnchor);
     } else {
-      updateCamera(camera, player.position, lookState);
+      updateGameplayCamera(camera, player.position, lookState);
     }
     renderer.render(scene, camera);
     requestAnimationFrame(animate);
@@ -603,230 +545,6 @@ function createTownColliders(schema: TownSchema): CollisionShape[] {
   return colliders;
 }
 
-function bindLookControls(element: HTMLCanvasElement): CameraLookState {
-  const look: CameraLookState = {
-    yaw: 0,
-    targetYaw: 0,
-    distance: CAMERA_DEFAULT_DISTANCE,
-    targetDistance: CAMERA_DEFAULT_DISTANCE,
-    zoomBy(amount) {
-      look.targetDistance = THREE.MathUtils.clamp(look.targetDistance + amount, CAMERA_MIN_DISTANCE, CAMERA_MAX_DISTANCE);
-    }
-  };
-  let dragging = false;
-  let lastX = 0;
-  let pinchDistance = 0;
-  const pointers = new Map<number, { x: number; y: number }>();
-
-  const getPinchDistance = () => {
-    const [first, second] = [...pointers.values()];
-    if (!first || !second) return 0;
-    return Math.hypot(second.x - first.x, second.y - first.y);
-  };
-
-  element.addEventListener("pointerdown", (event) => {
-    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-    lastX = event.clientX;
-    element.setPointerCapture(event.pointerId);
-    dragging = pointers.size === 1;
-    if (pointers.size >= 2) {
-      pinchDistance = getPinchDistance();
-    }
-  });
-
-  element.addEventListener("pointermove", (event) => {
-    if (!pointers.has(event.pointerId)) return;
-    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-    if (pointers.size >= 2) {
-      const nextPinchDistance = getPinchDistance();
-      if (pinchDistance > 0) look.zoomBy((pinchDistance - nextPinchDistance) * 0.012);
-      pinchDistance = nextPinchDistance;
-      return;
-    }
-    if (!dragging) return;
-    const deltaX = event.clientX - lastX;
-    lastX = event.clientX;
-    look.targetYaw -= deltaX * 0.006;
-  });
-
-  element.addEventListener(
-    "wheel",
-    (event) => {
-      event.preventDefault();
-      look.zoomBy(event.deltaY * 0.008);
-    },
-    { passive: false }
-  );
-
-  const release = (event: PointerEvent) => {
-    pointers.delete(event.pointerId);
-    dragging = pointers.size === 1;
-    if (dragging) {
-      const remainingPointer = [...pointers.values()][0];
-      lastX = remainingPointer.x;
-    } else {
-      pinchDistance = 0;
-    }
-    if (element.hasPointerCapture(event.pointerId)) {
-      element.releasePointerCapture(event.pointerId);
-    }
-  };
-
-  element.addEventListener("pointerup", release);
-  element.addEventListener("pointercancel", release);
-  element.addEventListener("dblclick", () => {
-    look.targetYaw = 0;
-    look.targetDistance = CAMERA_DEFAULT_DISTANCE;
-  });
-
-  return look;
-}
-
-function createBuilderCameraState(): BuilderCameraState {
-  return {
-    focus: new THREE.Vector3(0, 0, 0),
-    targetFocus: new THREE.Vector3(0, 0, 0),
-    height: BUILDER_CAMERA_DEFAULT_HEIGHT,
-    targetHeight: BUILDER_CAMERA_DEFAULT_HEIGHT
-  };
-}
-
-function bindBuilderCanvasInteractions(
-  element: HTMLCanvasElement,
-  camera: THREE.PerspectiveCamera,
-  assetLayer: THREE.Group,
-  isActive: () => boolean,
-  builder: ReturnType<typeof createTownBuilder>,
-  cameraState: BuilderCameraState
-): void {
-  const raycaster = new THREE.Raycaster();
-  const pointer = new THREE.Vector2();
-  const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-  const groundPoint = new THREE.Vector3();
-  let interaction:
-    | { kind: "pan"; pointerId: number; x: number; y: number }
-    | { kind: "asset"; pointerId: number; id: string; offsetX: number; offsetZ: number }
-    | null = null;
-
-  const getGroundPoint = (event: MouseEvent): THREE.Vector3 | null => {
-    const bounds = element.getBoundingClientRect();
-    pointer.set(((event.clientX - bounds.left) / bounds.width) * 2 - 1, -((event.clientY - bounds.top) / bounds.height) * 2 + 1);
-    raycaster.setFromCamera(pointer, camera);
-    return raycaster.ray.intersectPlane(ground, groundPoint) ? groundPoint.clone() : null;
-  };
-
-  const getAssetIdAtPointer = (event: PointerEvent): string | null => {
-    const bounds = element.getBoundingClientRect();
-    pointer.set(((event.clientX - bounds.left) / bounds.width) * 2 - 1, -((event.clientY - bounds.top) / bounds.height) * 2 + 1);
-    raycaster.setFromCamera(pointer, camera);
-    const hit = raycaster.intersectObjects(assetLayer.children, true).find((candidate) => {
-      let object: THREE.Object3D | null = candidate.object;
-      while (object) {
-        if (typeof object.userData.schemaAssetId === "string") return true;
-        object = object.parent;
-      }
-      return false;
-    });
-    if (!hit) return null;
-
-    let object: THREE.Object3D | null = hit.object;
-    while (object && typeof object.userData.schemaAssetId !== "string") object = object.parent;
-    return object ? String(object.userData.schemaAssetId) : null;
-  };
-
-  element.addEventListener("pointerdown", (event) => {
-    if (!isActive() || event.button !== 0) return;
-    const assetId = getAssetIdAtPointer(event);
-    const point = getGroundPoint(event);
-    element.setPointerCapture(event.pointerId);
-
-    if (assetId && point) {
-      const asset = builder.getSchema().assets.find((candidate) => candidate.id === assetId);
-      if (!asset) return;
-      builder.selectAsset(assetId);
-      interaction = {
-        kind: "asset",
-        pointerId: event.pointerId,
-        id: assetId,
-        offsetX: asset.position[0] * TOWN_SPREAD - point.x,
-        offsetZ: asset.position[1] * TOWN_SPREAD - point.z
-      };
-      element.style.cursor = "grabbing";
-      return;
-    }
-
-    interaction = { kind: "pan", pointerId: event.pointerId, x: event.clientX, y: event.clientY };
-    element.style.cursor = "grabbing";
-  });
-
-  element.addEventListener("pointermove", (event) => {
-    if (!isActive()) return;
-    if (!interaction) {
-      element.style.cursor = getAssetIdAtPointer(event) ? "grab" : "default";
-      return;
-    }
-    if (interaction.pointerId !== event.pointerId) return;
-
-    if (interaction.kind === "asset") {
-      const point = getGroundPoint(event);
-      if (!point) return;
-      builder.moveAsset(interaction.id, (point.x + interaction.offsetX) / TOWN_SPREAD, (point.z + interaction.offsetZ) / TOWN_SPREAD);
-      return;
-    }
-
-    const worldPerPixel = cameraState.targetHeight * 0.00072;
-    const worldLimit = WORLD_LIMIT * TOWN_SPREAD;
-    cameraState.targetFocus.x = THREE.MathUtils.clamp(
-      cameraState.targetFocus.x - (event.clientX - interaction.x) * worldPerPixel,
-      -worldLimit,
-      worldLimit
-    );
-    cameraState.targetFocus.z = THREE.MathUtils.clamp(
-      cameraState.targetFocus.z - (event.clientY - interaction.y) * worldPerPixel,
-      -worldLimit,
-      worldLimit
-    );
-    interaction.x = event.clientX;
-    interaction.y = event.clientY;
-  });
-
-  const finishInteraction = (event: PointerEvent) => {
-    const current = interaction;
-    interaction = null;
-    if (current?.kind === "asset" && current.pointerId === event.pointerId) builder.commitAssetMove();
-    if (element.hasPointerCapture(event.pointerId)) element.releasePointerCapture(event.pointerId);
-    if (isActive()) element.style.cursor = "default";
-  };
-  element.addEventListener("pointerup", finishInteraction);
-  element.addEventListener("pointercancel", finishInteraction);
-  element.addEventListener(
-    "wheel",
-    (event) => {
-      if (!isActive()) return;
-      event.preventDefault();
-      const cursorPoint = getGroundPoint(event);
-      const previousHeight = cameraState.targetHeight;
-      const nextHeight = THREE.MathUtils.clamp(
-        previousHeight * Math.exp(event.deltaY * 0.0012),
-        BUILDER_CAMERA_MIN_HEIGHT,
-        BUILDER_CAMERA_MAX_HEIGHT
-      );
-
-      if (cursorPoint && nextHeight < previousHeight) {
-        const pull = (1 - nextHeight / previousHeight) * 0.72;
-        cameraState.targetFocus.lerp(cursorPoint, pull);
-      }
-
-      cameraState.targetHeight = nextHeight;
-    },
-    { passive: false }
-  );
-  element.addEventListener("dblclick", () => {
-    if (!isActive()) return;
-    cameraState.targetFocus.set(0, 0, 0);
-    cameraState.targetHeight = BUILDER_CAMERA_DEFAULT_HEIGHT;
-  });
-}
 
 function bindVirtualControls(root: HTMLElement, input: ReturnType<typeof createInput>): void {
   const buttons = root.querySelectorAll<HTMLButtonElement>("[data-control]");
@@ -893,91 +611,4 @@ function bindVirtualControls(root: HTMLElement, input: ReturnType<typeof createI
   });
   joystick.addEventListener("pointerup", releaseJoystick);
   joystick.addEventListener("pointercancel", releaseJoystick);
-}
-
-
-function getGameplayCameraPosition(target: THREE.Vector3, look: CameraLookState): THREE.Vector3 {
-  look.yaw = THREE.MathUtils.lerp(look.yaw, look.targetYaw, 0.12);
-  look.distance = THREE.MathUtils.lerp(look.distance, look.targetDistance, 0.12);
-  const offset = CAMERA_OFFSET.clone().setLength(look.distance).applyAxisAngle(new THREE.Vector3(0, 1, 0), look.yaw);
-  return new THREE.Vector3(target.x + offset.x, target.y + offset.y, target.z + offset.z);
-}
-
-function updateCamera(camera: THREE.PerspectiveCamera, target: THREE.Vector3, look: CameraLookState): void {
-  camera.up.set(0, 1, 0);
-  const desired = getGameplayCameraPosition(target, look);
-  camera.position.lerp(desired, 0.075);
-  camera.lookAt(target.x, 0.82, target.z);
-}
-
-function updateBuilderCamera(camera: THREE.PerspectiveCamera, state: BuilderCameraState, delta: number): void {
-  const stableDelta = Math.min(delta, 0.05);
-  state.focus.x = THREE.MathUtils.damp(state.focus.x, state.targetFocus.x, 8.5, stableDelta);
-  state.focus.z = THREE.MathUtils.damp(state.focus.z, state.targetFocus.z, 8.5, stableDelta);
-  state.height = THREE.MathUtils.damp(state.height, state.targetHeight, 9.5, stableDelta);
-  camera.up.set(0, 0, -1);
-  camera.position.set(state.focus.x, state.height, state.focus.z);
-  camera.lookAt(state.focus.x, 0, state.focus.z);
-}
-
-function updateWaterTowerCamera(camera: THREE.PerspectiveCamera, towerAnchor: WaterTowerAnchor): void {
-  const tower = new THREE.Vector3(towerAnchor.x, towerAnchor.platformHeight, towerAnchor.z);
-  const townFocus = new THREE.Vector3(-0.8, 1.15, 0.8);
-  const towardTown = townFocus.clone().sub(tower).setY(0);
-  if (towardTown.lengthSq() < 0.001) towardTown.set(0, 0, -1);
-  towardTown.normalize();
-
-  // Keep the tower in the foreground and frame the town as a stable lookout shot.
-  const outward = towardTown.clone().multiplyScalar(-1);
-  const side = new THREE.Vector3(-outward.z, 0, outward.x).multiplyScalar(1.65);
-  const desired = tower.clone().addScaledVector(outward, 6.5).add(side);
-  desired.y += 4.25;
-  const target = tower.clone().addScaledVector(towardTown, 18);
-  target.y = 1.2;
-
-  camera.position.lerp(desired, 0.065);
-  camera.lookAt(target);
-}
-
-function updateCinematicExit(
-  camera: THREE.PerspectiveCamera,
-  state: CinematicState,
-  playerPosition: THREE.Vector3,
-  look: CameraLookState,
-  now: number,
-  root: HTMLElement
-): void {
-  const progress = THREE.MathUtils.smoothstep(
-    Math.min((now - state.exitStartedAt) / CINEMATIC_EXIT_MS, 1),
-    0,
-    1
-  );
-  const gameplayPosition = getGameplayCameraPosition(playerPosition, look);
-  const gameplayTarget = new THREE.Vector3(playerPosition.x, 0.82, playerPosition.z);
-  const target = new THREE.Vector3().lerpVectors(state.exitTarget, gameplayTarget, progress);
-  camera.position.lerpVectors(state.exitPosition, gameplayPosition, progress);
-  camera.lookAt(target);
-
-  if (progress >= 1) {
-    state.exiting = false;
-  }
-}
-
-function updateCinematicCamera(camera: THREE.PerspectiveCamera, state: CinematicState, now: number): void {
-  camera.up.set(0, 1, 0);
-  const elapsedSeconds = (now - state.startedAt) / 1000;
-  const transition = THREE.MathUtils.smoothstep(
-    Math.min((now - state.startedAt) / CINEMATIC_TRANSITION_MS, 1),
-    0,
-    1
-  );
-  const angle = state.startAngle + elapsedSeconds * 0.05;
-  const orbit = new THREE.Vector3(
-    Math.cos(angle) * CINEMATIC_RADIUS,
-    18 + Math.sin(elapsedSeconds * 0.12) * 3,
-    Math.sin(angle) * CINEMATIC_RADIUS
-  );
-  const target = new THREE.Vector3().lerpVectors(state.startTarget, new THREE.Vector3(0, 0.8, 0), transition);
-  camera.position.lerpVectors(state.startPosition, orbit, transition);
-  camera.lookAt(target);
 }
