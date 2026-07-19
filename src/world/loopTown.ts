@@ -261,13 +261,7 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
   let waypointTracked = false;
   let cardOpen = false;
   let pendingCardTimer: number | undefined;
-  let started = dedicatedBuilderRoute;
-
-  if (!dedicatedBuilderRoute) {
-    hud.openIntro(() => {
-      started = true;
-    });
-  }
+  let started = true;
 
   const resize = () => {
     const width = root.clientWidth;
@@ -294,19 +288,14 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
       input.inspectRequested = false;
     }
 
-    if (!started) {
-      input.jumpRequested = false;
-      input.inspectRequested = false;
-    }
-
     const waterTowerAnchor = getWaterTowerAnchor(townSchema);
 
-    if (started && !builderActive && input.jumpRequested && nearest) {
+    if (!builderActive && input.jumpRequested && nearest) {
       input.jumpRequested = false;
       input.inspectRequested = true;
     }
 
-    if (started && !builderActive && input.inspectRequested && toggleWaterTowerClimb(player, playerMotion, waterTowerClimb, waterTowerAnchor)) {
+    if (!builderActive && input.inspectRequested && toggleWaterTowerClimb(player, playerMotion, waterTowerClimb, waterTowerAnchor)) {
       input.inspectRequested = false;
     }
 
@@ -332,7 +321,7 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
       hud.setWaypoint(waypoint?.marker.entry ?? null, waypoint?.distance, waypoint?.heading, waypoint?.tracked);
     }
 
-    if (started && !builderActive && input.inspectRequested) {
+    if (!builderActive && input.inspectRequested) {
       input.inspectRequested = false;
       if (cardOpen) {
         if (pendingCardTimer !== undefined) {

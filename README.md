@@ -20,8 +20,6 @@ The loop engineering model is:
 
 See [docs/TECH-STACK.md](docs/TECH-STACK.md) for the stack rationale and inference notes.
 
-See [docs/shawnville-reconstruction-spec.md](docs/shawnville-reconstruction-spec.md) for the public-site reverse-engineering boundary, observed state machine, visual grammar, and local implementation mapping.
-
 ## Run Locally
 
 ```bash
