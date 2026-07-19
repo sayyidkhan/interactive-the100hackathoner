@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏘️</text></svg>" />
+  <title>Shawnville</title>
+  <script type="module" crossorigin src="./assets/index-BoB5RT0L.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-Cg3YuhOS.css">
+</head>
+<body>
+  <div id="app"></div>
+
+  <div class="ui">
+    <div class="title-card">
+      <h1>Shawnville</h1>
+      <p class="sub">a walkable portfolio</p>
+    </div>
+
+    <button class="journal-btn" id="journalBtn">
+      <span class="star">✦</span> <span id="journalCount">0/0</span> discovered
+    </button>
+
+    <div class="hint" id="hint">
+      <b>WASD</b> walk &nbsp;·&nbsp; <b>shift</b> jog &nbsp;·&nbsp; <b>drag</b> to look around
+    </div>
+
+    <div class="interact-pill" id="interactPill" hidden>
+      <b>␣ space</b> to read
+    </div>
+
+    <button class="icon-btn sound" id="soundBtn" title="toggle sound">🔊</button>
+    <button class="icon-btn music" id="musicBtn" title="change music">♪</button>
+    <button class="icon-btn char" id="charBtn" title="change character">👤</button>
+    <div class="toast" id="toast" hidden></div>
+
+    <div class="card" id="card" hidden>
+      <button class="card-close" id="cardClose">×</button>
+      <div class="card-icon" id="cardIcon">✦</div>
+      <h2 id="cardTitle"></h2>
+      <div class="card-body" id="cardBody"></div>
+      <div class="card-hint"><b>␣ space</b> to close</div>
+    </div>
+
+    <div class="modal-backdrop" id="intro">
+      <div class="modal">
+        <div class="modal-emoji">🏘️</div>
+        <h2>Welcome to Shawnville</h2>
+        <p>A tiny town built out of <b>Shawn Chee</b>'s resume, projects, and hobbies. Wander around — every glowing star is something to discover.</p>
+        <p class="small">choose your wanderer:</p>
+        <div class="char-grid" id="introCharGrid"></div>
+        <p class="small"><b>WASD</b> or arrows to walk · hold <b>shift</b> to jog · drag to look around · <b>space</b> to read a star</p>
+        <button class="primary" id="introBtn">Take a walk</button>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="charPicker" hidden>
+      <div class="modal">
+        <h2>Choose your wanderer</h2>
+        <div class="char-grid" id="charGrid"></div>
+        <button class="primary" id="charClose">Done</button>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="journal" hidden>
+      <div class="modal journal-modal">
+        <h2>Discovery Journal</h2>
+        <ul class="journal-list" id="journalList"></ul>
+        <button class="primary" id="journalClose">Back to town</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- phones in portrait: ask to rotate (Shawnville is a landscape experience) -->
+  <div class="rotate-gate" aria-hidden="true">
+    <div class="rotate-phone"></div>
+    <h2>Turn your phone</h2>
+    <p>Shawnville is a little town to walk around in — it needs some room. Rotate to landscape to explore.</p>
+  </div>
+
+</body>
+</html>
