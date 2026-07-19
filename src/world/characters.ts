@@ -289,6 +289,22 @@ export function applyCharacterAppearance(
   player.userData.characterAppearance = appearance;
 }
 
+export function createCharacterPreview(spec: CharacterSchema): THREE.Group {
+  const preview = createPlayer();
+  applyCharacterAppearance(preview, spec.appearance, spec.movement);
+
+  if (spec.kind === "citizen") {
+    const rig = preview.userData.rig as PlayerRig;
+    if (rig.personaAura) rig.personaAura.visible = false;
+    rig.trailDots?.forEach((dot) => {
+      dot.mesh.visible = false;
+    });
+    preview.scale.setScalar(0.7);
+  }
+
+  return preview;
+}
+
 export function createCitizens(scene: THREE.Object3D, specs: CharacterSchema[]): Citizen[] {
   return specs.map((spec) => {
     const citizen = createCitizen(spec.appearance, spec.speech ?? "town signal");

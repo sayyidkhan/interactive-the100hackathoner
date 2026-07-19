@@ -13,6 +13,7 @@ import { createHud } from "../ui/hud";
 import {
   applyCharacterAppearance,
   applyPlayerPersona,
+  createCharacterPreview as createCharacterPreviewModel,
   createCitizens,
   createPlayer,
   updateCitizens,
@@ -81,6 +82,7 @@ import {
   addPathStones,
   addPerimeterWalls,
   addWaterfront,
+  createTownAsset,
   renderTownAssets
 } from "./rendering/townAssets";
 import {
@@ -186,21 +188,35 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
   const unlockBursts: UnlockBurst[] = [];
   applySceneShadows(scene);
 
+  let pendingTownSchema: TownSchema | null = null;
+  let schemaUpdateFrame: number | undefined;
+  const applyTownSchema = (nextSchema: TownSchema) => {
+    clearGroup(town.assetLayer);
+    renderTownAssets(town.assetLayer, nextSchema.assets);
+    colliders = createTownColliders(nextSchema);
+    applyCharacterAppearance(player, nextSchema.player.appearance, nextSchema.player.movement);
+    clearGroup(citizenLayer);
+    citizens = createCitizens(citizenLayer, nextSchema.citizens);
+    applySceneShadows(town.assetLayer);
+    applySceneShadows(citizenLayer);
+  };
+  const scheduleTownSchemaUpdate = (nextSchema: TownSchema) => {
+    townSchema = nextSchema;
+    pendingTownSchema = nextSchema;
+    if (schemaUpdateFrame !== undefined) return;
+    schemaUpdateFrame = window.requestAnimationFrame(() => {
+      schemaUpdateFrame = undefined;
+      const schemaToApply = pendingTownSchema;
+      pendingTownSchema = null;
+      if (schemaToApply) applyTownSchema(schemaToApply);
+    });
+  };
+
   const townBuilder = createTownBuilder(root, {
     initialSchema: townSchema,
     shippedSchema: SHIPPED_TOWN_SCHEMA,
     startActive: dedicatedBuilderRoute,
-    onSchemaChange: (nextSchema) => {
-      townSchema = nextSchema;
-      clearGroup(town.assetLayer);
-      renderTownAssets(town.assetLayer, townSchema.assets);
-      colliders = createTownColliders(townSchema);
-      applyCharacterAppearance(player, townSchema.player.appearance, townSchema.player.movement);
-      clearGroup(citizenLayer);
-      citizens = createCitizens(citizenLayer, townSchema.citizens);
-      applySceneShadows(town.assetLayer);
-      applySceneShadows(citizenLayer);
-    },
+    onSchemaChange: scheduleTownSchemaUpdate,
     onSelectionChange: (asset) => {
       if (builderActive) updateBuilderSelectionMarker(builderSelectionMarker, asset);
     },
@@ -209,7 +225,8 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
       root?.position.set(asset.position[0] * TOWN_SPREAD, 0, asset.position[1] * TOWN_SPREAD);
       if (builderActive) updateBuilderSelectionMarker(builderSelectionMarker, asset);
     },
-    createAssetPreview: (asset) => town.assetLayer.getObjectByName(`asset:${asset.id}`)?.clone(true) ?? null,
+    createAssetPreview: createTownAsset,
+    createCharacterPreview: (character) => createCharacterPreviewModel(character),
     onCameraZoom: (amount) => {
       zoomBuilderCamera(builderCamera, amount);
     },
