@@ -3,6 +3,7 @@ import { DISCOVERIES, DiscoveryEntry, JOURNEY_PROGRESS } from "../data/discoveri
 export type HudApi = {
   setPrompt: (entry: DiscoveryEntry | null) => void;
   setProgress: (discovered: Set<string>) => void;
+  openIntro: (onStart: () => void) => void;
   openCard: (entry: DiscoveryEntry, onClose: () => void) => void;
   closeCard: () => void;
   openPersona: () => void;
@@ -427,6 +428,28 @@ export function createHud(
     modalLayer.querySelector("[data-close]")?.addEventListener("click", closeModal);
   };
 
+  const openIntro = (onStart: () => void) => {
+    openModal(`
+      <section class="modal intro-modal" role="dialog" aria-modal="true" aria-labelledby="intro-title">
+        <span class="intro-emoji" aria-hidden="true">🏘️</span>
+        <span class="intro-kicker">A walkable proof-of-work archive</span>
+        <h2 id="intro-title">Welcome to Hackathoner Ville</h2>
+        <p class="intro-copy">A tiny town built from 100 hackathons, founder lessons, and experiments in public. Wander around — every glowing signal is a story worth extracting.</p>
+        <p class="intro-choice-label">Choose your operating mode</p>
+        <div class="persona-grid intro-persona-grid">
+          ${renderPersonaOptions()}
+        </div>
+        <p class="intro-controls"><b>WASD</b> or arrows to walk <span>·</span> hold <b>Shift</b> to sprint <span>·</span> drag to look around <span>·</span> press <b>E</b> to save a story</p>
+        <button class="primary-action intro-action" type="button" data-start>Enter the town</button>
+      </section>
+    `);
+    bindPersonaSelection();
+    modalLayer.querySelector("[data-start]")?.addEventListener("click", () => {
+      closeModal();
+      onStart();
+    });
+  };
+
   personaButton.addEventListener("click", openPersona);
   builderButton.addEventListener("click", () => options.onBuilderToggle?.());
   toolsToggle.addEventListener("click", () => {
@@ -824,6 +847,7 @@ export function createHud(
     isModalOpen() {
       return !modalLayer.hasAttribute("hidden");
     },
+    openIntro,
     openPersona,
     openJournal(discovered) {
       hideToast();

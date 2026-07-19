@@ -1706,6 +1706,89 @@ button {
   line-height: 1.55;
 }
 
+.intro-modal {
+  width: min(590px, calc(100vw - 32px));
+  padding: 30px 34px 28px;
+  overflow: auto;
+  text-align: center;
+}
+
+.intro-emoji,
+.intro-kicker,
+.intro-choice-label,
+.intro-controls {
+  display: block;
+}
+
+.intro-emoji {
+  margin-bottom: 5px;
+  font-size: 32px;
+  line-height: 1;
+}
+
+.intro-kicker,
+.intro-choice-label {
+  color: var(--accent-dark);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.intro-modal h2 {
+  margin-top: 8px;
+  font-family: "Bebas Neue", "Arial Narrow", sans-serif;
+  font-size: clamp(38px, 5vw, 54px);
+  font-weight: 400;
+  letter-spacing: 0.015em;
+}
+
+.intro-modal .intro-copy {
+  max-width: 490px;
+  margin: 13px auto 15px;
+  color: #51483e;
+}
+
+.intro-choice-label {
+  margin-top: 2px;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+
+.persona-grid.intro-persona-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+  margin: 12px 0 14px;
+}
+
+.intro-persona-grid .persona-option {
+  min-height: 112px;
+  padding: 10px 8px;
+}
+
+.intro-persona-grid .persona-option em {
+  display: none;
+}
+
+.intro-controls {
+  max-width: 500px;
+  margin: 0 auto 18px !important;
+  color: #756d61 !important;
+  font-size: 11px !important;
+  font-weight: 700;
+  line-height: 1.45 !important;
+}
+
+.intro-controls span {
+  margin: 0 3px;
+  color: rgba(53, 45, 36, 0.34);
+}
+
+.intro-action {
+  min-width: 170px;
+  text-transform: uppercase;
+}
+
 .modal-emoji,
 .card-icon {
   margin-bottom: 12px;
@@ -3120,6 +3203,24 @@ dd {
 
   .primary-action {
     min-height: 42px;
+  }
+
+  .intro-modal {
+    padding: 20px 26px;
+  }
+
+  .intro-modal h2 {
+    font-size: 38px;
+  }
+
+  .intro-persona-grid .persona-option {
+    min-height: 94px;
+  }
+}
+
+@media (max-width: 620px) {
+  .persona-grid.intro-persona-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
