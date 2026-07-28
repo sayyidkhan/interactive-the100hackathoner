@@ -37,6 +37,25 @@ export type HairStyle =
 export type BodyPreset = "compact" | "average" | "tall" | "broad";
 export type FaceStyle = "soft" | "round" | "bright";
 export type AccessoryStyle = "none" | "glasses" | "cap" | "beanie";
+export type WeatherMode = "live" | "manual";
+export type WeatherCondition = "clear" | "cloudy" | "rain" | "storm" | "snow";
+export type DayNightMode = "timezone" | "manual";
+export type SeasonCycle = "four" | "two";
+export type SeasonChoice = "auto" | "spring" | "summer" | "autumn" | "winter" | "wet" | "dry";
+export type FallingFoliage = "off" | "sakura" | "leaves" | "mixed";
+
+export type EnvironmentSettings = {
+  weatherMode: WeatherMode;
+  weather: WeatherCondition;
+  latitude: number;
+  longitude: number;
+  timezoneOffset: number;
+  dayNightMode: DayNightMode;
+  manualHour: number;
+  seasonCycle: SeasonCycle;
+  season: SeasonChoice;
+  foliage: FallingFoliage;
+};
 
 export type CharacterAppearance = {
   skin: string;
@@ -85,6 +104,7 @@ export type TownAsset = {
 export type TownSchema = {
   version: number;
   town: { name: string };
+  environment: EnvironmentSettings;
   player: CharacterSchema;
   citizens: CharacterSchema[];
   assets: TownAsset[];
@@ -154,6 +174,25 @@ const HAIR_STYLES = new Set<HairStyle>(["crop", "swept", "afro", "bald", "bob", 
 const BODY_PRESETS = new Set<BodyPreset>(["compact", "average", "tall", "broad"]);
 const FACE_STYLES = new Set<FaceStyle>(["soft", "round", "bright"]);
 const ACCESSORY_STYLES = new Set<AccessoryStyle>(["none", "glasses", "cap", "beanie"]);
+const WEATHER_MODES = new Set<WeatherMode>(["live", "manual"]);
+const WEATHER_CONDITIONS = new Set<WeatherCondition>(["clear", "cloudy", "rain", "storm", "snow"]);
+const DAY_NIGHT_MODES = new Set<DayNightMode>(["timezone", "manual"]);
+const SEASON_CYCLES = new Set<SeasonCycle>(["four", "two"]);
+const SEASON_CHOICES = new Set<SeasonChoice>(["auto", "spring", "summer", "autumn", "winter", "wet", "dry"]);
+const FALLING_FOLIAGE = new Set<FallingFoliage>(["off", "sakura", "leaves", "mixed"]);
+
+export const DEFAULT_ENVIRONMENT_SETTINGS: EnvironmentSettings = {
+  weatherMode: "live",
+  weather: "clear",
+  latitude: 1.3521,
+  longitude: 103.8198,
+  timezoneOffset: 8,
+  dayNightMode: "timezone",
+  manualHour: 14,
+  seasonCycle: "two",
+  season: "auto",
+  foliage: "sakura"
+};
 
 export const TOWN_SCHEMA_STORAGE_KEY = "the100hackathoner.town-schema.v1";
 
@@ -168,6 +207,7 @@ export function parseTownSchema(value: unknown): TownSchema {
   if (!candidate.town || typeof candidate.town.name !== "string") throw new Error("Town schema needs a town name.");
   if (!candidate.player || candidate.player.kind !== "player") throw new Error("Town schema needs a player definition.");
   if (!Array.isArray(candidate.citizens) || !Array.isArray(candidate.assets)) throw new Error("Town schema needs citizens and assets arrays.");
+  candidate.environment = parseEnvironmentSettings(candidate.environment);
 
   const assetIds = new Set<string>();
   candidate.assets.forEach((asset) => {
@@ -184,6 +224,33 @@ export function parseTownSchema(value: unknown): TownSchema {
 
   [candidate.player, ...candidate.citizens].forEach((character) => assertCharacter(character));
   return candidate as TownSchema;
+}
+
+function parseEnvironmentSettings(value: unknown): EnvironmentSettings {
+  const candidate = value && typeof value === "object" ? value as Partial<EnvironmentSettings> : {};
+  const settings: EnvironmentSettings = {
+    ...DEFAULT_ENVIRONMENT_SETTINGS,
+    ...candidate
+  };
+  if (!WEATHER_MODES.has(settings.weatherMode)) throw new Error("Town environment has an invalid weather mode.");
+  if (!WEATHER_CONDITIONS.has(settings.weather)) throw new Error("Town environment has an invalid weather condition.");
+  if (!DAY_NIGHT_MODES.has(settings.dayNightMode)) throw new Error("Town environment has an invalid day/night mode.");
+  if (!SEASON_CYCLES.has(settings.seasonCycle)) throw new Error("Town environment has an invalid season cycle.");
+  if (!SEASON_CHOICES.has(settings.season)) throw new Error("Town environment has an invalid season.");
+  if (!FALLING_FOLIAGE.has(settings.foliage)) throw new Error("Town environment has invalid falling foliage.");
+  if (!Number.isFinite(settings.latitude) || settings.latitude < -90 || settings.latitude > 90) {
+    throw new Error("Town environment has an invalid latitude.");
+  }
+  if (!Number.isFinite(settings.longitude) || settings.longitude < -180 || settings.longitude > 180) {
+    throw new Error("Town environment has an invalid longitude.");
+  }
+  if (!Number.isFinite(settings.timezoneOffset) || settings.timezoneOffset < -12 || settings.timezoneOffset > 14) {
+    throw new Error("Town environment has an invalid timezone.");
+  }
+  if (!Number.isFinite(settings.manualHour) || settings.manualHour < 0 || settings.manualHour > 23) {
+    throw new Error("Town environment has an invalid manual hour.");
+  }
+  return settings;
 }
 
 export function loadTownSchemaDraft(): TownSchema {

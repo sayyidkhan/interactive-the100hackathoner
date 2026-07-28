@@ -43,6 +43,7 @@ import {
   createAtmosphere,
   createFireflies,
   createSakuraPetals,
+  createWeatherParticles,
   type AtmosphereObject,
   type Firefly,
   type SakuraPetal,
@@ -50,6 +51,10 @@ import {
   updateFireflies,
   updateSakuraPetals
 } from "./atmosphere";
+import {
+  createEnvironmentController,
+  type EnvironmentRuntimeStatus
+} from "./environment";
 import { createFootballPitch, type TownBall, updateFootball } from "./football";
 import {
   type WaterTowerAnchor,
@@ -191,7 +196,7 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
   bindVirtualControls(root, input);
   hud.setProgress(discovered);
 
-  createTownLights(scene);
+  const townLights = createTownLights(scene);
   const town = createTown(scene, townSchema);
   let foliage = collectFoliage(town.assetLayer);
   const builderSelectionMarker = createBuilderSelectionMarker(scene);
@@ -209,8 +214,24 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
   const animals = createTownAnimals(scene);
   const sakuraPetals = createSakuraPetals(scene);
   const fireflies = createFireflies(scene);
+  const weatherParticles = createWeatherParticles(scene);
   const unlockBursts: UnlockBurst[] = [];
   applySceneShadows(scene);
+
+  const environmentController = createEnvironmentController({
+    scene,
+    lights: townLights,
+    atmosphere,
+    petals: sakuraPetals,
+    fireflies,
+    weatherParticles,
+    onStatus: (status: EnvironmentRuntimeStatus) => {
+      root.dataset.weather = status.weather;
+      root.dataset.season = status.season;
+      root.dataset.localHour = status.localHour.toFixed(2);
+      root.dispatchEvent(new CustomEvent<EnvironmentRuntimeStatus>("town:environment-status", { detail: status }));
+    }
+  });
 
   let pendingTownSchema: TownSchema | null = null;
   let schemaUpdateFrame: number | undefined;
@@ -224,6 +245,8 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
     citizens = createCitizens(citizenLayer, nextSchema.citizens);
     applySceneShadows(town.assetLayer);
     applySceneShadows(citizenLayer);
+    environmentController.apply(nextSchema.environment);
+    environmentController.refreshSeasonMaterials(town.assetLayer);
   };
   const scheduleTownSchemaUpdate = (nextSchema: TownSchema) => {
     townSchema = nextSchema;
@@ -261,10 +284,6 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
     onActiveChange: (active) => {
       builderActive = active;
       builderGrid.visible = active;
-      atmosphere.forEach((item) => { item.object.visible = !active; });
-      sakuraPetals.mesh.visible = !active;
-      fireflies.core.visible = !active;
-      fireflies.halo.visible = !active;
       if (!active) {
         builderSelectionMarker.visible = false;
         return;
@@ -280,6 +299,8 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
       input.inspectRequested = false;
     }
   });
+  root.addEventListener("town:weather-refresh", () => environmentController.refreshWeather());
+  environmentController.apply(townSchema.environment);
   bindBuilderCanvasInteractions(renderer.domElement, camera, town.assetLayer, () => builderActive, townBuilder, builderCamera);
 
   const cinematic = createCinematicState(camera, player.position);
@@ -419,6 +440,7 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
     updateTownAnimals(animals, clock.elapsedTime, delta);
     updateSakuraPetals(sakuraPetals, clock.elapsedTime);
     updateFireflies(fireflies, clock.elapsedTime);
+    environmentController.update(clock.elapsedTime, delta);
     const targetFov = !builderActive && !cinematic.active && playerMotion.speed > 4.8 ? 46 : 40;
     const previousFov = camera.fov;
     camera.fov = THREE.MathUtils.damp(camera.fov, targetFov, 12, delta);

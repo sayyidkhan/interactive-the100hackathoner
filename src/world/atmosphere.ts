@@ -1,4 +1,9 @@
 import * as THREE from "three";
+import {
+  type FallingFoliage,
+  type SeasonChoice,
+  type WeatherCondition
+} from "../data/townSchema";
 
 export type AtmosphereObject = {
   object: THREE.Object3D;
@@ -25,6 +30,14 @@ export type Firefly = {
   speeds: Float32Array;
   positions: Float32Array;
   colors: Float32Array;
+};
+
+export type WeatherParticles = {
+  rain: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>;
+  snow: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>;
+  positions: Float32Array;
+  fallSpeeds: Float32Array;
+  drifts: Float32Array;
 };
 
 export function createAtmosphere(scene: THREE.Scene): AtmosphereObject[] {
@@ -193,6 +206,54 @@ export function createFireflies(scene: THREE.Scene): Firefly {
   return { core, halo, origins, phases, radii, speeds, positions, colors };
 }
 
+export function createWeatherParticles(scene: THREE.Scene): WeatherParticles {
+  const count = 440;
+  const positions = new Float32Array(count * 3);
+  const fallSpeeds = new Float32Array(count);
+  const drifts = new Float32Array(count);
+  for (let index = 0; index < count; index += 1) {
+    positions[index * 3] = (Math.random() - 0.5) * 62;
+    positions[index * 3 + 1] = 0.5 + Math.random() * 12;
+    positions[index * 3 + 2] = (Math.random() - 0.5) * 62;
+    fallSpeeds[index] = 0.72 + Math.random() * 0.65;
+    drifts[index] = Math.random() * Math.PI * 2;
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3).setUsage(THREE.DynamicDrawUsage));
+  const rainMaterial = new THREE.PointsMaterial({
+    color: "#c8d8df",
+    map: createPrecipitationTexture("rain"),
+    size: 0.32,
+    sizeAttenuation: true,
+    transparent: true,
+    opacity: 0.62,
+    depthWrite: false,
+    alphaTest: 0.08,
+    fog: true
+  });
+  const snowMaterial = new THREE.PointsMaterial({
+    color: "#fffaf0",
+    map: createPrecipitationTexture("snow"),
+    size: 0.25,
+    sizeAttenuation: true,
+    transparent: true,
+    opacity: 0.76,
+    depthWrite: false,
+    alphaTest: 0.04,
+    fog: true
+  });
+  const rain = new THREE.Points(geometry, rainMaterial);
+  const snow = new THREE.Points(geometry, snowMaterial);
+  rain.visible = false;
+  snow.visible = false;
+  rain.frustumCulled = false;
+  snow.frustumCulled = false;
+  rain.renderOrder = 4;
+  snow.renderOrder = 4;
+  scene.add(rain, snow);
+  return { rain, snow, positions, fallSpeeds, drifts };
+}
+
 export function updateAtmosphere(atmosphere: AtmosphereObject[], delta: number): void {
   for (const item of atmosphere) {
     item.object.position.x += item.speed * delta;
@@ -232,6 +293,60 @@ export function updateSakuraPetals(petals: SakuraPetal, time: number): void {
     petals.mesh.setMatrixAt(index, petals.transform.matrix);
   }
   petals.mesh.instanceMatrix.needsUpdate = true;
+}
+
+export function setFallingFoliageAppearance(
+  petals: SakuraPetal,
+  style: FallingFoliage,
+  season: Exclude<SeasonChoice, "auto">
+): void {
+  const sakura = ["#dba8aa", "#e8bfba", "#b89aa4", "#d4aaa9", "#f1d0c8"];
+  const seasonalLeaves: Record<Exclude<SeasonChoice, "auto">, string[]> = {
+    spring: ["#91aa68", "#b5bd78", "#7e9c5e", "#c6b981", "#89a56b"],
+    summer: ["#527c48", "#678e50", "#466f43", "#78985a", "#5f844c"],
+    autumn: ["#c77b3c", "#d89a4b", "#a85532", "#d1aa58", "#9a6540"],
+    winter: ["#9b8d7b", "#b7a68e", "#7e8177", "#a99c88", "#8e817d"],
+    wet: ["#557f51", "#6f965d", "#4d744c", "#87a66b", "#668c58"],
+    dry: ["#b58b4f", "#c6a05e", "#8e7448", "#d0ad67", "#9f7c46"]
+  };
+  const leaves = seasonalLeaves[season];
+  petals.mesh.visible = style !== "off";
+  for (let index = 0; index < petals.origins.length; index += 1) {
+    const palette = style === "sakura" || (style === "mixed" && index % 2 === 0) ? sakura : leaves;
+    petals.mesh.setColorAt(index, new THREE.Color(palette[index % palette.length]));
+  }
+  if (petals.mesh.instanceColor) petals.mesh.instanceColor.needsUpdate = true;
+}
+
+export function updateWeatherParticles(
+  particles: WeatherParticles,
+  delta: number,
+  time: number,
+  condition: WeatherCondition,
+  windSpeed: number
+): void {
+  const snowing = condition === "snow";
+  const raining = condition === "rain" || condition === "storm";
+  particles.rain.visible = raining;
+  particles.snow.visible = snowing;
+  if (!raining && !snowing) return;
+  particles.rain.material.opacity = condition === "storm" ? 0.76 : 0.62;
+  particles.rain.material.size = condition === "storm" ? 0.38 : 0.32;
+  const velocity = snowing ? 1.15 : condition === "storm" ? 9.5 : 7.2;
+  const wind = THREE.MathUtils.clamp(windSpeed / 40, 0.06, 0.8);
+  for (let index = 0; index < particles.fallSpeeds.length; index += 1) {
+    const offset = index * 3;
+    particles.positions[offset + 1] -= velocity * particles.fallSpeeds[index] * delta;
+    particles.positions[offset] += wind * delta * (snowing ? Math.sin(time * 0.55 + particles.drifts[index]) : 1.8);
+    if (snowing) particles.positions[offset + 2] += Math.cos(time * 0.42 + particles.drifts[index]) * delta * 0.18;
+    if (particles.positions[offset + 1] < 0.2) {
+      particles.positions[offset + 1] = 9 + Math.random() * 4;
+      particles.positions[offset] = (Math.random() - 0.5) * 62;
+      particles.positions[offset + 2] = (Math.random() - 0.5) * 62;
+    }
+    if (particles.positions[offset] > 31) particles.positions[offset] = -31;
+  }
+  particles.rain.geometry.attributes.position.needsUpdate = true;
 }
 
 export function updateFireflies(fireflies: Firefly, time: number): void {
@@ -287,6 +402,24 @@ function createFireflyTexture(): THREE.CanvasTexture {
   glow.addColorStop(1, "rgba(255, 177, 77, 0)");
   context.fillStyle = glow;
   context.fillRect(0, 0, canvas.width, canvas.height);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function createPrecipitationTexture(kind: "rain" | "snow"): THREE.CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = 32;
+  canvas.height = 64;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Could not create precipitation texture");
+  const gradient = context.createRadialGradient(16, kind === "rain" ? 42 : 32, 1, 16, 32, kind === "rain" ? 26 : 12);
+  gradient.addColorStop(0, "rgba(255,255,255,0.95)");
+  gradient.addColorStop(0.42, "rgba(255,255,255,0.5)");
+  gradient.addColorStop(1, "rgba(255,255,255,0)");
+  context.fillStyle = gradient;
+  if (kind === "rain") context.fillRect(13, 3, 6, 58);
+  else context.beginPath(), context.arc(16, 32, 11, 0, Math.PI * 2), context.fill();
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   return texture;

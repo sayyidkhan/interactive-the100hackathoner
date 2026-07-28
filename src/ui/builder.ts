@@ -2,6 +2,9 @@ import * as THREE from "three";
 import {
   CharacterAppearance,
   CharacterSchema,
+  EnvironmentSettings,
+  FallingFoliage,
+  SeasonChoice,
   TownAsset,
   TownAssetType,
   TownSchema,
@@ -10,6 +13,7 @@ import {
   parseTownSchema,
   saveTownSchemaDraft
 } from "../data/townSchema";
+import { type EnvironmentRuntimeStatus } from "../world/environment";
 
 type BuilderSelection = { kind: "asset"; id: string } | { kind: "player" } | { kind: "citizen"; id: string };
 type BuilderConfirmation =
@@ -63,7 +67,7 @@ const ASSET_TILE_GROUPS = [
   { id: "nature", label: "Nature" }
 ] as const;
 type AssetTileGroup = (typeof ASSET_TILE_GROUPS)[number]["id"];
-type BuilderPanel = "catalog" | "placed" | "residents";
+type BuilderPanel = "catalog" | "placed" | "residents" | "environment";
 
 const HAIR_STYLES: CharacterAppearance["hairStyle"][] = ["crop", "swept", "afro", "coily", "bob", "bun", "braids", "mohawk", "long", "bald"];
 const SKIN_TONES = ["#f5d8bd", "#e8bd98", "#d39a72", "#bb7c55", "#9d6245", "#7e4c38", "#613728", "#44291f"];
@@ -123,6 +127,9 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
   let inspectorOpen = false;
   let placement: { assetId: string; isNew: boolean; baseHistoryIndex: number } | null = null;
   let confirmation: BuilderConfirmation | null = null;
+  let environmentStatus: EnvironmentRuntimeStatus | null = null;
+  let locationError = "";
+  let locating = false;
   let selectionPreview: AssetPreview | null = null;
   let tilePreviewRenderer: TilePreviewRenderer | null = null;
   let tilePreviewsUnavailable = false;
@@ -380,6 +387,57 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
     });
   };
 
+  const updateEnvironment = (field: keyof EnvironmentSettings, value: string | number) => {
+    commit(() => {
+      const environment = schema.environment;
+      if (field === "latitude" || field === "longitude" || field === "timezoneOffset" || field === "manualHour") {
+        environment[field] = Number(value);
+        return;
+      }
+      if (field === "weatherMode") environment.weatherMode = value as EnvironmentSettings["weatherMode"];
+      if (field === "weather") environment.weather = value as EnvironmentSettings["weather"];
+      if (field === "dayNightMode") environment.dayNightMode = value as EnvironmentSettings["dayNightMode"];
+      if (field === "seasonCycle") {
+        environment.seasonCycle = value as EnvironmentSettings["seasonCycle"];
+        if (environment.seasonCycle === "two" && !["auto", "wet", "dry"].includes(environment.season)) environment.season = "auto";
+        if (environment.seasonCycle === "four" && !["auto", "spring", "summer", "autumn", "winter"].includes(environment.season)) environment.season = "auto";
+      }
+      if (field === "season") environment.season = value as EnvironmentSettings["season"];
+      if (field === "foliage") environment.foliage = value as EnvironmentSettings["foliage"];
+    });
+  };
+
+  const useCurrentLocation = () => {
+    locationError = "";
+    if (!navigator.geolocation) {
+      locationError = "Location is not available in this browser.";
+      render();
+      return;
+    }
+    locating = true;
+    render();
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        locating = false;
+        commit(() => {
+          schema.environment.latitude = Number(position.coords.latitude.toFixed(4));
+          schema.environment.longitude = Number(position.coords.longitude.toFixed(4));
+          schema.environment.timezoneOffset = Math.min(14, Math.max(-12, -new Date().getTimezoneOffset() / 60));
+          schema.environment.weatherMode = "live";
+        });
+        root.dispatchEvent(new Event("town:weather-refresh"));
+      },
+      (failure) => {
+        locating = false;
+        locationError = failure.code === failure.PERMISSION_DENIED
+          ? "Location permission was declined. Singapore remains the default."
+          : "Your location could not be read. Try again later.";
+        render();
+      },
+      { enableHighAccuracy: false, maximumAge: 30 * 60 * 1000, timeout: 10000 }
+    );
+  };
+
   const resetShipped = () => {
     confirmation = { kind: "reset-draft" };
     render();
@@ -402,29 +460,29 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
     options.onSelectionChange?.(selectedAsset ?? null);
     shell.hidden = !active;
     shell.innerHTML = `
-      ${paletteOpen ? `<section class="builder-palette builder-transient-drawer" aria-label="Town builder library">
+      ${paletteOpen ? `<section class="builder-palette builder-transient-drawer ${builderPanel === "environment" ? "builder-environment-drawer" : ""}" aria-label="${builderPanel === "environment" ? "Town environment settings" : "Town builder library"}">
         <header class="builder-header">
           <div>
-            <span class="builder-kicker">Town tools</span>
-            <strong>Town library</strong>
+            <span class="builder-kicker">${builderPanel === "environment" ? "World settings" : "Town tools"}</span>
+            <strong>${builderPanel === "environment" ? "Environment" : "Town library"}</strong>
           </div>
           <div class="builder-header-actions">
-            <button class="builder-icon-button builder-tooltip" type="button" data-action="collapse-palette" aria-label="Close town library" data-tooltip="Close library">×</button>
+            <button class="builder-icon-button builder-tooltip" type="button" data-action="collapse-palette" aria-label="Close ${builderPanel === "environment" ? "environment settings" : "town library"}" data-tooltip="Close panel">×</button>
           </div>
         </header>
         <div class="builder-palette-body">
-          <div class="builder-library-toolbar">
+          ${builderPanel !== "environment" ? `<div class="builder-library-toolbar">
             <label class="builder-search">
               <span aria-hidden="true">⌕</span>
               <input type="search" data-palette-search value="${escapeHtml(paletteSearch)}" placeholder="${builderPanel === "catalog" ? "Search assets" : builderPanel === "placed" ? "Search placed items" : "Search residents"}" aria-label="Search ${builderPanel}" />
             </label>
             ${builderPanel === "residents" ? `<button type="button" class="builder-surprise-button" data-action="randomize-character" ${selection.kind === "asset" ? "disabled" : ""}>Surprise me</button>` : ""}
-          </div>
+          </div>` : ""}
           ${builderPanel === "catalog" ? `<div class="builder-filter-row" role="tablist" aria-label="Asset categories">
             ${ASSET_TILE_GROUPS.map((group) => `<button type="button" data-filter="${group.id}" class="${paletteFilter === group.id ? "active" : ""}">${group.label}</button>`).join("")}
           </div>` : ""}
           <div class="builder-library-content">
-            ${renderBuilderPanel(builderPanel, schema, selection, paletteFilter, paletteSearch)}
+            ${renderBuilderPanel(builderPanel, schema, selection, paletteFilter, paletteSearch, environmentStatus, locating, locationError)}
           </div>
           <div class="builder-history-bar">
             <span>${historyIndex + 1} / ${history.length} changes</span>
@@ -532,6 +590,23 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
       inspectorOpen = false;
       render();
     }));
+    shell.querySelectorAll<HTMLButtonElement>("[data-environment-choice]").forEach((button) => button.addEventListener("click", () => {
+      const [field, value] = (button.dataset.environmentChoice ?? "").split(":");
+      if (!field || !value) return;
+      updateEnvironment(field as keyof EnvironmentSettings, value);
+    }));
+    shell.querySelectorAll<HTMLInputElement | HTMLSelectElement>("[data-environment-field]").forEach((input) => {
+      input.addEventListener("change", () => {
+        const field = input.dataset.environmentField as keyof EnvironmentSettings | undefined;
+        if (!field) return;
+        const value = input instanceof HTMLInputElement && input.type === "number" ? Number(input.value) : input.value;
+        updateEnvironment(field, value);
+      });
+    });
+    shell.querySelector<HTMLButtonElement>('[data-action="use-location"]')?.addEventListener("click", useCurrentLocation);
+    shell.querySelector<HTMLButtonElement>('[data-action="refresh-weather"]')?.addEventListener("click", () => {
+      root.dispatchEvent(new Event("town:weather-refresh"));
+    });
     shell.querySelector<HTMLButtonElement>('[data-action="zoom-in"]')?.addEventListener("click", () => options.onCameraZoom?.(-7));
     shell.querySelector<HTMLButtonElement>('[data-action="zoom-out"]')?.addEventListener("click", () => options.onCameraZoom?.(7));
     shell.querySelector<HTMLButtonElement>('[data-action="zoom-reset"]')?.addEventListener("click", () => options.onCameraReset?.());
@@ -592,8 +667,8 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
     });
     shell.querySelector<HTMLButtonElement>('[data-action="duplicate"]')?.addEventListener("click", duplicateAsset);
     shell.querySelector<HTMLButtonElement>('[data-action="delete"]')?.addEventListener("click", deleteAsset);
-    shell.querySelector<HTMLButtonElement>('[data-action="undo"]')?.addEventListener("click", () => restoreHistory(historyIndex - 1));
-    shell.querySelector<HTMLButtonElement>('[data-action="redo"]')?.addEventListener("click", () => restoreHistory(historyIndex + 1));
+    shell.querySelectorAll<HTMLButtonElement>('[data-action="undo"]').forEach((button) => button.addEventListener("click", () => restoreHistory(historyIndex - 1)));
+    shell.querySelectorAll<HTMLButtonElement>('[data-action="redo"]').forEach((button) => button.addEventListener("click", () => restoreHistory(historyIndex + 1)));
     shell.querySelector<HTMLButtonElement>('[data-action="reset"]')?.addEventListener("click", resetShipped);
     shell.querySelectorAll<HTMLElement>('[data-action="cancel-confirmation"]').forEach((element) => element.addEventListener("click", () => {
       confirmation = null;
@@ -695,6 +770,10 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
     if (!active || !paletteOpen || !(event.target instanceof HTMLCanvasElement)) return;
     paletteOpen = false;
     render();
+  });
+  root.addEventListener("town:environment-status", (event) => {
+    environmentStatus = (event as CustomEvent<EnvironmentRuntimeStatus>).detail;
+    if (active && paletteOpen && builderPanel === "environment") render();
   });
   root.addEventListener("builder:toggle", () => setActive(!active));
   root.classList.toggle("builder-mode", active);
@@ -851,6 +930,7 @@ function renderBuilderToolbar(activePanel: BuilderPanel, schema: TownSchema, his
       <button type="button" data-open-panel="catalog" class="${activePanel === "catalog" ? "active" : ""}"><span aria-hidden="true">▦</span> Library <kbd>B</kbd></button>
       <button type="button" data-open-panel="placed" class="${activePanel === "placed" ? "active" : ""}">Placed <small>${schema.assets.length}</small></button>
       <button type="button" data-open-panel="residents" class="${activePanel === "residents" ? "active" : ""}">Residents <small>${schema.citizens.length + 1}</small></button>
+      <button type="button" data-open-panel="environment" class="${activePanel === "environment" ? "active" : ""}"><span class="builder-weather-glyph" aria-hidden="true">☼</span> Environment</button>
       <span class="builder-toolbar-divider" aria-hidden="true"></span>
       <button type="button" data-action="undo" class="builder-toolbar-icon builder-history-button builder-tooltip" aria-label="Undo last change" data-tooltip="Undo last change · Ctrl/⌘ Z" ${historyIndex === 0 ? "disabled" : ""}>
         <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
@@ -881,8 +961,20 @@ function renderPlacementHud(asset: TownAsset, isNew: boolean): string {
   `;
 }
 
-function renderBuilderPanel(panel: BuilderPanel, schema: TownSchema, selection: BuilderSelection, filter: AssetTileGroup, search: string): string {
+function renderBuilderPanel(
+  panel: BuilderPanel,
+  schema: TownSchema,
+  selection: BuilderSelection,
+  filter: AssetTileGroup,
+  search: string,
+  environmentStatus: EnvironmentRuntimeStatus | null,
+  locating: boolean,
+  locationError: string
+): string {
   const query = search.trim().toLowerCase();
+  if (panel === "environment") {
+    return renderEnvironmentPanel(schema.environment, environmentStatus, locating, locationError);
+  }
   if (panel === "catalog") {
     const tiles = renderAssetTiles(filter, query);
     return tiles ? `<div class="builder-tile-grid">${tiles}</div>` : renderEmptyState("No assets found", "Try another category or search term.");
@@ -913,6 +1005,160 @@ function renderBuilderPanel(panel: BuilderPanel, schema: TownSchema, selection: 
       <span class="builder-status-dot">Active</span>
     </button>`;
   }).join("")}</div>`;
+}
+
+function renderEnvironmentPanel(
+  environment: EnvironmentSettings,
+  status: EnvironmentRuntimeStatus | null,
+  locating: boolean,
+  locationError: string
+): string {
+  const effectiveWeather = status?.weather ?? environment.weather;
+  const weatherIcons: Record<EnvironmentSettings["weather"], string> = {
+    clear: "☀",
+    cloudy: "☁",
+    rain: "☂",
+    storm: "ϟ",
+    snow: "✦"
+  };
+  const weatherChoices: Array<{ value: EnvironmentSettings["weather"]; label: string }> = [
+    { value: "clear", label: "Clear" },
+    { value: "cloudy", label: "Cloudy" },
+    { value: "rain", label: "Rain" },
+    { value: "storm", label: "Storm" },
+    { value: "snow", label: "Snow" }
+  ];
+  const seasonChoices: Array<{ value: SeasonChoice; label: string }> = environment.seasonCycle === "four"
+    ? [
+      { value: "auto", label: "Auto" },
+      { value: "spring", label: "Spring" },
+      { value: "summer", label: "Summer" },
+      { value: "autumn", label: "Autumn" },
+      { value: "winter", label: "Winter" }
+    ]
+    : [
+      { value: "auto", label: "Auto" },
+      { value: "wet", label: "Wet" },
+      { value: "dry", label: "Dry" }
+    ];
+  const foliageChoices: Array<{ value: FallingFoliage; label: string; icon: string; description: string }> = [
+    { value: "off", label: "Off", icon: "—", description: "Clean air" },
+    { value: "sakura", label: "Sakura", icon: "✿", description: "Soft petals" },
+    { value: "leaves", label: "Leaves", icon: "◆", description: "Season colours" },
+    { value: "mixed", label: "Mixed", icon: "✦", description: "Petals + leaves" }
+  ];
+  const localHour = status?.localHour ?? environment.manualHour;
+  const period = localHour >= 6 && localHour < 18
+    ? "Daylight"
+    : localHour >= 18 && localHour < 20
+      ? "Dusk"
+      : localHour >= 5 && localHour < 6
+        ? "Dawn"
+        : "Night";
+  const temperature = status?.snapshot ? `${Math.round(status.snapshot.temperature)}°C` : "—";
+  const readingState = environment.weatherMode === "manual"
+    ? "Manual weather"
+    : status?.loading
+      ? "Listening for weather…"
+      : status?.error
+        ? "Using fallback weather"
+        : status?.snapshot
+          ? "Live weather connected"
+          : "Waiting for live weather";
+  const timezoneOptions = Array.from({ length: 27 }, (_, index) => index - 12)
+    .map((offset) => `<option value="${offset}" ${environment.timezoneOffset === offset ? "selected" : ""}>GMT${offset >= 0 ? "+" : ""}${offset}</option>`)
+    .join("");
+
+  return `
+    <div class="builder-environment-panel">
+      <section class="builder-environment-hero">
+        <span class="builder-environment-orb weather-${effectiveWeather}" aria-hidden="true">${weatherIcons[effectiveWeather]}</span>
+        <div>
+          <span class="builder-environment-eyebrow">${readingState}</span>
+          <strong>${humanizeLabel(effectiveWeather)} · ${temperature}</strong>
+          <small>${period} at ${formatEnvironmentHour(localHour)} · ${humanizeLabel(status?.season ?? (environment.season === "auto" ? environment.seasonCycle === "two" ? "wet" : "summer" : environment.season))}</small>
+        </div>
+        ${environment.weatherMode === "live" ? `<button type="button" class="builder-environment-refresh builder-tooltip" data-action="refresh-weather" aria-label="Refresh live weather" data-tooltip="Refresh weather" ${status?.loading ? "disabled" : ""}>↻</button>` : ""}
+      </section>
+
+      <section class="builder-environment-card">
+        <div class="builder-card-heading"><span>Weather</span><small>${environment.weatherMode === "live" ? "Open-Meteo live" : "Your forecast"}</small></div>
+        <div class="builder-segmented-control" aria-label="Weather source">
+          ${environmentChoice("weatherMode", "live", "Live", environment.weatherMode === "live", "◎")}
+          ${environmentChoice("weatherMode", "manual", "Manual", environment.weatherMode === "manual", "✦")}
+        </div>
+        ${environment.weatherMode === "manual" ? `
+          <div class="builder-weather-grid">
+            ${weatherChoices.map((choice) => environmentChoice("weather", choice.value, choice.label, environment.weather === choice.value, weatherIcons[choice.value])).join("")}
+          </div>
+        ` : `
+          <div class="builder-location-summary">
+            <span><small>Listening near</small><strong>${environment.latitude.toFixed(2)}, ${environment.longitude.toFixed(2)}</strong></span>
+            <button type="button" data-action="use-location" ${locating ? "disabled" : ""}>${locating ? "Locating…" : "Use my location"}</button>
+          </div>
+          ${locationError ? `<p class="builder-environment-message error" role="status">${escapeHtml(locationError)}</p>` : ""}
+          ${status?.error ? `<p class="builder-environment-message" role="status">${escapeHtml(status.error)} Clear weather remains active until the next refresh.</p>` : ""}
+          <p class="builder-environment-attribution">Weather data by <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a>. Location access is optional.</p>
+        `}
+      </section>
+
+      <section class="builder-environment-card">
+        <div class="builder-card-heading"><span>Day & night</span><small>Default GMT+8</small></div>
+        <div class="builder-segmented-control" aria-label="Day and night mode">
+          ${environmentChoice("dayNightMode", "timezone", "Follow clock", environment.dayNightMode === "timezone", "◷")}
+          ${environmentChoice("dayNightMode", "manual", "Set time", environment.dayNightMode === "manual", "☼")}
+        </div>
+        ${environment.dayNightMode === "timezone" ? `
+          <label class="builder-environment-select"><span>Town timezone</span><select data-environment-field="timezoneOffset">${timezoneOptions}</select></label>
+        ` : `
+          <label class="builder-environment-range">
+            <span><strong>Time of day</strong><output>${formatEnvironmentHour(environment.manualHour)}</output></span>
+            <input type="range" min="0" max="23" step="1" value="${environment.manualHour}" data-environment-field="manualHour" aria-label="Manual time of day" />
+            <small><span>12 AM</span><span>12 PM</span><span>11 PM</span></small>
+          </label>
+        `}
+      </section>
+
+      <section class="builder-environment-card">
+        <div class="builder-card-heading"><span>Seasons</span><small>${status ? humanizeLabel(status.season) : "Automatic"}</small></div>
+        <div class="builder-segmented-control" aria-label="Season system">
+          ${environmentChoice("seasonCycle", "four", "4 seasons", environment.seasonCycle === "four", "❖")}
+          ${environmentChoice("seasonCycle", "two", "2 seasons", environment.seasonCycle === "two", "◒")}
+        </div>
+        <div class="builder-season-row" aria-label="Active season">
+          ${seasonChoices.map((choice) => environmentChoice("season", choice.value, choice.label, environment.season === choice.value)).join("")}
+        </div>
+      </section>
+
+      <section class="builder-environment-card">
+        <div class="builder-card-heading"><span>Falling foliage</span><small>Particle style</small></div>
+        <div class="builder-foliage-grid">
+          ${foliageChoices.map((choice) => `
+            <button type="button" data-environment-choice="foliage:${choice.value}" class="builder-foliage-card ${environment.foliage === choice.value ? "selected" : ""}" aria-pressed="${environment.foliage === choice.value}">
+              <span aria-hidden="true">${choice.icon}</span><strong>${choice.label}</strong><small>${choice.description}</small>
+            </button>
+          `).join("")}
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function environmentChoice(
+  field: keyof EnvironmentSettings,
+  value: string,
+  label: string,
+  selected: boolean,
+  icon = ""
+): string {
+  return `<button type="button" data-environment-choice="${field}:${value}" class="${selected ? "selected" : ""}" aria-pressed="${selected}">${icon ? `<span aria-hidden="true">${icon}</span>` : ""}${label}</button>`;
+}
+
+function formatEnvironmentHour(hour: number): string {
+  const normalized = ((Math.round(hour) % 24) + 24) % 24;
+  const suffix = normalized >= 12 ? "PM" : "AM";
+  const display = normalized % 12 || 12;
+  return `${display}:00 ${suffix}`;
 }
 
 function renderEmptyState(title: string, body: string): string {

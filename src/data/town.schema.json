@@ -3,6 +3,18 @@
   "town": {
     "name": "The 100th Hackathoner Ville"
   },
+  "environment": {
+    "weatherMode": "live",
+    "weather": "clear",
+    "latitude": 1.3521,
+    "longitude": 103.8198,
+    "timezoneOffset": 8,
+    "dayNightMode": "timezone",
+    "manualHour": 14,
+    "seasonCycle": "two",
+    "season": "auto",
+    "foliage": "sakura"
+  },
   "player": {
     "id": "player",
     "kind": "player",
