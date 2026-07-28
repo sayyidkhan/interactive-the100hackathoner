@@ -67,6 +67,33 @@ type AppearanceColorField = "skin" | "hair" | "shirt" | "trim" | "pants" | "shoe
 const COLOR_FIELDS: AppearanceColorField[] = ["skin", "hair", "shirt", "trim", "pants", "shoes"];
 const GRID_SNAP = 0.5;
 const PLACEMENT_LIMIT = 28;
+const RENDER_RESOURCE_BUDGET = 480;
+const ASSET_SLOT_BUDGET = 120;
+const POPULATION_BUDGET = 24;
+const CHARACTER_RESOURCE_COST = 6;
+const ANIMAL_RESOURCE_COST = 4;
+const ASSET_RESOURCE_COST: Record<TownAssetType, number> = {
+  building: 18,
+  market: 8,
+  booth: 7,
+  parcelCart: 4,
+  communityBoard: 4,
+  welcomeSign: 5,
+  fountain: 12,
+  monument: 12,
+  waterTower: 18,
+  tree: 3,
+  lamp: 2,
+  shrub: 1,
+  picnicTable: 3,
+  bench: 2,
+  flowerBed: 2,
+  fence: 2,
+  rock: 1,
+  tinyFlag: 1,
+  gardenPlot: 3,
+  grassClump: 1
+};
 const ASSET_TILE_GROUPS = [
   { id: "all", label: "All" },
   { id: "places", label: "Places" },
@@ -74,7 +101,14 @@ const ASSET_TILE_GROUPS = [
   { id: "nature", label: "Nature" }
 ] as const;
 type AssetTileGroup = (typeof ASSET_TILE_GROUPS)[number]["id"];
-type BuilderPanel = "catalog" | "placed" | "residents" | "environment";
+type BuilderPanel = "catalog" | "placed" | "residents" | "environment" | "specs";
+type TownSpecs = {
+  grid: { used: number; total: number; remaining: number; width: number; height: number };
+  resources: { used: number; total: number; remaining: number };
+  population: { used: number; total: number; remaining: number };
+  assetSlots: { used: number; total: number; remaining: number };
+  resourceGroups: Array<{ label: string; count: number; points: number }>;
+};
 
 const HAIR_STYLES: CharacterAppearance["hairStyle"][] = ["crop", "swept", "afro", "coily", "bob", "bun", "braids", "mohawk", "long", "bald"];
 const SKIN_TONES = ["#f5d8bd", "#e8bd98", "#d39a72", "#bb7c55", "#9d6245", "#7e4c38", "#613728", "#44291f"];
@@ -474,21 +508,25 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
     const selectedAsset = getSelectedAsset();
     const selectedCharacter = getSelectedCharacter();
     const selectedAnimal = getSelectedAnimal();
+    const paletteTitle = builderPanel === "environment" ? "Environment" : builderPanel === "specs" ? "Town specs" : "Town library";
+    const paletteKicker = builderPanel === "environment" ? "World settings" : builderPanel === "specs" ? "Planning guide" : "Town tools";
+    const paletteLabel = builderPanel === "environment" ? "Town environment settings" : builderPanel === "specs" ? "Town capacity and resource specs" : "Town builder library";
+    const searchablePanel = builderPanel !== "environment" && builderPanel !== "specs";
     options.onSelectionChange?.(selectedAsset ?? null);
     shell.hidden = !active;
     shell.innerHTML = `
-      ${paletteOpen ? `<section class="builder-palette builder-transient-drawer ${builderPanel === "environment" ? "builder-environment-drawer" : ""}" aria-label="${builderPanel === "environment" ? "Town environment settings" : "Town builder library"}">
+      ${paletteOpen ? `<section class="builder-palette builder-transient-drawer ${builderPanel === "environment" ? "builder-environment-drawer" : builderPanel === "specs" ? "builder-specs-drawer" : ""}" aria-label="${paletteLabel}">
         <header class="builder-header">
           <div>
-            <span class="builder-kicker">${builderPanel === "environment" ? "World settings" : "Town tools"}</span>
-            <strong>${builderPanel === "environment" ? "Environment" : "Town library"}</strong>
+            <span class="builder-kicker">${paletteKicker}</span>
+            <strong>${paletteTitle}</strong>
           </div>
           <div class="builder-header-actions">
-            <button class="builder-icon-button builder-tooltip" type="button" data-action="collapse-palette" aria-label="Close ${builderPanel === "environment" ? "environment settings" : "town library"}" data-tooltip="Close panel">×</button>
+            <button class="builder-icon-button builder-tooltip" type="button" data-action="collapse-palette" aria-label="Close ${builderPanel === "environment" ? "environment settings" : builderPanel === "specs" ? "town specs" : "town library"}" data-tooltip="Close panel">×</button>
           </div>
         </header>
         <div class="builder-palette-body">
-          ${builderPanel !== "environment" ? `<div class="builder-library-toolbar">
+          ${searchablePanel ? `<div class="builder-library-toolbar">
             <label class="builder-search">
               <span aria-hidden="true">⌕</span>
               <input type="search" data-palette-search value="${escapeHtml(paletteSearch)}" placeholder="${builderPanel === "catalog" ? "Search assets" : builderPanel === "placed" ? "Search placed items" : "Search residents"}" aria-label="Search ${builderPanel}" />
@@ -962,6 +1000,8 @@ function disposePreviewObject(root: THREE.Object3D): void {
 }
 
 function renderBuilderToolbar(activePanel: BuilderPanel, schema: TownSchema, historyIndex: number, historyLength: number): string {
+  const specs = getTownSpecs(schema);
+  const resourcePercent = Math.round((specs.resources.used / specs.resources.total) * 100);
   return `
     <nav class="builder-bottom-toolbar" aria-label="Builder tools">
       <button type="button" data-action="back-to-town" class="builder-toolbar-icon" aria-label="Back to town">←</button>
@@ -970,6 +1010,7 @@ function renderBuilderToolbar(activePanel: BuilderPanel, schema: TownSchema, his
       <button type="button" data-open-panel="placed" class="${activePanel === "placed" ? "active" : ""}">Placed <small>${schema.assets.length}</small></button>
       <button type="button" data-open-panel="residents" class="${activePanel === "residents" ? "active" : ""}">Residents <small>${schema.citizens.length + schema.animals.length + 1}</small></button>
       <button type="button" data-open-panel="environment" class="${activePanel === "environment" ? "active" : ""}"><span class="builder-weather-glyph" aria-hidden="true">☼</span> Environment</button>
+      <button type="button" data-open-panel="specs" class="${activePanel === "specs" ? "active" : ""}"><span class="builder-specs-glyph" aria-hidden="true">▥</span> Specs <small>${resourcePercent}%</small></button>
       <span class="builder-toolbar-divider" aria-hidden="true"></span>
       <button type="button" data-action="undo" class="builder-toolbar-icon builder-history-button builder-tooltip" aria-label="Undo last change" data-tooltip="Undo last change · Ctrl/⌘ Z" ${historyIndex === 0 ? "disabled" : ""}>
         <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
@@ -1011,6 +1052,9 @@ function renderBuilderPanel(
   locationError: string
 ): string {
   const query = search.trim().toLowerCase();
+  if (panel === "specs") {
+    return renderTownSpecsPanel(schema);
+  }
   if (panel === "environment") {
     return renderEnvironmentPanel(schema.environment, environmentStatus, locating, locationError);
   }
@@ -1063,6 +1107,132 @@ function renderBuilderPanel(
       `).join("")}</div>
     </section>` : "";
   return `<div class="builder-roster-sections">${peopleMarkup}${animalMarkup}</div>`;
+}
+
+function renderTownSpecsPanel(schema: TownSchema): string {
+  const specs = getTownSpecs(schema);
+  const resourcePercent = Math.round((specs.resources.used / specs.resources.total) * 100);
+  const resourceState = resourcePercent <= 75 ? "Healthy" : resourcePercent <= 90 ? "Plan carefully" : "At capacity";
+  const resourceTone = resourcePercent <= 75 ? "healthy" : resourcePercent <= 90 ? "watch" : "full";
+  return `
+    <div class="builder-specs-panel">
+      <section class="builder-specs-hero spec-tone-${resourceTone}">
+        <div class="builder-specs-ring" style="--spec-progress:${Math.min(resourcePercent, 100) * 3.6}deg" role="progressbar" aria-label="Render resource usage" aria-valuemin="0" aria-valuemax="${specs.resources.total}" aria-valuenow="${specs.resources.used}">
+          <span><strong>${resourcePercent}%</strong><small>used</small></span>
+        </div>
+        <div>
+          <span class="builder-specs-eyebrow">Render resources</span>
+          <strong>${specs.resources.used} of ${specs.resources.total} points</strong>
+          <small>${specs.resources.remaining} points left · ${resourceState}</small>
+        </div>
+      </section>
+
+      <div class="builder-specs-summary">
+        ${renderSpecSummaryCard("Grid", "▦", specs.grid.used, specs.grid.total, `${specs.grid.remaining.toLocaleString()} cells left`, `${specs.grid.width} × ${specs.grid.height} at ${GRID_SNAP} step`)}
+        ${renderSpecSummaryCard("Objects", "◇", specs.assetSlots.used, specs.assetSlots.total, `${specs.assetSlots.remaining} slots left`, "Recommended scene limit")}
+        ${renderSpecSummaryCard("Residents", "●", specs.population.used, specs.population.total, `${specs.population.remaining} spaces left`, "People and animals")}
+      </div>
+
+      <section class="builder-specs-card">
+        <div class="builder-card-heading"><span>Resource breakdown</span><small>Estimated GPU/CPU load</small></div>
+        <div class="builder-specs-breakdown">
+          ${specs.resourceGroups.map((group) => `
+            <div class="builder-specs-row">
+              <span><strong>${escapeHtml(group.label)}</strong><small>${group.count} ${group.count === 1 ? "item" : "items"}</small></span>
+              <span><b>${group.points}</b><small>pts</small></span>
+              <i aria-hidden="true"><span style="width:${Math.min((group.points / specs.resources.total) * 100, 100).toFixed(1)}%"></span></i>
+            </div>
+          `).join("")}
+        </div>
+      </section>
+
+      <section class="builder-specs-card builder-specs-grid-card">
+        <div class="builder-card-heading"><span>How grid use is counted</span><small>Placement footprint</small></div>
+        <div class="builder-specs-grid-visual" aria-hidden="true">
+          ${Array.from({ length: 32 }, (_, index) => `<i class="${index < Math.round((specs.grid.used / specs.grid.total) * 32) ? "filled" : ""}"></i>`).join("")}
+        </div>
+        <p>Each visible square is a <strong>${GRID_SNAP} × ${GRID_SNAP}</strong> cell. Buildings consume their full collision footprint; small props use their placement radius.</p>
+      </section>
+
+      <aside class="builder-specs-note">
+        <span aria-hidden="true">i</span>
+        <p><strong>Planning guide, not a hard limit.</strong> Resource points estimate relative rendering cost: buildings cost up to 18 points, people 6, animals 4, and small props 1–3.</p>
+      </aside>
+    </div>
+  `;
+}
+
+function renderSpecSummaryCard(label: string, icon: string, used: number, total: number, remaining: string, detail: string): string {
+  const percent = Math.min((used / total) * 100, 100);
+  return `
+    <article class="builder-spec-summary-card">
+      <span class="builder-spec-summary-icon" aria-hidden="true">${icon}</span>
+      <span><small>${label}</small><strong>${used.toLocaleString()} <em>/ ${total.toLocaleString()}</em></strong></span>
+      <i aria-hidden="true"><span style="width:${percent.toFixed(1)}%"></span></i>
+      <b>${remaining}</b>
+      <small>${detail}</small>
+    </article>
+  `;
+}
+
+function getTownSpecs(schema: TownSchema): TownSpecs {
+  const gridWidth = Math.round((PLACEMENT_LIMIT * 2) / GRID_SNAP);
+  const gridHeight = gridWidth;
+  const totalGridCells = gridWidth * gridHeight;
+  const cellArea = GRID_SNAP * GRID_SNAP;
+  const usedGridCells = Math.min(totalGridCells, schema.assets.reduce((total, asset) => {
+    const footprint = assetFootprint(asset);
+    const area = footprint.kind === "circle"
+      ? Math.PI * footprint.radius * footprint.radius
+      : footprint.halfWidth * 2 * footprint.halfDepth * 2;
+    return total + Math.max(1, Math.ceil(area / cellArea));
+  }, 0));
+
+  const assetGroups: Record<Exclude<AssetTileGroup, "all">, { label: string; count: number; points: number }> = {
+    places: { label: "Places & structures", count: 0, points: 0 },
+    landmarks: { label: "Landmarks", count: 0, points: 0 },
+    nature: { label: "Nature & props", count: 0, points: 0 }
+  };
+  schema.assets.forEach((asset) => {
+    const group = assetGroups[ASSET_TILE_CONFIG[asset.type].group];
+    group.count += 1;
+    group.points += ASSET_RESOURCE_COST[asset.type];
+  });
+  const populationCount = schema.citizens.length + schema.animals.length + 1;
+  const residentPoints = (schema.citizens.length + 1) * CHARACTER_RESOURCE_COST + schema.animals.length * ANIMAL_RESOURCE_COST;
+  const assetPoints = schema.assets.reduce((total, asset) => total + ASSET_RESOURCE_COST[asset.type], 0);
+  const usedResourcePoints = assetPoints + residentPoints;
+
+  return {
+    grid: {
+      used: usedGridCells,
+      total: totalGridCells,
+      remaining: Math.max(totalGridCells - usedGridCells, 0),
+      width: gridWidth,
+      height: gridHeight
+    },
+    resources: {
+      used: usedResourcePoints,
+      total: RENDER_RESOURCE_BUDGET,
+      remaining: Math.max(RENDER_RESOURCE_BUDGET - usedResourcePoints, 0)
+    },
+    population: {
+      used: populationCount,
+      total: POPULATION_BUDGET,
+      remaining: Math.max(POPULATION_BUDGET - populationCount, 0)
+    },
+    assetSlots: {
+      used: schema.assets.length,
+      total: ASSET_SLOT_BUDGET,
+      remaining: Math.max(ASSET_SLOT_BUDGET - schema.assets.length, 0)
+    },
+    resourceGroups: [
+      assetGroups.places,
+      assetGroups.landmarks,
+      assetGroups.nature,
+      { label: "Residents", count: populationCount, points: residentPoints }
+    ]
+  };
 }
 
 function renderEnvironmentPanel(
