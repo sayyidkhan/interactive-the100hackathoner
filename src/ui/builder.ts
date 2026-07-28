@@ -852,8 +852,18 @@ function renderBuilderToolbar(activePanel: BuilderPanel, schema: TownSchema, his
       <button type="button" data-open-panel="placed" class="${activePanel === "placed" ? "active" : ""}">Placed <small>${schema.assets.length}</small></button>
       <button type="button" data-open-panel="residents" class="${activePanel === "residents" ? "active" : ""}">Residents <small>${schema.citizens.length + 1}</small></button>
       <span class="builder-toolbar-divider" aria-hidden="true"></span>
-      <button type="button" data-action="undo" class="builder-toolbar-icon" aria-label="Undo" ${historyIndex === 0 ? "disabled" : ""}>↶</button>
-      <button type="button" data-action="redo" class="builder-toolbar-icon" aria-label="Redo" ${historyIndex >= historyLength - 1 ? "disabled" : ""}>↷</button>
+      <button type="button" data-action="undo" class="builder-toolbar-icon builder-history-button builder-tooltip" aria-label="Undo last change" data-tooltip="Undo last change · Ctrl/⌘ Z" ${historyIndex === 0 ? "disabled" : ""}>
+        <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+          <path d="M9 7 5 11l4 4"></path>
+          <path d="M5 11h8a6 6 0 0 1 6 6v1"></path>
+        </svg>
+      </button>
+      <button type="button" data-action="redo" class="builder-toolbar-icon builder-history-button builder-tooltip" aria-label="Redo last change" data-tooltip="Redo last change · Shift + Ctrl/⌘ Z" ${historyIndex >= historyLength - 1 ? "disabled" : ""}>
+        <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+          <path d="m15 7 4 4-4 4"></path>
+          <path d="M19 11h-8a6 6 0 0 0-6 6v1"></path>
+        </svg>
+      </button>
     </nav>
   `;
 }

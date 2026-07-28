@@ -399,6 +399,18 @@ button {
   transform: translate(-50%, 0);
 }
 
+.builder-bottom-toolbar .builder-tooltip::after {
+  top: auto;
+  bottom: calc(100% + 9px);
+  z-index: 6;
+  transform: translate(-50%, 3px);
+}
+
+.builder-bottom-toolbar .builder-tooltip:hover::after,
+.builder-bottom-toolbar .builder-tooltip:focus-visible::after {
+  transform: translate(-50%, 0);
+}
+
 .builder-drawer-button-left {
   left: 18px;
 }
@@ -4247,6 +4259,48 @@ dd {
   padding: 0;
   place-items: center;
   font-size: 17px;
+}
+
+.builder-bottom-toolbar .builder-history-button {
+  color: #5e4d40;
+  background: rgba(244, 234, 216, 0.72);
+  border: 1px solid rgba(92, 67, 44, 0.12);
+  box-shadow: 0 2px 5px rgba(57, 47, 38, 0.06);
+}
+
+.builder-bottom-toolbar .builder-history-button svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.builder-bottom-toolbar .builder-history-button:not(:disabled):hover,
+.builder-bottom-toolbar .builder-history-button:not(:disabled):focus-visible {
+  color: #4b3b2f;
+  background: #ffe387;
+  border-color: rgba(203, 143, 32, 0.32);
+  box-shadow: 0 4px 10px rgba(151, 103, 27, 0.14);
+  transform: translateY(-1px);
+}
+
+.builder-bottom-toolbar .builder-history-button:not(:disabled):active {
+  box-shadow: 0 1px 3px rgba(57, 47, 38, 0.12);
+  transform: translateY(0);
+}
+
+.builder-bottom-toolbar .builder-history-button:disabled {
+  color: #9c8d7f;
+  background: rgba(244, 234, 216, 0.42);
+  opacity: 0.58;
+}
+
+.builder-bottom-toolbar .builder-history-button:disabled:hover {
+  color: #9c8d7f;
+  background: rgba(244, 234, 216, 0.42);
 }
 
 .builder-toolbar-divider {
