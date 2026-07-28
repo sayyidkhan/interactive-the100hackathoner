@@ -1104,6 +1104,7 @@ function renderEnvironmentPanel(
 
       <section class="builder-environment-card">
         <div class="builder-card-heading"><span>Day & night</span><small>Default GMT+8</small></div>
+        ${renderSundial(localHour, environment.timezoneOffset)}
         <div class="builder-segmented-control" aria-label="Day and night mode">
           ${environmentChoice("dayNightMode", "timezone", "Follow clock", environment.dayNightMode === "timezone", "◷")}
           ${environmentChoice("dayNightMode", "manual", "Set time", environment.dayNightMode === "manual", "☼")}
@@ -1155,10 +1156,59 @@ function environmentChoice(
 }
 
 function formatEnvironmentHour(hour: number): string {
-  const normalized = ((Math.round(hour) % 24) + 24) % 24;
-  const suffix = normalized >= 12 ? "PM" : "AM";
-  const display = normalized % 12 || 12;
-  return `${display}:00 ${suffix}`;
+  const totalMinutes = ((Math.round(hour * 60) % 1440) + 1440) % 1440;
+  const normalizedHour = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  const suffix = normalizedHour >= 12 ? "PM" : "AM";
+  const display = normalizedHour % 12 || 12;
+  return `${display}:${String(minutes).padStart(2, "0")} ${suffix}`;
+}
+
+function renderSundial(hour: number, timezoneOffset: number): string {
+  const normalized = ((hour % 24) + 24) % 24;
+  const isDay = normalized >= 6 && normalized < 18;
+  const progress = isDay
+    ? (normalized - 6) / 12
+    : normalized >= 18
+      ? (normalized - 18) / 12
+      : (normalized + 6) / 12;
+  const markerX = 20 + progress * 200;
+  const markerY = 87 - Math.sin(progress * Math.PI) * 65;
+  const phase = isDay
+    ? normalized < 10
+      ? "Morning"
+      : normalized < 15
+        ? "Afternoon"
+        : "Evening"
+    : normalized < 5
+      ? "Late night"
+      : normalized < 6
+        ? "Before dawn"
+        : "Night";
+  const timezone = `GMT${timezoneOffset >= 0 ? "+" : ""}${timezoneOffset}`;
+  const label = `${formatEnvironmentHour(normalized)}, ${phase}. ${isDay ? "The sun is above the horizon." : "The sun is below the horizon."}`;
+  return `
+    <div class="builder-sundial ${isDay ? "is-day" : "is-night"}" role="img" aria-label="${escapeHtml(label)}">
+      <div class="builder-sundial-time">
+        <span><strong>${formatEnvironmentHour(normalized)}</strong><small>${timezone}</small></span>
+        <span class="builder-sundial-state"><i aria-hidden="true"></i>${isDay ? "Day" : "Night"}</span>
+      </div>
+      <svg viewBox="0 0 240 112" aria-hidden="true">
+        <path class="builder-sundial-sky" d="M20 87 A100 65 0 0 1 220 87"></path>
+        <path class="builder-sundial-arc" d="M20 87 A100 65 0 0 1 220 87"></path>
+        <path class="builder-sundial-horizon" d="M12 87 H228"></path>
+        <g class="builder-sundial-marker" transform="translate(${markerX.toFixed(2)} ${markerY.toFixed(2)})">
+          ${isDay
+            ? `<circle r="8"></circle><path d="M0-14v-4M0 14v4M-14 0h-4M14 0h4M-10-10l-3-3M10-10l3-3M-10 10l-3 3M10 10l3 3"></path>`
+            : `<path d="M7-8A10 10 0 1 0 8 7 8 8 0 0 1 7-8Z"></path>`}
+        </g>
+        <text x="20" y="105">6 AM</text>
+        <text x="120" y="105" text-anchor="middle">12 PM</text>
+        <text x="220" y="105" text-anchor="end">6 PM</text>
+      </svg>
+      <div class="builder-sundial-caption"><span>${phase}</span><small>Sunrise → solar noon → sunset</small></div>
+    </div>
+  `;
 }
 
 function renderEmptyState(title: string, body: string): string {

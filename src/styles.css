@@ -4422,6 +4422,162 @@ dd {
   margin-bottom: 8px;
 }
 
+.builder-sundial {
+  position: relative;
+  margin-bottom: 8px;
+  padding: 10px 10px 7px;
+  overflow: hidden;
+  color: #59483b;
+  background: linear-gradient(180deg, #f8e5b8 0%, #fff7e4 68%, #e4d4b8 69%, #eee1c9 100%);
+  border: 1px solid rgba(92, 67, 44, 0.1);
+  border-radius: 13px;
+}
+
+.builder-sundial.is-night {
+  color: #f7f0e5;
+  background: linear-gradient(180deg, #4b5d72 0%, #718096 68%, #596752 69%, #68745d 100%);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.builder-sundial-time,
+.builder-sundial-caption {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.builder-sundial-time > span:first-child {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.builder-sundial-time strong {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 19px;
+  line-height: 1;
+}
+
+.builder-sundial-time small,
+.builder-sundial-caption small {
+  color: #7d6b5b;
+  font-size: 8px;
+  font-weight: 750;
+}
+
+.builder-sundial.is-night .builder-sundial-time small,
+.builder-sundial.is-night .builder-sundial-caption small {
+  color: rgba(255, 250, 240, 0.7);
+}
+
+.builder-sundial-state {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 7px;
+  color: #775626;
+  background: rgba(255, 250, 240, 0.58);
+  border-radius: 999px;
+  font-size: 8px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.builder-sundial-state i {
+  width: 6px;
+  height: 6px;
+  background: #e7a52f;
+  border-radius: 50%;
+}
+
+.builder-sundial.is-night .builder-sundial-state {
+  color: #edf3f7;
+  background: rgba(38, 49, 66, 0.46);
+}
+
+.builder-sundial.is-night .builder-sundial-state i {
+  background: #d9e8f1;
+}
+
+.builder-sundial svg {
+  display: block;
+  width: 100%;
+  height: 103px;
+  margin: -3px 0 -7px;
+  overflow: visible;
+}
+
+.builder-sundial-sky,
+.builder-sundial-arc,
+.builder-sundial-horizon,
+.builder-sundial-marker path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.builder-sundial-sky {
+  stroke: rgba(242, 183, 67, 0.2);
+  stroke-width: 24;
+}
+
+.builder-sundial-arc {
+  stroke: rgba(107, 78, 47, 0.4);
+  stroke-dasharray: 2 7;
+  stroke-width: 1.5;
+}
+
+.builder-sundial-horizon {
+  stroke: rgba(107, 78, 47, 0.28);
+  stroke-width: 1.5;
+}
+
+.builder-sundial-marker circle {
+  fill: #f2b637;
+  stroke: #fff4c7;
+  stroke-width: 2.5;
+}
+
+.builder-sundial-marker path {
+  fill: none;
+  stroke: #d58f1e;
+  stroke-width: 1.7;
+}
+
+.builder-sundial text {
+  fill: #8c7866;
+  font-family: inherit;
+  font-size: 7px;
+  font-weight: 800;
+}
+
+.builder-sundial.is-night .builder-sundial-sky {
+  stroke: rgba(216, 231, 240, 0.13);
+}
+
+.builder-sundial.is-night .builder-sundial-arc,
+.builder-sundial.is-night .builder-sundial-horizon {
+  stroke: rgba(255, 250, 240, 0.34);
+}
+
+.builder-sundial.is-night .builder-sundial-marker path {
+  fill: #f4e9c9;
+  stroke: #f4e9c9;
+}
+
+.builder-sundial.is-night text {
+  fill: rgba(255, 250, 240, 0.72);
+}
+
+.builder-sundial-caption span {
+  font-size: 8px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
 .builder-segmented-control,
 .builder-season-row {
   display: grid;

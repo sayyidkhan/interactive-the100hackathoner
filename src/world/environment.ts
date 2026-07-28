@@ -71,7 +71,7 @@ export function createEnvironmentController(options: EnvironmentControllerOption
   let refreshTimer: number | undefined;
   let lastSeason: Exclude<SeasonChoice, "auto"> | undefined;
   let lastFoliage = "";
-  let lastReportedHour = -1;
+  let lastReportedMinute = -1;
 
   const getWeather = (): WeatherCondition => settings.weatherMode === "live"
     ? snapshot?.condition ?? settings.weather
@@ -235,9 +235,9 @@ export function createEnvironmentController(options: EnvironmentControllerOption
     options.petals.mesh.visible = settings.foliage !== "off" && weather !== "storm";
     updateWeatherParticles(options.weatherParticles, delta, time, weather, snapshot?.windSpeed ?? 8);
 
-    const roundedHour = Math.floor(localHour * 4) / 4;
-    if (roundedHour !== lastReportedHour) {
-      lastReportedHour = roundedHour;
+    const currentMinute = Math.floor(localHour * 60);
+    if (currentMinute !== lastReportedMinute) {
+      lastReportedMinute = currentMinute;
       report();
     }
   };
