@@ -546,6 +546,9 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
       selectionPreview = null;
     }
 
+    const environmentScroller = shell.querySelector<HTMLElement>(".builder-environment-drawer .builder-library-content");
+    if (environmentScroller) environmentScroller.scrollLeft = 0;
+
     if (active) {
       shell.querySelectorAll<HTMLImageElement>("[data-asset-thumbnail]").forEach((image) => {
         const type = image.dataset.assetThumbnail as TownAssetType;

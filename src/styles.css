@@ -4318,14 +4318,38 @@ dd {
 }
 
 .builder-environment-drawer .builder-library-content {
+  width: 100%;
   min-height: 0;
   max-height: calc(100vh - 180px);
+  box-sizing: border-box;
   padding: 0 3px 8px 0;
+  overflow-x: clip;
+  overflow-y: auto;
+  overscroll-behavior-x: none;
+  touch-action: pan-y;
 }
 
 .builder-environment-panel {
   display: grid;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
   gap: 9px;
+  overflow-x: clip;
+}
+
+.builder-environment-panel > *,
+.builder-environment-card,
+.builder-environment-hero,
+.builder-sundial,
+.builder-segmented-control,
+.builder-season-row,
+.builder-weather-grid,
+.builder-location-summary {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .builder-environment-hero {
@@ -4745,7 +4769,7 @@ dd {
 
 .builder-season-row {
   margin-top: 7px;
-  overflow-x: auto;
+  overflow-x: clip;
 }
 
 .builder-foliage-grid {
