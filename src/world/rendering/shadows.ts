@@ -86,7 +86,7 @@ export function addSoftShadow(
 ): THREE.Mesh {
   const shadow = createSoftShadow(width, depth, opacity);
   shadow.position.set(x, SHADOW_Y, z);
-  shadow.rotation.y = rotation;
+  shadow.rotation.z = rotation;
   parent.add(shadow);
   return shadow;
 }
@@ -120,9 +120,10 @@ export function applySceneShadows(scene: THREE.Object3D): void {
 
     const materials = Array.isArray(object.material) ? object.material : [object.material];
     const isSpriteLike = materials.every((material) => material instanceof THREE.SpriteMaterial);
-    const isEmissiveGlow = materials.every(
-      (material) => material instanceof THREE.MeshStandardMaterial && material.emissiveIntensity > 0.7
-    );
+    const isEmissiveGlow = materials.every((material) => {
+      if (!(material instanceof THREE.MeshStandardMaterial)) return false;
+      return material.emissiveIntensity > 0.7 && material.emissive.getHex() !== 0;
+    });
     const isTransparent = materials.every((material) => material.transparent && material.opacity < 0.98);
     const isFlatGeometry =
       object.geometry.type === "PlaneGeometry" || object.geometry.type === "CircleGeometry";
