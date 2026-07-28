@@ -86,7 +86,7 @@ export function addSoftShadow(
 ): THREE.Mesh {
   const shadow = createSoftShadow(width, depth, opacity);
   shadow.position.set(x, SHADOW_Y, z);
-  shadow.rotation.z = rotation;
+  shadow.rotation.y = rotation;
   parent.add(shadow);
   return shadow;
 }
