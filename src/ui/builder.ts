@@ -457,6 +457,23 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
     });
   };
 
+  const setEnvironmentControlMode = (mode: "live" | "override") => {
+    commit(() => {
+      const environment = schema.environment;
+      if (mode === "live") {
+        environment.weatherMode = "live";
+        environment.dayNightMode = "timezone";
+        environment.season = "auto";
+        return;
+      }
+      environment.weather = environmentStatus?.weather ?? environment.weather;
+      environment.weatherMode = "manual";
+      environment.manualHour = Number((environmentStatus?.localHour ?? getTimezoneHour(environment.timezoneOffset)).toFixed(2));
+      environment.dayNightMode = "manual";
+      environment.season = environmentStatus?.season ?? inferAutomaticSeason(environment);
+    });
+  };
+
   const useCurrentLocation = () => {
     locationError = "";
     if (!navigator.geolocation) {
@@ -654,6 +671,10 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
       const [field, value] = (button.dataset.environmentChoice ?? "").split(":");
       if (!field || !value) return;
       updateEnvironment(field as keyof EnvironmentSettings, value);
+    }));
+    shell.querySelectorAll<HTMLButtonElement>("[data-environment-mode]").forEach((button) => button.addEventListener("click", () => {
+      const mode = button.dataset.environmentMode;
+      if (mode === "live" || mode === "override") setEnvironmentControlMode(mode);
     }));
     shell.querySelectorAll<HTMLInputElement | HTMLSelectElement>("[data-environment-field]").forEach((input) => {
       input.addEventListener("change", () => {
@@ -1283,9 +1304,18 @@ function renderEnvironmentPanel(
       : localHour >= 5 && localHour < 6
         ? "Dawn"
         : "Night";
-  const temperature = status?.snapshot ? `${Math.round(status.snapshot.temperature)}°C` : "—";
-  const readingState = environment.weatherMode === "manual"
-    ? "Manual weather"
+  const liveSync = environment.weatherMode === "live" && environment.dayNightMode === "timezone" && environment.season === "auto";
+  const creativeOverride = environment.weatherMode === "manual" && environment.dayNightMode === "manual" && environment.season !== "auto";
+  const controlModeLabel = liveSync ? "Live sync" : creativeOverride ? "Creative override" : "Custom mix";
+  const temperature = environment.weatherMode === "manual"
+    ? "Art directed"
+    : status?.snapshot
+      ? `${Math.round(status.snapshot.temperature)}°C`
+      : "—";
+  const readingState = creativeOverride
+    ? "Creative override"
+    : environment.weatherMode === "manual"
+      ? "Manual weather"
     : status?.loading
       ? "Listening for weather…"
       : status?.snapshot?.source === "stale-cache"
@@ -1311,6 +1341,26 @@ function renderEnvironmentPanel(
           <small>${period} at ${formatEnvironmentHour(localHour)} · ${humanizeLabel(status?.season ?? (environment.season === "auto" ? environment.seasonCycle === "two" ? "wet" : "summer" : environment.season))}</small>
         </div>
         ${environment.weatherMode === "live" ? `<button type="button" class="builder-environment-refresh builder-tooltip" data-action="refresh-weather" aria-label="Refresh live weather" data-tooltip="Refresh weather" ${status?.loading ? "disabled" : ""}>↻</button>` : ""}
+      </section>
+
+      <section class="builder-environment-control ${creativeOverride ? "is-override" : liveSync ? "is-live" : "is-custom"}">
+        <div class="builder-card-heading">
+          <span>Environment control</span>
+          <small>${controlModeLabel}</small>
+        </div>
+        <div class="builder-control-mode-grid" role="group" aria-label="Environment control mode">
+          <button type="button" data-environment-mode="live" class="${liveSync ? "selected" : ""}" aria-pressed="${liveSync}">
+            <span aria-hidden="true">◎</span>
+            <strong>Live sync</strong>
+            <small>Weather, clock and season follow the world</small>
+          </button>
+          <button type="button" data-environment-mode="override" class="${creativeOverride ? "selected" : ""}" aria-pressed="${creativeOverride}">
+            <span aria-hidden="true">✦</span>
+            <strong>Creative override</strong>
+            <small>Freeze the world, then art-direct every layer</small>
+          </button>
+        </div>
+        ${!liveSync && !creativeOverride ? `<p class="builder-control-mode-note">You are mixing live and manual settings. Choose a mode above to align all environment controls.</p>` : ""}
       </section>
 
       <section class="builder-environment-card">
@@ -1385,6 +1435,22 @@ function environmentChoice(
   icon = ""
 ): string {
   return `<button type="button" data-environment-choice="${field}:${value}" class="${selected ? "selected" : ""}" aria-pressed="${selected}">${icon ? `<span aria-hidden="true">${icon}</span>` : ""}${label}</button>`;
+}
+
+function getTimezoneHour(timezoneOffset: number): number {
+  const now = new Date();
+  const utcHours = now.getUTCHours() + now.getUTCMinutes() / 60;
+  return ((utcHours + timezoneOffset) % 24 + 24) % 24;
+}
+
+function inferAutomaticSeason(environment: EnvironmentSettings): Exclude<SeasonChoice, "auto"> {
+  const shifted = new Date(Date.now() + environment.timezoneOffset * 60 * 60 * 1000);
+  const month = shifted.getUTCMonth() + 1;
+  if (environment.seasonCycle === "two") return month >= 11 || month <= 3 ? "wet" : "dry";
+  if (month >= 3 && month <= 5) return "spring";
+  if (month >= 6 && month <= 8) return "summer";
+  if (month >= 9 && month <= 11) return "autumn";
+  return "winter";
 }
 
 function formatEnvironmentHour(hour: number): string {
