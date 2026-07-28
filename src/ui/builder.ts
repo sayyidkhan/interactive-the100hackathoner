@@ -302,12 +302,15 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
 
   const commitAssetMove = () => {
     placement = null;
+    inspectorOpen = true;
+    paletteOpen = false;
     if (recordHistory()) notify();
     render();
   };
 
   const cancelPlacement = () => {
     if (!placement) return;
+    const wasNewPlacement = placement.isNew;
     if (placement.isNew) {
       schema = parseTownSchema(JSON.parse(history[placement.baseHistoryIndex]));
       history.splice(placement.baseHistoryIndex + 1);
@@ -320,6 +323,8 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
       notify();
     }
     placement = null;
+    inspectorOpen = !wasNewPlacement;
+    paletteOpen = false;
     render();
   };
 
@@ -400,7 +405,7 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
       ${paletteOpen ? `<section class="builder-palette builder-transient-drawer" aria-label="Town builder library">
         <header class="builder-header">
           <div>
-            <span class="builder-kicker">Build mode</span>
+            <span class="builder-kicker">Town tools</span>
             <strong>Town library</strong>
           </div>
           <div class="builder-header-actions">
@@ -408,9 +413,6 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
           </div>
         </header>
         <div class="builder-palette-body">
-          <div class="builder-workspace-tabs" role="tablist" aria-label="Builder workspace">
-            ${(["catalog", "placed", "residents"] as BuilderPanel[]).map((panel) => `<button type="button" role="tab" data-builder-panel="${panel}" aria-selected="${builderPanel === panel}" class="${builderPanel === panel ? "active" : ""}">${panel === "catalog" ? "Catalog" : panel === "placed" ? `Placed <span>${schema.assets.length}</span>` : `Residents <span>${schema.citizens.length + 1}</span>`}</button>`).join("")}
-          </div>
           <div class="builder-library-toolbar">
             <label class="builder-search">
               <span aria-hidden="true">⌕</span>
@@ -432,7 +434,8 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
             </div>
           </div>
         </div>
-      </section>` : placement ? "" : renderBuilderToolbar(builderPanel, schema, historyIndex, history.length)}
+      </section>` : ""}
+      ${placement ? "" : renderBuilderToolbar(builderPanel, schema, historyIndex, history.length)}
       ${inspectorOpen ? `<aside class="builder-inspector" aria-label="Selected asset inspector">
         <header class="builder-header">
           <div>
@@ -449,7 +452,7 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
             </div>
           </section>
         </div>
-      </aside>` : !paletteOpen && !placement && (selectedAsset || selectedCharacter) ? renderCompactSelection(selectedAsset, selectedCharacter) : ""}
+      </aside>` : ""}
       ${placement && selectedAsset ? renderPlacementHud(selectedAsset, placement.isNew) : ""}
       <div class="builder-map-controls ${inspectorOpen ? "builder-map-controls-inspector-open" : ""}" aria-label="Map controls">
         <button class="builder-tooltip" type="button" data-action="zoom-in" aria-label="Zoom in" data-tooltip="Zoom in">+</button>
@@ -521,9 +524,11 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
       render();
     });
     shell.querySelectorAll<HTMLButtonElement>("[data-open-panel]").forEach((button) => button.addEventListener("click", () => {
-      builderPanel = button.dataset.openPanel as BuilderPanel;
+      const nextPanel = button.dataset.openPanel as BuilderPanel;
+      const closeActivePanel = paletteOpen && builderPanel === nextPanel;
+      builderPanel = nextPanel;
       paletteSearch = "";
-      paletteOpen = true;
+      paletteOpen = !closeActivePanel;
       inspectorOpen = false;
       render();
     }));
@@ -554,14 +559,14 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
       if (!id) return;
       selection = { kind: "asset", id };
       paletteOpen = false;
-      inspectorOpen = false;
+      inspectorOpen = true;
       render();
     }));
     shell.querySelectorAll<HTMLButtonElement>("[data-select-character]").forEach((button) => button.addEventListener("click", () => {
       const [kind, id] = (button.dataset.selectCharacter ?? "player").split(":");
       selection = kind === "citizen" && id ? { kind: "citizen", id } : { kind: "player" };
       paletteOpen = false;
-      inspectorOpen = false;
+      inspectorOpen = true;
       render();
     }));
 
@@ -712,7 +717,7 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
       else if (id && schema.citizens.some((citizen) => citizen.id === id)) selection = { kind: "citizen", id };
       placement = null;
       paletteOpen = false;
-      inspectorOpen = false;
+      inspectorOpen = true;
       if (active) render();
     },
     moveAsset,
@@ -850,27 +855,6 @@ function renderBuilderToolbar(activePanel: BuilderPanel, schema: TownSchema, his
       <button type="button" data-action="undo" class="builder-toolbar-icon" aria-label="Undo" ${historyIndex === 0 ? "disabled" : ""}>↶</button>
       <button type="button" data-action="redo" class="builder-toolbar-icon" aria-label="Redo" ${historyIndex >= historyLength - 1 ? "disabled" : ""}>↷</button>
     </nav>
-  `;
-}
-
-function renderCompactSelection(asset?: TownAsset, character?: CharacterSchema): string {
-  const title = asset
-    ? asset.label ?? assetTypeLabel(asset.type)
-    : character?.kind === "player"
-      ? "Player"
-      : character?.id.replace("citizen-", "") ?? "Selection";
-  const meta = asset
-    ? `${assetTypeLabel(asset.type)} · ${asset.position[0]}, ${asset.position[1]}`
-    : character
-      ? `${humanizeLabel(character.appearance.hairStyle)} hair · ${humanizeLabel(character.appearance.bodyPreset ?? "average")}`
-      : "";
-  return `
-    <section class="builder-compact-selection" aria-label="Current selection">
-      <span class="builder-selection-mark" aria-hidden="true">${asset ? "◆" : "●"}</span>
-      <span class="builder-selection-copy"><small>Selected</small><strong>${escapeHtml(title)}</strong><span>${escapeHtml(meta)}</span></span>
-      ${asset ? `<button type="button" data-action="duplicate" aria-label="Duplicate ${escapeHtml(title)}">Duplicate</button>` : ""}
-      <button type="button" data-action="expand-inspector" class="builder-edit-details">Edit details</button>
-    </section>
   `;
 }
 

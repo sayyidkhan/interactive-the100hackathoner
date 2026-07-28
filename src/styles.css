@@ -4099,13 +4099,13 @@ dd {
 
 /* Builder v3.1: viewport-first placement */
 .builder-transient-drawer {
-  top: auto;
+  top: 76px;
   right: auto;
   bottom: 76px;
-  left: 50%;
-  width: min(900px, calc(100vw - 36px));
-  max-height: min(310px, calc(100vh - 110px));
-  transform: translateX(-50%);
+  left: 18px;
+  width: min(360px, calc(100vw - 36px));
+  max-height: none;
+  transform: none;
   animation: builder-drawer-rise 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
@@ -4118,18 +4118,22 @@ dd {
 }
 
 .builder-transient-drawer .builder-palette-body {
-  max-height: 238px;
+  max-height: calc(100vh - 226px);
   padding: 10px 14px 12px;
 }
 
 .builder-transient-drawer .builder-library-content {
-  min-height: 88px;
-  max-height: 112px;
+  min-height: 240px;
+  max-height: calc(100vh - 330px);
+}
+
+.builder-transient-drawer .builder-tile-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .builder-transient-drawer .builder-asset-tile {
   grid-template-rows: 46px minmax(17px, auto);
-  min-height: 78px;
+  min-height: 84px;
 }
 
 .builder-transient-drawer .builder-asset-tile > img {
@@ -4138,6 +4142,11 @@ dd {
 
 .builder-transient-drawer .builder-history-bar {
   display: none;
+}
+
+.builder-transient-drawer .builder-placed-list,
+.builder-transient-drawer .builder-resident-roster {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .builder-inspector {
@@ -4247,89 +4256,6 @@ dd {
   background: rgba(92, 67, 44, 0.13);
 }
 
-.builder-compact-selection {
-  position: absolute;
-  right: 18px;
-  bottom: 78px;
-  z-index: 3;
-  display: grid;
-  width: min(360px, calc(100vw - 36px));
-  min-height: 62px;
-  box-sizing: border-box;
-  grid-template-columns: 34px minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 9px;
-  padding: 8px 9px;
-  color: #46392f;
-  background: rgba(255, 251, 243, 0.94);
-  border: 1px solid rgba(255, 255, 255, 0.84);
-  border-radius: 16px;
-  box-shadow: 0 14px 38px rgba(54, 42, 28, 0.2);
-  pointer-events: auto;
-  backdrop-filter: blur(16px);
-}
-
-.builder-selection-mark {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  place-items: center;
-  color: #b77a1e;
-  background: #ffedb0;
-  border-radius: 11px;
-  font-size: 13px;
-}
-
-.builder-selection-copy {
-  display: grid;
-  min-width: 0;
-  gap: 1px;
-}
-
-.builder-selection-copy small {
-  color: #cf5948;
-  font-size: 8px;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.builder-selection-copy strong,
-.builder-selection-copy span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.builder-selection-copy strong {
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 15px;
-}
-
-.builder-selection-copy span {
-  color: #887869;
-  font-size: 8px;
-}
-
-.builder-compact-selection button {
-  min-height: 34px;
-  padding: 6px 9px;
-  color: #655448;
-  background: #f4ead8;
-  border: 1px solid rgba(92, 67, 44, 0.13);
-  border-radius: 10px;
-  font: inherit;
-  font-size: 9px;
-  font-weight: 850;
-  cursor: pointer;
-}
-
-.builder-compact-selection .builder-edit-details {
-  color: #fffaf0;
-  background: #c95749;
-  border-color: #b94c40;
-}
-
 .builder-placement-hud {
   position: absolute;
   bottom: 18px;
@@ -4409,7 +4335,7 @@ dd {
 @keyframes builder-drawer-rise {
   from {
     opacity: 0;
-    transform: translate(-50%, 12px);
+    transform: translateX(-12px);
   }
 }
 
@@ -4423,9 +4349,9 @@ dd {
   .builder-transient-drawer {
     right: auto;
     bottom: 70px;
-    left: 50%;
+    left: 10px;
     width: calc(100vw - 20px);
-    transform: translateX(-50%);
+    transform: none;
   }
 
   .builder-bottom-toolbar {
@@ -4436,13 +4362,6 @@ dd {
   .builder-bottom-toolbar kbd,
   .builder-toolbar-divider {
     display: none;
-  }
-
-  .builder-compact-selection {
-    right: 10px;
-    bottom: 72px;
-    left: 10px;
-    width: auto;
   }
 
   .builder-placement-hud {
