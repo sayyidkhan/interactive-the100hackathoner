@@ -9,11 +9,18 @@ import {
   type LiveWeatherSnapshot
 } from "../systems/weather";
 import {
+  getMoonSnapshot,
+  getTownDate,
+  type MoonSnapshot
+} from "../systems/astronomy";
+import {
   type AtmosphereObject,
   type Firefly,
+  type MoonVisual,
   type SakuraPetal,
   type WeatherParticles,
   setFallingFoliageAppearance,
+  updateMoonTexture,
   updateWeatherParticles
 } from "./atmosphere";
 import { type TownLights } from "./rendering/shadows";
@@ -25,12 +32,15 @@ export type EnvironmentRuntimeStatus = {
   weather: WeatherCondition;
   season: Exclude<SeasonChoice, "auto">;
   localHour: number;
+  moon?: MoonSnapshot;
 };
 
 type EnvironmentControllerOptions = {
   scene: THREE.Scene;
+  camera: THREE.PerspectiveCamera;
   lights: TownLights;
   atmosphere: AtmosphereObject[];
+  moon: MoonVisual;
   petals: SakuraPetal;
   fireflies: Firefly;
   weatherParticles: WeatherParticles;
@@ -138,6 +148,9 @@ export function createEnvironmentController(options: EnvironmentControllerOption
   let lastSeason: Exclude<SeasonChoice, "auto"> | undefined;
   let lastFoliage = "";
   let lastReportedMinute = -1;
+  let moonSnapshot: MoonSnapshot | undefined;
+  let lastMoonMinute = -1;
+  const moonOffset = new THREE.Vector3();
 
   const getWeather = (): WeatherCondition => settings.weatherMode === "live"
     ? snapshot?.condition ?? settings.weather
@@ -168,7 +181,8 @@ export function createEnvironmentController(options: EnvironmentControllerOption
       snapshot,
       weather: getWeather(),
       season: getSeason(),
-      localHour: getLocalHour()
+      localHour: getLocalHour(),
+      moon: moonSnapshot
     });
   };
 
@@ -230,7 +244,14 @@ export function createEnvironmentController(options: EnvironmentControllerOption
       || settings.weatherMode !== nextSettings.weatherMode
       || settings.latitude !== nextSettings.latitude
       || settings.longitude !== nextSettings.longitude;
+    const astronomyTargetChanged = !settings
+      || settings.latitude !== nextSettings.latitude
+      || settings.longitude !== nextSettings.longitude
+      || settings.timezoneOffset !== nextSettings.timezoneOffset
+      || settings.dayNightMode !== nextSettings.dayNightMode
+      || settings.manualHour !== nextSettings.manualHour;
     settings = { ...nextSettings };
+    if (astronomyTargetChanged) lastMoonMinute = -1;
     const season = getSeason();
     if (lastSeason !== season || lastFoliage !== settings.foliage) {
       lastSeason = season;
@@ -257,6 +278,16 @@ export function createEnvironmentController(options: EnvironmentControllerOption
     const localHour = getLocalHour();
     const weather = getWeather();
     const season = getSeason();
+    const currentMinute = Math.floor(localHour * 60);
+    if (!moonSnapshot || currentMinute !== lastMoonMinute) {
+      lastMoonMinute = currentMinute;
+      moonSnapshot = getMoonSnapshot(
+        getTownDate(settings, localHour),
+        settings.latitude,
+        settings.longitude
+      );
+      updateMoonTexture(options.moon, moonSnapshot.phase);
+    }
     if (season !== lastSeason) {
       lastSeason = season;
       setFallingFoliageAppearance(options.petals, settings.foliage, season);
@@ -285,7 +316,18 @@ export function createEnvironmentController(options: EnvironmentControllerOption
 
     options.lights.sun.intensity = THREE.MathUtils.damp(options.lights.sun.intensity, 0.24 + brightness * 1.44, 3.2, delta);
     options.lights.hemisphere.intensity = THREE.MathUtils.damp(options.lights.hemisphere.intensity, 0.31 + brightness * 0.46, 3.2, delta);
-    options.lights.fill.intensity = THREE.MathUtils.damp(options.lights.fill.intensity, 0.2 + night * 0.2, 3.2, delta);
+    const weatherMoonVisibility = weather === "clear"
+      ? 1
+      : weather === "cloudy"
+        ? 0.58
+        : weather === "snow"
+          ? 0.42
+          : weather === "rain"
+            ? 0.24
+            : 0.1;
+    const moonVisibility = THREE.MathUtils.smoothstep(night, 0.42, 0.82) * weatherMoonVisibility;
+    const moonLight = moonSnapshot ? moonVisibility * (0.025 + moonSnapshot.fraction * 0.11) : 0;
+    options.lights.fill.intensity = THREE.MathUtils.damp(options.lights.fill.intensity, 0.2 + night * 0.2 + moonLight, 3.2, delta);
     const daylightBlend = THREE.MathUtils.smoothstep(daylight, 0.12, 0.58);
     const seasonalSun = new THREE.Color("#efb487").lerp(new THREE.Color(palette.sun), daylightBlend);
     const seasonalSky = new THREE.Color("#7185a0").lerp(new THREE.Color(palette.sky), daylightBlend);
@@ -299,6 +341,32 @@ export function createEnvironmentController(options: EnvironmentControllerOption
       2.6,
       delta
     );
+
+    if (moonSnapshot) {
+      const altitudeLift = THREE.MathUtils.clamp(
+        (moonSnapshot.altitude + Math.PI / 2) / Math.PI,
+        0.22,
+        0.78
+      );
+      moonOffset.set(18, 8 + altitudeLift * 17, -104).applyQuaternion(options.camera.quaternion);
+      options.moon.group.position.copy(options.camera.position).add(moonOffset);
+      options.moon.group.visible = moonVisibility > 0.015;
+      const diskMaterial = options.moon.disk.material as THREE.SpriteMaterial;
+      const glowMaterial = options.moon.glow.material as THREE.SpriteMaterial;
+      diskMaterial.opacity = THREE.MathUtils.damp(
+        diskMaterial.opacity,
+        moonVisibility * (0.56 + moonSnapshot.fraction * 0.44),
+        3.2,
+        delta
+      );
+      diskMaterial.rotation = moonSnapshot.angle - moonSnapshot.parallacticAngle;
+      glowMaterial.opacity = THREE.MathUtils.damp(
+        glowMaterial.opacity,
+        moonVisibility * (0.06 + moonSnapshot.fraction * 0.2),
+        2.8,
+        delta
+      );
+    }
 
     const cloudOpacity = weather === "clear" ? 0.38 : weather === "cloudy" ? 0.68 : 0.82;
     options.atmosphere.forEach((cloud) => {
@@ -317,7 +385,6 @@ export function createEnvironmentController(options: EnvironmentControllerOption
     options.petals.mesh.visible = settings.foliage !== "off" && weather !== "storm";
     updateWeatherParticles(options.weatherParticles, delta, time, weather, snapshot?.windSpeed ?? 8);
 
-    const currentMinute = Math.floor(localHour * 60);
     if (currentMinute !== lastReportedMinute) {
       lastReportedMinute = currentMinute;
       report();

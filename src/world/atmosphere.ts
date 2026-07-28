@@ -10,6 +10,14 @@ export type AtmosphereObject = {
   speed: number;
 };
 
+export type MoonVisual = {
+  group: THREE.Group;
+  disk: THREE.Sprite;
+  glow: THREE.Sprite;
+  texture: THREE.CanvasTexture;
+  phase: number;
+};
+
 export type SakuraPetal = {
   mesh: THREE.InstancedMesh<THREE.ShapeGeometry, THREE.MeshBasicMaterial>;
   origins: THREE.Vector3[];
@@ -75,6 +83,85 @@ type LightningBolt = {
 const BURN_MARK_HOLD_SECONDS = 12;
 const BURN_MARK_FADE_SECONDS = 10;
 
+function createMoonTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = 192;
+  canvas.height = 192;
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  return texture;
+}
+
+function drawMoonPhase(texture: THREE.CanvasTexture, phase: number): void {
+  const canvas = texture.image as HTMLCanvasElement;
+  const context = canvas.getContext("2d");
+  if (!context) return;
+
+  const size = canvas.width;
+  const image = context.createImageData(size, size);
+  const pixels = image.data;
+  const lightAngle = phase * Math.PI * 2;
+  const lightX = Math.sin(lightAngle);
+  const lightZ = -Math.cos(lightAngle);
+
+  for (let pixelY = 0; pixelY < size; pixelY += 1) {
+    for (let pixelX = 0; pixelX < size; pixelX += 1) {
+      const x = (pixelX + 0.5 - size / 2) / (size * 0.43);
+      const y = (pixelY + 0.5 - size / 2) / (size * 0.43);
+      const radiusSquared = x * x + y * y;
+      if (radiusSquared > 1) continue;
+
+      const z = Math.sqrt(1 - radiusSquared);
+      const light = x * lightX + z * lightZ;
+      const edge = THREE.MathUtils.smoothstep(z, 0, 0.12);
+      const lit = THREE.MathUtils.smoothstep(light, -0.025, 0.055);
+      const crater = moonSurfaceNoise(x, y);
+      const index = (pixelY * size + pixelX) * 4;
+      pixels[index] = Math.round(58 + lit * (205 - crater * 18));
+      pixels[index + 1] = Math.round(70 + lit * (191 - crater * 22));
+      pixels[index + 2] = Math.round(88 + lit * (151 - crater * 19));
+      pixels[index + 3] = Math.round(edge * (52 + lit * 203));
+    }
+  }
+
+  context.clearRect(0, 0, size, size);
+  context.putImageData(image, 0, 0);
+  texture.needsUpdate = true;
+}
+
+function moonSurfaceNoise(x: number, y: number): number {
+  const maria = [
+    [0.28, -0.18, 0.18],
+    [-0.24, 0.08, 0.13],
+    [0.08, 0.32, 0.1],
+    [-0.1, -0.35, 0.08]
+  ] as const;
+  return maria.reduce((amount, [centerX, centerY, radius]) => {
+    const distance = Math.hypot(x - centerX, y - centerY);
+    return amount + THREE.MathUtils.smoothstep(radius - distance, 0, radius * 0.55) * 0.3;
+  }, 0);
+}
+
+function createMoonGlowTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = 128;
+  canvas.height = 128;
+  const context = canvas.getContext("2d");
+  if (context) {
+    const gradient = context.createRadialGradient(64, 64, 3, 64, 64, 64);
+    gradient.addColorStop(0, "rgba(255, 244, 199, 0.9)");
+    gradient.addColorStop(0.24, "rgba(255, 226, 156, 0.32)");
+    gradient.addColorStop(1, "rgba(255, 215, 128, 0)");
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, 128, 128);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
 export function createAtmosphere(scene: THREE.Scene): AtmosphereObject[] {
   const atmosphere: AtmosphereObject[] = [];
   const cloudMaterial = new THREE.MeshBasicMaterial({
@@ -97,6 +184,52 @@ export function createAtmosphere(scene: THREE.Scene): AtmosphereObject[] {
   }
 
   return atmosphere;
+}
+
+export function createMoon(scene: THREE.Scene): MoonVisual {
+  const group = new THREE.Group();
+  group.name = "night-moon";
+  group.visible = false;
+
+  const texture = createMoonTexture();
+  const diskMaterial = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false,
+    fog: false
+  });
+  const disk = new THREE.Sprite(diskMaterial);
+  disk.name = "moon-disk";
+  disk.scale.set(5.2, 5.2, 1);
+  disk.frustumCulled = false;
+  disk.renderOrder = -1;
+
+  const glowMaterial = new THREE.SpriteMaterial({
+    map: createMoonGlowTexture(),
+    color: "#ffe8ad",
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    fog: false
+  });
+  const glow = new THREE.Sprite(glowMaterial);
+  glow.name = "moon-glow";
+  glow.scale.set(11.5, 11.5, 1);
+  glow.frustumCulled = false;
+  glow.renderOrder = -2;
+
+  group.add(glow, disk);
+  scene.add(group);
+  drawMoonPhase(texture, 0.5);
+  return { group, disk, glow, texture, phase: 0.5 };
+}
+
+export function updateMoonTexture(moon: MoonVisual, phase: number): void {
+  const normalizedPhase = ((phase % 1) + 1) % 1;
+  if (Math.abs(normalizedPhase - moon.phase) < 0.002) return;
+  moon.phase = normalizedPhase;
+  drawMoonPhase(moon.texture, normalizedPhase);
 }
 
 export function createSakuraPetals(scene: THREE.Scene): SakuraPetal {

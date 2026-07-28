@@ -1387,6 +1387,14 @@ function renderEnvironmentPanel(
       <section class="builder-environment-card">
         <div class="builder-card-heading"><span>Day & night</span><small>Default GMT+8</small></div>
         ${renderSundial(localHour, environment.timezoneOffset)}
+        <div class="builder-moon-summary">
+          <span class="builder-moon-glyph" aria-hidden="true">◒</span>
+          <span>
+            <small>Moon tonight</small>
+            <strong>${status?.moon?.phaseName ?? "Calculating phase…"}</strong>
+          </span>
+          <small>${status?.moon ? `${Math.round(status.moon.fraction * 100)}% lit · location-aware` : "Local astronomy"}</small>
+        </div>
         <div class="builder-segmented-control" aria-label="Day and night mode">
           ${environmentChoice("dayNightMode", "timezone", "Follow clock", environment.dayNightMode === "timezone", "◷")}
           ${environmentChoice("dayNightMode", "manual", "Set time", environment.dayNightMode === "manual", "☼")}

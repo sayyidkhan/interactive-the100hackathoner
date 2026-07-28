@@ -42,6 +42,7 @@ import { createAnimalModel, createTownAnimals, type TownAnimal, updateTownAnimal
 import {
   createAtmosphere,
   createFireflies,
+  createMoon,
   createSakuraPetals,
   createWeatherParticles,
   type AtmosphereObject,
@@ -211,6 +212,7 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
   scene.add(citizenLayer);
   let citizens = createCitizens(citizenLayer, townSchema.citizens);
   const atmosphere = createAtmosphere(scene);
+  const moon = createMoon(scene);
   const animalLayer = new THREE.Group();
   animalLayer.name = "town-schema-animals";
   scene.add(animalLayer);
@@ -223,8 +225,10 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
 
   const environmentController = createEnvironmentController({
     scene,
+    camera,
     lights: townLights,
     atmosphere,
+    moon,
     petals: sakuraPetals,
     fireflies,
     weatherParticles,
@@ -232,6 +236,10 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
       root.dataset.weather = status.weather;
       root.dataset.season = status.season;
       root.dataset.localHour = status.localHour.toFixed(2);
+      if (status.moon) {
+        root.dataset.moonPhase = status.moon.phaseName;
+        root.dataset.moonIllumination = status.moon.fraction.toFixed(3);
+      }
       root.dispatchEvent(new CustomEvent<EnvironmentRuntimeStatus>("town:environment-status", { detail: status }));
     }
   });

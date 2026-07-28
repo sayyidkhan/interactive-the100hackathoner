@@ -5225,6 +5225,48 @@ dd {
   text-transform: uppercase;
 }
 
+.builder-moon-summary {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  color: #52463f;
+  background: rgba(255, 251, 239, 0.64);
+  border: 1px solid rgba(92, 67, 44, 0.09);
+  border-radius: 12px;
+}
+
+.builder-moon-summary > span:nth-child(2) {
+  display: grid;
+  gap: 1px;
+}
+
+.builder-moon-summary small {
+  color: #8b796b;
+  font-size: 8px;
+  font-weight: 750;
+}
+
+.builder-moon-summary strong {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 13px;
+}
+
+.builder-moon-glyph {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  color: #f4e7bd;
+  background: #536579;
+  border-radius: 50%;
+  box-shadow: 0 5px 12px rgba(49, 61, 76, 0.18);
+  font-size: 19px;
+  line-height: 1;
+}
+
 .builder-segmented-control,
 .builder-season-row {
   display: grid;
