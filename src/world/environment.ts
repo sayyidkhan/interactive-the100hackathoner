@@ -39,12 +39,13 @@ type EnvironmentControllerOptions = {
 
 export type EnvironmentController = {
   apply: (settings: EnvironmentSettings) => void;
-  refreshWeather: () => void;
+  refreshWeather: (force?: boolean) => void;
   refreshSeasonMaterials: (root?: THREE.Object3D) => void;
   update: (time: number, delta: number) => void;
 };
 
-const WEATHER_REFRESH_MS = 15 * 60 * 1000;
+const WEATHER_REFRESH_MS = 30 * 60 * 1000;
+const WEATHER_REFRESH_JITTER_MS = 2 * 60 * 1000;
 const DAY_BACKGROUNDS: Record<Exclude<SeasonChoice, "auto">, string> = {
   spring: "#f5e6dd",
   summer: "#f4e7d3",
@@ -109,10 +110,11 @@ export function createEnvironmentController(options: EnvironmentControllerOption
   const scheduleRefresh = () => {
     if (refreshTimer !== undefined) window.clearTimeout(refreshTimer);
     if (settings.weatherMode !== "live") return;
-    refreshTimer = window.setTimeout(refreshWeather, WEATHER_REFRESH_MS);
+    const delay = WEATHER_REFRESH_MS + Math.random() * WEATHER_REFRESH_JITTER_MS;
+    refreshTimer = window.setTimeout(() => refreshWeather(false), delay);
   };
 
-  const refreshWeather = () => {
+  const refreshWeather = (force = false) => {
     if (!settings || settings.weatherMode !== "live") return;
     request?.abort();
     const controller = new AbortController();
@@ -120,7 +122,7 @@ export function createEnvironmentController(options: EnvironmentControllerOption
     loading = true;
     error = undefined;
     report();
-    fetchLiveWeather(settings, controller.signal)
+    fetchLiveWeather(settings, controller.signal, { force })
       .then((reading) => {
         snapshot = reading;
         loading = false;

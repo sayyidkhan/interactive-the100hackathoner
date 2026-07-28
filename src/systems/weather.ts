@@ -11,6 +11,17 @@ export type LiveWeatherSnapshot = {
   windSpeed: number;
   isDay: boolean;
   observedAt: string;
+  retrievedAt: string;
+  source: "network" | "cache" | "stale-cache";
+};
+
+type WeatherFetchOptions = {
+  force?: boolean;
+};
+
+type CachedWeather = {
+  cachedAt: number;
+  snapshot: LiveWeatherSnapshot;
 };
 
 type OpenMeteoResponse = {
@@ -26,7 +37,44 @@ type OpenMeteoResponse = {
   };
 };
 
+const WEATHER_CACHE_PREFIX = "the100hackathoner.weather.v1";
+const WEATHER_CACHE_TTL_MS = 30 * 60 * 1000;
+const WEATHER_STALE_FALLBACK_MS = 6 * 60 * 60 * 1000;
+const WEATHER_MANUAL_REFRESH_COOLDOWN_MS = 60 * 1000;
+const inFlightRequests = new Map<string, Promise<LiveWeatherSnapshot>>();
+
 export async function fetchLiveWeather(
+  settings: EnvironmentSettings,
+  signal?: AbortSignal,
+  options: WeatherFetchOptions = {}
+): Promise<LiveWeatherSnapshot> {
+  const cacheKey = weatherCacheKey(settings);
+  const cached = readCachedWeather(cacheKey);
+  const cacheAge = cached ? Date.now() - cached.cachedAt : Number.POSITIVE_INFINITY;
+  const usableCacheAge = options.force ? WEATHER_MANUAL_REFRESH_COOLDOWN_MS : WEATHER_CACHE_TTL_MS;
+  if (cached && cacheAge < usableCacheAge) return withSource(cached.snapshot, "cache");
+
+  const existingRequest = inFlightRequests.get(cacheKey);
+  if (existingRequest && !options.force) return existingRequest;
+
+  const request = requestLiveWeather(settings, signal)
+    .then((snapshot) => {
+      writeCachedWeather(cacheKey, snapshot);
+      return snapshot;
+    })
+    .catch((reason: unknown) => {
+      if (signal?.aborted) throw reason;
+      if (cached && cacheAge < WEATHER_STALE_FALLBACK_MS) return withSource(cached.snapshot, "stale-cache");
+      throw reason;
+    })
+    .finally(() => {
+      if (inFlightRequests.get(cacheKey) === request) inFlightRequests.delete(cacheKey);
+    });
+  inFlightRequests.set(cacheKey, request);
+  return request;
+}
+
+async function requestLiveWeather(
   settings: EnvironmentSettings,
   signal?: AbortSignal
 ): Promise<LiveWeatherSnapshot> {
@@ -58,8 +106,57 @@ export async function fetchLiveWeather(
     precipitation: Math.max(finiteOr(current.precipitation, 0), 0),
     windSpeed: Math.max(finiteOr(current.wind_speed_10m, 0), 0),
     isDay: current.is_day !== 0,
-    observedAt: current.time ?? new Date().toISOString()
+    observedAt: current.time ?? new Date().toISOString(),
+    retrievedAt: new Date().toISOString(),
+    source: "network"
   };
+}
+
+function weatherCacheKey(settings: EnvironmentSettings): string {
+  const latitude = settings.latitude.toFixed(2);
+  const longitude = settings.longitude.toFixed(2);
+  return `${WEATHER_CACHE_PREFIX}:${latitude}:${longitude}`;
+}
+
+function readCachedWeather(key: string): CachedWeather | undefined {
+  try {
+    const saved = window.localStorage.getItem(key);
+    if (!saved) return undefined;
+    const cached = JSON.parse(saved) as Partial<CachedWeather>;
+    if (!Number.isFinite(cached.cachedAt) || !isWeatherSnapshot(cached.snapshot)) {
+      window.localStorage.removeItem(key);
+      return undefined;
+    }
+    return cached as CachedWeather;
+  } catch {
+    return undefined;
+  }
+}
+
+function writeCachedWeather(key: string, snapshot: LiveWeatherSnapshot): void {
+  try {
+    const cached: CachedWeather = { cachedAt: Date.now(), snapshot };
+    window.localStorage.setItem(key, JSON.stringify(cached));
+  } catch {
+    // Weather remains available even when storage is disabled or full.
+  }
+}
+
+function isWeatherSnapshot(value: unknown): value is LiveWeatherSnapshot {
+  if (!value || typeof value !== "object") return false;
+  const snapshot = value as Partial<LiveWeatherSnapshot>;
+  return typeof snapshot.condition === "string"
+    && typeof snapshot.temperature === "number"
+    && typeof snapshot.cloudCover === "number"
+    && typeof snapshot.precipitation === "number"
+    && typeof snapshot.windSpeed === "number"
+    && typeof snapshot.isDay === "boolean"
+    && typeof snapshot.observedAt === "string"
+    && typeof snapshot.retrievedAt === "string";
+}
+
+function withSource(snapshot: LiveWeatherSnapshot, source: LiveWeatherSnapshot["source"]): LiveWeatherSnapshot {
+  return { ...snapshot, source };
 }
 
 function mapWeatherCode(code: number, snowfall: number): WeatherCondition {

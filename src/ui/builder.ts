@@ -1288,6 +1288,10 @@ function renderEnvironmentPanel(
     ? "Manual weather"
     : status?.loading
       ? "Listening for weather…"
+      : status?.snapshot?.source === "stale-cache"
+        ? "Offline · cached weather"
+        : status?.snapshot?.source === "cache"
+          ? "Cached weather"
       : status?.error
         ? "Using fallback weather"
         : status?.snapshot
@@ -1326,7 +1330,7 @@ function renderEnvironmentPanel(
           </div>
           ${locationError ? `<p class="builder-environment-message error" role="status">${escapeHtml(locationError)}</p>` : ""}
           ${status?.error ? `<p class="builder-environment-message" role="status">${escapeHtml(status.error)} Clear weather remains active until the next refresh.</p>` : ""}
-          <p class="builder-environment-attribution">Weather data by <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a>. Location access is optional.</p>
+          <p class="builder-environment-attribution">Weather data by <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a>. Cached locally for 30 minutes; location access is optional.</p>
         `}
       </section>
 

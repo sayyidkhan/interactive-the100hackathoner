@@ -306,7 +306,7 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
       input.inspectRequested = false;
     }
   });
-  root.addEventListener("town:weather-refresh", () => environmentController.refreshWeather());
+  root.addEventListener("town:weather-refresh", () => environmentController.refreshWeather(true));
   environmentController.apply(townSchema.environment);
   bindBuilderCanvasInteractions(renderer.domElement, camera, town.assetLayer, () => builderActive, townBuilder, builderCamera);
 
