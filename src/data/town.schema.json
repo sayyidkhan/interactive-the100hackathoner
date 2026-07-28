@@ -35,6 +35,30 @@
     { "id": "citizen-price", "kind": "citizen", "position": [6.6, -4.1], "radius": 1.05, "speed": 0.7, "phase": 3.1, "speech": "price wedge", "appearance": { "skin": "#8a604a", "hair": "#241f1a", "hairStyle": "swept", "shirt": "#7f8eaa", "trim": "#4d5d7e", "pants": "#334856", "shoes": "#eee5d5" } },
     { "id": "citizen-story", "kind": "citizen", "position": [-6.3, 4.5], "radius": 1.18, "speed": 0.54, "phase": 4.6, "speech": "write lesson", "appearance": { "skin": "#9d6a4a", "hair": "#2c211c", "hairStyle": "crop", "shirt": "#d78c75", "trim": "#93564a", "pants": "#334856", "shoes": "#eee5d5" } }
   ],
+  "animals": [
+    {
+      "id": "animal-goose",
+      "kind": "goose",
+      "label": "Puddle",
+      "primaryColor": "#f7f0df",
+      "secondaryColor": "#d89035",
+      "speed": 0.72,
+      "route": [[2.8, 3.3], [5.4, 2.8], [7.1, 4.5], [5.8, 6.2], [2.6, 6.1], [1.7, 4.5], [4.2, 5.1]],
+      "phase": 0.2,
+      "bob": 0.025
+    },
+    {
+      "id": "animal-corgi",
+      "kind": "corgi",
+      "label": "Mochi",
+      "primaryColor": "#c17b3f",
+      "secondaryColor": "#f0dfbe",
+      "speed": 1.05,
+      "route": [[-6.6, -2.8], [-4.3, -5.7], [-0.8, -6.2], [2.7, -4.2], [3.4, -1.7], [-1.8, -2.6], [-5.1, -1.1], [0.8, -3.4]],
+      "phase": 2.4,
+      "bob": 0.035
+    }
+  ],
   "assets": [
     { "id": "ai-agents-lab", "type": "building", "label": "AI Agents Lab", "position": [-8, -7], "color": "#88aaa2", "roofColor": "#5f817a", "collision": { "kind": "box", "width": 4.9, "depth": 4.25 } },
     { "id": "saas-studio", "type": "building", "label": "SaaS Studio", "position": [8, -6], "color": "#d3a08c", "roofColor": "#a96f63", "collision": { "kind": "box", "width": 4.9, "depth": 4.25 } },

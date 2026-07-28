@@ -43,6 +43,7 @@ export type DayNightMode = "timezone" | "manual";
 export type SeasonCycle = "four" | "two";
 export type SeasonChoice = "auto" | "spring" | "summer" | "autumn" | "winter" | "wet" | "dry";
 export type FallingFoliage = "off" | "sakura" | "leaves" | "mixed";
+export type AnimalKind = "corgi" | "goose";
 
 export type EnvironmentSettings = {
   weatherMode: WeatherMode;
@@ -82,6 +83,18 @@ export type CharacterSchema = {
   movement?: { walk: number; sprint: number; jump: number };
 };
 
+export type AnimalSchema = {
+  id: string;
+  kind: AnimalKind;
+  label: string;
+  primaryColor: string;
+  secondaryColor: string;
+  speed: number;
+  route: [number, number][];
+  phase?: number;
+  bob?: number;
+};
+
 export type TownCollision =
   | { kind: "box"; width: number; depth: number; top?: number }
   | { kind: "circle"; radius: number; top?: number };
@@ -107,6 +120,7 @@ export type TownSchema = {
   environment: EnvironmentSettings;
   player: CharacterSchema;
   citizens: CharacterSchema[];
+  animals: AnimalSchema[];
   assets: TownAsset[];
 };
 
@@ -180,6 +194,7 @@ const DAY_NIGHT_MODES = new Set<DayNightMode>(["timezone", "manual"]);
 const SEASON_CYCLES = new Set<SeasonCycle>(["four", "two"]);
 const SEASON_CHOICES = new Set<SeasonChoice>(["auto", "spring", "summer", "autumn", "winter", "wet", "dry"]);
 const FALLING_FOLIAGE = new Set<FallingFoliage>(["off", "sakura", "leaves", "mixed"]);
+const ANIMAL_KINDS = new Set<AnimalKind>(["corgi", "goose"]);
 
 export const DEFAULT_ENVIRONMENT_SETTINGS: EnvironmentSettings = {
   weatherMode: "live",
@@ -193,6 +208,31 @@ export const DEFAULT_ENVIRONMENT_SETTINGS: EnvironmentSettings = {
   season: "auto",
   foliage: "sakura"
 };
+
+export const DEFAULT_TOWN_ANIMALS: AnimalSchema[] = [
+  {
+    id: "animal-goose",
+    kind: "goose",
+    label: "Puddle",
+    primaryColor: "#f7f0df",
+    secondaryColor: "#d89035",
+    speed: 0.72,
+    route: [[2.8, 3.3], [5.4, 2.8], [7.1, 4.5], [5.8, 6.2], [2.6, 6.1], [1.7, 4.5], [4.2, 5.1]],
+    phase: 0.2,
+    bob: 0.025
+  },
+  {
+    id: "animal-corgi",
+    kind: "corgi",
+    label: "Mochi",
+    primaryColor: "#c17b3f",
+    secondaryColor: "#f0dfbe",
+    speed: 1.05,
+    route: [[-6.6, -2.8], [-4.3, -5.7], [-0.8, -6.2], [2.7, -4.2], [3.4, -1.7], [-1.8, -2.6], [-5.1, -1.1], [0.8, -3.4]],
+    phase: 2.4,
+    bob: 0.035
+  }
+];
 
 export const TOWN_SCHEMA_STORAGE_KEY = "the100hackathoner.town-schema.v1";
 
@@ -208,6 +248,7 @@ export function parseTownSchema(value: unknown): TownSchema {
   if (!candidate.player || candidate.player.kind !== "player") throw new Error("Town schema needs a player definition.");
   if (!Array.isArray(candidate.citizens) || !Array.isArray(candidate.assets)) throw new Error("Town schema needs citizens and assets arrays.");
   candidate.environment = parseEnvironmentSettings(candidate.environment);
+  candidate.animals = parseAnimals(candidate.animals);
 
   const assetIds = new Set<string>();
   candidate.assets.forEach((asset) => {
@@ -224,6 +265,31 @@ export function parseTownSchema(value: unknown): TownSchema {
 
   [candidate.player, ...candidate.citizens].forEach((character) => assertCharacter(character));
   return candidate as TownSchema;
+}
+
+function parseAnimals(value: unknown): AnimalSchema[] {
+  const animals = Array.isArray(value)
+    ? value
+    : DEFAULT_TOWN_ANIMALS.map((animal) => ({ ...animal, route: animal.route.map((position) => [...position] as [number, number]) }));
+  const ids = new Set<string>();
+  animals.forEach((animal) => {
+    if (!animal || typeof animal !== "object") throw new Error("Animal must be an object.");
+    const candidate = animal as AnimalSchema;
+    if (typeof candidate.id !== "string" || !ANIMAL_KINDS.has(candidate.kind) || typeof candidate.label !== "string") {
+      throw new Error("Animal needs an id, name, and supported species.");
+    }
+    if (ids.has(candidate.id)) throw new Error(`Duplicate animal id: ${candidate.id}`);
+    ids.add(candidate.id);
+    for (const color of [candidate.primaryColor, candidate.secondaryColor]) {
+      if (typeof color !== "string" || !/^#[0-9a-f]{6}$/i.test(color)) throw new Error(`Animal ${candidate.id} has an invalid color.`);
+    }
+    if (!Number.isFinite(candidate.speed) || candidate.speed < 0.2 || candidate.speed > 2) {
+      throw new Error(`Animal ${candidate.id} has an invalid speed.`);
+    }
+    if (!Array.isArray(candidate.route) || candidate.route.length < 2) throw new Error(`Animal ${candidate.id} needs at least two route points.`);
+    candidate.route.forEach((position) => assertPosition(position, `Animal ${candidate.id} route`));
+  });
+  return animals as AnimalSchema[];
 }
 
 function parseEnvironmentSettings(value: unknown): EnvironmentSettings {

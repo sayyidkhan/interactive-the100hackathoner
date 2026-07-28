@@ -38,7 +38,7 @@ import {
   type PlayerMotion,
   updatePlayerMovement
 } from "./player/movement";
-import { createTownAnimals, type TownAnimal, updateTownAnimals } from "./animals";
+import { createAnimalModel, createTownAnimals, type TownAnimal, updateTownAnimals } from "./animals";
 import {
   createAtmosphere,
   createFireflies,
@@ -211,7 +211,10 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
   scene.add(citizenLayer);
   let citizens = createCitizens(citizenLayer, townSchema.citizens);
   const atmosphere = createAtmosphere(scene);
-  const animals = createTownAnimals(scene);
+  const animalLayer = new THREE.Group();
+  animalLayer.name = "town-schema-animals";
+  scene.add(animalLayer);
+  let animals = createTownAnimals(animalLayer, townSchema.animals);
   const sakuraPetals = createSakuraPetals(scene);
   const fireflies = createFireflies(scene);
   const weatherParticles = createWeatherParticles(scene);
@@ -243,8 +246,11 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
     applyCharacterAppearance(player, nextSchema.player.appearance, nextSchema.player.movement);
     clearGroup(citizenLayer);
     citizens = createCitizens(citizenLayer, nextSchema.citizens);
+    clearGroup(animalLayer);
+    animals = createTownAnimals(animalLayer, nextSchema.animals);
     applySceneShadows(town.assetLayer);
     applySceneShadows(citizenLayer);
+    applySceneShadows(animalLayer);
     environmentController.apply(nextSchema.environment);
     environmentController.refreshSeasonMaterials(town.assetLayer);
   };
@@ -275,6 +281,7 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
     },
     createAssetPreview: createTownAsset,
     createCharacterPreview: (character) => createCharacterPreviewModel(character),
+    createAnimalPreview: createAnimalModel,
     onCameraZoom: (amount) => {
       zoomBuilderCamera(builderCamera, amount);
     },

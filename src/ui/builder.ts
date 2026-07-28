@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import {
+  AnimalSchema,
   CharacterAppearance,
   CharacterSchema,
   EnvironmentSettings,
@@ -15,7 +16,11 @@ import {
 } from "../data/townSchema";
 import { type EnvironmentRuntimeStatus } from "../world/environment";
 
-type BuilderSelection = { kind: "asset"; id: string } | { kind: "player" } | { kind: "citizen"; id: string };
+type BuilderSelection =
+  | { kind: "asset"; id: string }
+  | { kind: "player" }
+  | { kind: "citizen"; id: string }
+  | { kind: "animal"; id: string };
 type BuilderConfirmation =
   | { kind: "delete-asset"; assetId: string; assetName: string }
   | { kind: "reset-draft" };
@@ -25,6 +30,7 @@ export type TownBuilderApi = {
   getPlacementAssetId: () => string | null;
   selectAsset: (id: string) => void;
   selectCharacter: (kind: "player" | "citizen", id?: string) => void;
+  selectAnimal: (id: string) => void;
   moveAsset: (id: string, x: number, z: number) => void;
   commitAssetMove: () => void;
   getSchema: () => TownSchema;
@@ -40,6 +46,7 @@ type BuilderOptions = {
   onAssetPositionPreview?: (asset: TownAsset) => void;
   createAssetPreview?: (asset: TownAsset) => THREE.Object3D | null;
   createCharacterPreview?: (character: CharacterSchema) => THREE.Object3D | null;
+  createAnimalPreview?: (animal: AnimalSchema) => THREE.Object3D | null;
   onCameraZoom?: (amount: number) => void;
   onCameraReset?: () => void;
 };
@@ -162,6 +169,11 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
     if (currentSelection.kind === "citizen") return schema.citizens.find((citizen) => citizen.id === currentSelection.id);
     return undefined;
   };
+  const getSelectedAnimal = (): AnimalSchema | undefined => {
+    const currentSelection = selection;
+    if (currentSelection.kind !== "animal") return undefined;
+    return schema.animals.find((animal) => animal.id === currentSelection.id);
+  };
 
   const notify = () => {
     saveTownSchemaDraft(schema);
@@ -225,6 +237,10 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
     if (selection.kind === "citizen") {
       const selectedId = selection.id;
       if (!schema.citizens.some((citizen) => citizen.id === selectedId)) selection = { kind: "player" };
+    }
+    if (selection.kind === "animal") {
+      const selectedId = selection.id;
+      if (!schema.animals.some((animal) => animal.id === selectedId)) selection = { kind: "player" };
     }
   };
 
@@ -457,6 +473,7 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
   const render = () => {
     const selectedAsset = getSelectedAsset();
     const selectedCharacter = getSelectedCharacter();
+    const selectedAnimal = getSelectedAnimal();
     options.onSelectionChange?.(selectedAsset ?? null);
     shell.hidden = !active;
     shell.innerHTML = `
@@ -476,7 +493,7 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
               <span aria-hidden="true">⌕</span>
               <input type="search" data-palette-search value="${escapeHtml(paletteSearch)}" placeholder="${builderPanel === "catalog" ? "Search assets" : builderPanel === "placed" ? "Search placed items" : "Search residents"}" aria-label="Search ${builderPanel}" />
             </label>
-            ${builderPanel === "residents" ? `<button type="button" class="builder-surprise-button" data-action="randomize-character" ${selection.kind === "asset" ? "disabled" : ""}>Surprise me</button>` : ""}
+            ${builderPanel === "residents" ? `<button type="button" class="builder-surprise-button" data-action="randomize-character" ${!selectedCharacter ? "disabled" : ""}>Surprise me</button>` : ""}
           </div>` : ""}
           ${builderPanel === "catalog" ? `<div class="builder-filter-row" role="tablist" aria-label="Asset categories">
             ${ASSET_TILE_GROUPS.map((group) => `<button type="button" data-filter="${group.id}" class="${paletteFilter === group.id ? "active" : ""}">${group.label}</button>`).join("")}
@@ -494,16 +511,16 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
         </div>
       </section>` : ""}
       ${placement ? "" : renderBuilderToolbar(builderPanel, schema, historyIndex, history.length)}
-      ${inspectorOpen ? `<aside class="builder-inspector" aria-label="Selected asset inspector">
+      ${inspectorOpen ? `<aside class="builder-inspector" aria-label="Selected town resident or asset inspector">
         <header class="builder-header">
           <div>
             <span class="builder-kicker">Selected</span>
-            <strong>${selectedAsset ? escapeHtml(selectedAsset.label ?? assetTypeLabel(selectedAsset.type)) : selectedCharacter ? escapeHtml(selectedCharacter.kind === "player" ? "Player" : selectedCharacter.id.replace("citizen-", "")) : "Nothing selected"}</strong>
+            <strong>${selectedAsset ? escapeHtml(selectedAsset.label ?? assetTypeLabel(selectedAsset.type)) : selectedCharacter ? escapeHtml(selectedCharacter.kind === "player" ? "Player" : selectedCharacter.id.replace("citizen-", "")) : selectedAnimal ? escapeHtml(selectedAnimal.label) : "Nothing selected"}</strong>
           </div>
           <button class="builder-icon-button builder-tooltip" type="button" data-action="collapse-inspector" aria-label="Close inspector" data-tooltip="Close inspector">×</button>
         </header>
         <div class="builder-inspector-scroll">
-          ${selectedAsset ? `<div class="builder-asset-preview builder-object-preview" data-selection-preview aria-label="${escapeHtml(assetTypeLabel(selectedAsset.type))} 3D preview"></div>${renderAssetForm(selectedAsset)}` : selectedCharacter ? `<div class="builder-asset-preview builder-character-preview" data-selection-preview aria-label="${escapeHtml(selectedCharacter.kind === "player" ? "Player" : selectedCharacter.id)} 3D preview"></div>${renderCharacterForm(selectedCharacter)}` : ""}
+          ${selectedAsset ? `<div class="builder-asset-preview builder-object-preview" data-selection-preview aria-label="${escapeHtml(assetTypeLabel(selectedAsset.type))} 3D preview"></div>${renderAssetForm(selectedAsset)}` : selectedCharacter ? `<div class="builder-asset-preview builder-character-preview" data-selection-preview aria-label="${escapeHtml(selectedCharacter.kind === "player" ? "Player" : selectedCharacter.id)} 3D preview"></div>${renderCharacterForm(selectedCharacter)}` : selectedAnimal ? `<div class="builder-asset-preview builder-animal-preview" data-selection-preview aria-label="${escapeHtml(selectedAnimal.label)} the ${selectedAnimal.kind} 3D preview"></div>${renderAnimalForm(selectedAnimal)}` : ""}
           <section class="builder-section builder-utility-section">
             <div class="builder-action-grid builder-utility-actions">
               <button type="button" data-action="reset" class="builder-danger">Reset draft</button>
@@ -526,7 +543,9 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
         ? options.createAssetPreview?.(getSelectedAsset() ?? selectedAsset)
         : selectedCharacter
           ? options.createCharacterPreview?.(getSelectedCharacter() ?? selectedCharacter)
-          : null;
+          : selectedAnimal
+            ? options.createAnimalPreview?.(getSelectedAnimal() ?? selectedAnimal)
+            : null;
       if (!previewHost || !previewSource) {
         selectionPreview?.dispose();
         selectionPreview = null;
@@ -540,7 +559,7 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
       selectionPreview = mountAssetPreview(previewHost, previewSource);
     };
 
-    if (active && inspectorOpen && (selectedAsset || selectedCharacter)) refreshSelectionPreview();
+    if (active && inspectorOpen && (selectedAsset || selectedCharacter || selectedAnimal)) refreshSelectionPreview();
     else {
       selectionPreview?.dispose();
       selectionPreview = null;
@@ -647,6 +666,14 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
       inspectorOpen = true;
       render();
     }));
+    shell.querySelectorAll<HTMLButtonElement>("[data-select-animal]").forEach((button) => button.addEventListener("click", () => {
+      const id = button.dataset.selectAnimal;
+      if (!id || !schema.animals.some((animal) => animal.id === id)) return;
+      selection = { kind: "animal", id };
+      paletteOpen = false;
+      inspectorOpen = true;
+      render();
+    }));
 
     shell.querySelectorAll<HTMLButtonElement>("[data-add]").forEach((button) => button.addEventListener("click", () => addAsset(button.dataset.add as TownAssetType)));
     shell.querySelectorAll<HTMLButtonElement>("[data-character-preset]").forEach((button) => button.addEventListener("click", () => applyCharacterPreset(Number(button.dataset.characterPreset))));
@@ -655,7 +682,7 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
       const [field, value] = (button.dataset.characterChoice ?? "").split(":");
       const character = getSelectedCharacter();
       if (!character || !field || !value) return;
-      commit(() => applyFieldChange(`character.${field}`, value, undefined, character, canTransformAsset));
+      commit(() => applyFieldChange(`character.${field}`, value, undefined, character, undefined, canTransformAsset));
     }));
     shell.querySelector<HTMLButtonElement>('[data-action="randomize-character"]')?.addEventListener("click", randomizeCharacter);
     shell.querySelector<HTMLButtonElement>('[data-action="cancel-placement"]')?.addEventListener("click", cancelPlacement);
@@ -685,12 +712,13 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
 
     if (confirmation) requestAnimationFrame(() => shell.querySelector<HTMLButtonElement>('[data-action="cancel-confirmation"]')?.focus());
 
-    shell.querySelectorAll<HTMLInputElement>('[data-schema-field="asset.color"], [data-schema-field="asset.roofColor"], [data-schema-field="asset.stripeColor"], [data-schema-field^="character."][type="color"]').forEach((input) => {
+    shell.querySelectorAll<HTMLInputElement>('[data-schema-field="asset.color"], [data-schema-field="asset.roofColor"], [data-schema-field="asset.stripeColor"], [data-schema-field^="character."][type="color"], [data-schema-field^="animal."][type="color"]').forEach((input) => {
       input.addEventListener("input", () => {
         const selectedAsset = getSelectedAsset();
         const selectedCharacter = getSelectedCharacter();
-        if (!selectedAsset && !selectedCharacter) return;
-        applyFieldChange(input.dataset.schemaField ?? "", input.value, selectedAsset, selectedCharacter, canTransformAsset);
+        const selectedAnimal = getSelectedAnimal();
+        if (!selectedAsset && !selectedCharacter && !selectedAnimal) return;
+        applyFieldChange(input.dataset.schemaField ?? "", input.value, selectedAsset, selectedCharacter, selectedAnimal, canTransformAsset);
         notify();
         refreshSelectionPreview();
       });
@@ -701,7 +729,7 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
         if (input.value === "" || !input.validity.valid) return;
         const selectedAsset = getSelectedAsset();
         if (!selectedAsset) return;
-        const applied = applyFieldChange(input.dataset.schemaField ?? "", Number(input.value), selectedAsset, undefined, canTransformAsset);
+        const applied = applyFieldChange(input.dataset.schemaField ?? "", Number(input.value), selectedAsset, undefined, undefined, canTransformAsset);
         input.setCustomValidity(applied === false ? "This transform would overlap another asset." : "");
         if (applied === false) return;
         notify();
@@ -713,7 +741,7 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
       input.addEventListener("change", () => {
         const field = input.dataset.schemaField ?? "";
         const value = input instanceof HTMLInputElement && input.type === "number" ? Number(input.value) : input.value;
-        commit(() => applyFieldChange(field, value, getSelectedAsset(), getSelectedCharacter(), canTransformAsset));
+        commit(() => applyFieldChange(field, value, getSelectedAsset(), getSelectedCharacter(), getSelectedAnimal(), canTransformAsset));
       });
     });
   };
@@ -797,6 +825,14 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
     selectCharacter: (kind, id) => {
       if (kind === "player") selection = { kind: "player" };
       else if (id && schema.citizens.some((citizen) => citizen.id === id)) selection = { kind: "citizen", id };
+      placement = null;
+      paletteOpen = false;
+      inspectorOpen = true;
+      if (active) render();
+    },
+    selectAnimal: (id) => {
+      if (!schema.animals.some((animal) => animal.id === id)) return;
+      selection = { kind: "animal", id };
       placement = null;
       paletteOpen = false;
       inspectorOpen = true;
@@ -932,7 +968,7 @@ function renderBuilderToolbar(activePanel: BuilderPanel, schema: TownSchema, his
       <span class="builder-toolbar-divider" aria-hidden="true"></span>
       <button type="button" data-open-panel="catalog" class="${activePanel === "catalog" ? "active" : ""}"><span aria-hidden="true">▦</span> Library <kbd>B</kbd></button>
       <button type="button" data-open-panel="placed" class="${activePanel === "placed" ? "active" : ""}">Placed <small>${schema.assets.length}</small></button>
-      <button type="button" data-open-panel="residents" class="${activePanel === "residents" ? "active" : ""}">Residents <small>${schema.citizens.length + 1}</small></button>
+      <button type="button" data-open-panel="residents" class="${activePanel === "residents" ? "active" : ""}">Residents <small>${schema.citizens.length + schema.animals.length + 1}</small></button>
       <button type="button" data-open-panel="environment" class="${activePanel === "environment" ? "active" : ""}"><span class="builder-weather-glyph" aria-hidden="true">☼</span> Environment</button>
       <span class="builder-toolbar-divider" aria-hidden="true"></span>
       <button type="button" data-action="undo" class="builder-toolbar-icon builder-history-button builder-tooltip" aria-label="Undo last change" data-tooltip="Undo last change · Ctrl/⌘ Z" ${historyIndex === 0 ? "disabled" : ""}>
@@ -997,8 +1033,14 @@ function renderBuilderPanel(
     const name = character.kind === "player" ? "Player" : character.id.replace("citizen-", "");
     return `${name} ${character.appearance.hairStyle} ${character.appearance.bodyPreset ?? "average"}`.toLowerCase().includes(query);
   });
-  if (residents.length === 0) return renderEmptyState("No residents found", "Try searching by name, hair, or body style.");
-  return `<div class="builder-resident-roster">${residents.map((character) => {
+  const animals = schema.animals.filter((animal) =>
+    `${animal.label} ${animal.kind} animal pet roaming`.toLowerCase().includes(query)
+  );
+  if (residents.length === 0 && animals.length === 0) return renderEmptyState("No residents found", "Try searching by name, species, hair, or body style.");
+  const peopleMarkup = residents.length > 0 ? `
+    <section class="builder-roster-group">
+      <div class="builder-roster-heading"><span>People</span><small>${residents.length}</small></div>
+      <div class="builder-resident-roster">${residents.map((character) => {
     const selected = character.kind === "player"
       ? selection.kind === "player"
       : selection.kind === "citizen" && selection.id === character.id;
@@ -1007,7 +1049,20 @@ function renderBuilderPanel(
       <span><strong>${escapeHtml(character.kind === "player" ? "Player" : character.id.replace("citizen-", ""))}</strong><small>${humanizeLabel(character.appearance.hairStyle)} hair · ${humanizeLabel(character.appearance.bodyPreset ?? "average")}</small></span>
       <span class="builder-status-dot">Active</span>
     </button>`;
-  }).join("")}</div>`;
+      }).join("")}</div>
+    </section>` : "";
+  const animalMarkup = animals.length > 0 ? `
+    <section class="builder-roster-group">
+      <div class="builder-roster-heading"><span>Animals</span><small>${animals.length}</small></div>
+      <div class="builder-resident-roster">${animals.map((animal) => `
+        <button type="button" data-select-animal="${escapeHtml(animal.id)}" class="builder-resident-card builder-animal-card ${selection.kind === "animal" && selection.id === animal.id ? "selected" : ""}">
+          <span class="builder-animal-avatar builder-animal-${animal.kind}" style="--animal-primary:${animal.primaryColor};--animal-secondary:${animal.secondaryColor}" aria-hidden="true"><i></i></span>
+          <span><strong>${escapeHtml(animal.label)}</strong><small>${humanizeLabel(animal.kind)} · ${animal.speed < 0.8 ? "Gentle" : animal.speed > 1.15 ? "Playful" : "Steady"} roaming</small></span>
+          <span class="builder-status-dot builder-status-roaming">Roaming</span>
+        </button>
+      `).join("")}</div>
+    </section>` : "";
+  return `<div class="builder-roster-sections">${peopleMarkup}${animalMarkup}</div>`;
 }
 
 function renderEnvironmentPanel(
@@ -1437,11 +1492,44 @@ function renderCharacterForm(character: CharacterSchema): string {
   `;
 }
 
+function renderAnimalForm(animal: AnimalSchema): string {
+  const pace = animal.speed < 0.8 ? "Gentle" : animal.speed > 1.15 ? "Playful" : "Steady";
+  return `
+    <section class="builder-section builder-animal-editor">
+      <div class="builder-editor-heading">
+        <span class="builder-section-title">${humanizeLabel(animal.kind)}</span>
+        <span class="builder-editor-status">Town animal</span>
+      </div>
+      <div class="builder-inspector-card builder-identity-card">
+        <label class="builder-field"><span>Name</span><input data-schema-field="animal.label" value="${escapeHtml(animal.label)}" maxlength="24" /></label>
+        <label class="builder-field"><span>Species</span><input value="${humanizeLabel(animal.kind)}" disabled /></label>
+      </div>
+      <div class="builder-inspector-card builder-appearance-card">
+        <div class="builder-card-heading"><span>Coat & markings</span><small>Live preview</small></div>
+        <div class="builder-asset-color-grid">
+          ${colorField(animal.kind === "goose" ? "Feathers" : "Coat", "animal.primaryColor", animal.primaryColor)}
+          ${colorField(animal.kind === "goose" ? "Beak & feet" : "Markings", "animal.secondaryColor", animal.secondaryColor)}
+        </div>
+      </div>
+      <div class="builder-inspector-card builder-animal-behaviour">
+        <div class="builder-card-heading"><span>Roaming</span><small>${pace} pace</small></div>
+        <label class="builder-animal-speed">
+          <span><strong>Movement speed</strong><output>${animal.speed.toFixed(2)}×</output></span>
+          <input type="range" min="0.2" max="1.6" step="0.01" value="${animal.speed}" data-schema-field="animal.speed" aria-label="${escapeHtml(animal.label)} movement speed" />
+          <small><span>Calm</span><span>Playful</span></small>
+        </label>
+        <p class="builder-animal-note">${escapeHtml(animal.label)} follows a safe roaming route around town. Their path stays unchanged while you tune their look and pace.</p>
+      </div>
+    </section>
+  `;
+}
+
 function applyFieldChange(
   field: string,
   value: string | number,
   asset?: TownAsset,
   character?: CharacterSchema,
+  animal?: AnimalSchema,
   canApplyTransform?: (asset: TownAsset) => boolean
 ): boolean | void {
   if (asset) {
@@ -1478,6 +1566,12 @@ function applyFieldChange(
       if (field === "character.sprint") character.movement.sprint = Number(value);
       if (field === "character.jump") character.movement.jump = Number(value);
     }
+  }
+  if (animal) {
+    if (field === "animal.label") animal.label = String(value).trim().slice(0, 24) || humanizeLabel(animal.kind);
+    if (field === "animal.primaryColor") animal.primaryColor = String(value);
+    if (field === "animal.secondaryColor") animal.secondaryColor = String(value);
+    if (field === "animal.speed") animal.speed = Math.min(1.6, Math.max(0.2, Number(value) || 0.2));
   }
 }
 
