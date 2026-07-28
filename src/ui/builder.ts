@@ -48,7 +48,8 @@ type TilePreviewRenderer = {
 };
 
 const ASSET_TYPES: TownAssetType[] = ["building", "market", "booth", "picnicTable", "bench", "tree", "shrub", "flowerBed", "gardenPlot", "rock", "fence", "grassClump", "lamp", "tinyFlag", "communityBoard", "parcelCart", "fountain", "monument", "welcomeSign", "waterTower"];
-const COLOR_FIELDS: Array<keyof CharacterAppearance> = ["skin", "hair", "shirt", "trim", "pants", "shoes"];
+type AppearanceColorField = "skin" | "hair" | "shirt" | "trim" | "pants" | "shoes";
+const COLOR_FIELDS: AppearanceColorField[] = ["skin", "hair", "shirt", "trim", "pants", "shoes"];
 const GRID_SNAP = 0.5;
 const PLACEMENT_LIMIT = 28;
 const ASSET_TILE_GROUPS = [
@@ -58,6 +59,28 @@ const ASSET_TILE_GROUPS = [
   { id: "nature", label: "Nature" }
 ] as const;
 type AssetTileGroup = (typeof ASSET_TILE_GROUPS)[number]["id"];
+type BuilderPanel = "catalog" | "placed" | "residents";
+
+const HAIR_STYLES: CharacterAppearance["hairStyle"][] = ["crop", "swept", "afro", "coily", "bob", "bun", "braids", "mohawk", "long", "bald"];
+const SKIN_TONES = ["#f5d8bd", "#e8bd98", "#d39a72", "#bb7c55", "#9d6245", "#7e4c38", "#613728", "#44291f"];
+const HAIR_COLORS = ["#17120f", "#33241d", "#5a3824", "#87572f", "#bd7b3f", "#d4b080", "#8e3f32", "#e7ded1"];
+const OUTFIT_PRESETS = [
+  { id: "founder", label: "Founder", shirt: "#d95f4d", trim: "#b9493d", pants: "#163f50", shoes: "#f1eee6" },
+  { id: "maker", label: "Maker", shirt: "#3f7f83", trim: "#295d65", pants: "#263d54", shoes: "#e9e1d2" },
+  { id: "creative", label: "Creative", shirt: "#8a67a3", trim: "#654b7a", pants: "#4c405f", shoes: "#f2d7aa" },
+  { id: "explorer", label: "Explorer", shirt: "#d99b37", trim: "#a56c22", pants: "#47604f", shoes: "#eee3cc" },
+  { id: "operator", label: "Operator", shirt: "#526779", trim: "#344554", pants: "#1f3039", shoes: "#d9d7d1" },
+  { id: "garden", label: "Garden", shirt: "#6e9a72", trim: "#4d7556", pants: "#665341", shoes: "#efe6d2" }
+] as const;
+
+const CHARACTER_PRESETS: Array<{ label: string; appearance: CharacterAppearance }> = [
+  { label: "Ari", appearance: { skin: "#d39a72", hair: "#33241d", hairStyle: "coily", shirt: "#d95f4d", trim: "#b9493d", pants: "#163f50", shoes: "#f1eee6", bodyPreset: "average", faceStyle: "bright", accessory: "none" } },
+  { label: "Jules", appearance: { skin: "#7e4c38", hair: "#17120f", hairStyle: "braids", shirt: "#3f7f83", trim: "#295d65", pants: "#263d54", shoes: "#e9e1d2", bodyPreset: "tall", faceStyle: "soft", accessory: "glasses" } },
+  { label: "Mei", appearance: { skin: "#e8bd98", hair: "#17120f", hairStyle: "bob", shirt: "#8a67a3", trim: "#654b7a", pants: "#4c405f", shoes: "#f2d7aa", bodyPreset: "compact", faceStyle: "round", accessory: "beanie" } },
+  { label: "Noor", appearance: { skin: "#bb7c55", hair: "#5a3824", hairStyle: "bun", shirt: "#d99b37", trim: "#a56c22", pants: "#47604f", shoes: "#eee3cc", bodyPreset: "average", faceStyle: "bright", accessory: "none" } },
+  { label: "Kai", appearance: { skin: "#613728", hair: "#17120f", hairStyle: "mohawk", shirt: "#526779", trim: "#344554", pants: "#1f3039", shoes: "#d9d7d1", bodyPreset: "broad", faceStyle: "soft", accessory: "none" } },
+  { label: "Sam", appearance: { skin: "#f5d8bd", hair: "#bd7b3f", hairStyle: "long", shirt: "#6e9a72", trim: "#4d7556", pants: "#665341", shoes: "#efe6d2", bodyPreset: "tall", faceStyle: "round", accessory: "cap" } }
+];
 
 const ASSET_TILE_CONFIG: Record<TownAssetType, { group: Exclude<AssetTileGroup, "all"> }> = {
   building: { group: "places" },
@@ -90,6 +113,8 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
   const history = [JSON.stringify(schema)];
   let historyIndex = 0;
   let paletteFilter: AssetTileGroup = "all";
+  let builderPanel: BuilderPanel = "catalog";
+  let paletteSearch = "";
   let paletteOpen = true;
   let inspectorOpen = true;
   let selectionPreview: AssetPreview | null = null;
@@ -280,6 +305,39 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
     });
   };
 
+  const randomizeCharacter = () => {
+    const character = getSelectedCharacter();
+    if (!character) return;
+    commit(() => {
+      const preset = CHARACTER_PRESETS[Math.floor(Math.random() * CHARACTER_PRESETS.length)];
+      character.appearance = {
+        ...preset.appearance,
+        skin: SKIN_TONES[Math.floor(Math.random() * SKIN_TONES.length)],
+        hair: HAIR_COLORS[Math.floor(Math.random() * HAIR_COLORS.length)],
+        hairStyle: HAIR_STYLES[Math.floor(Math.random() * HAIR_STYLES.length)]
+      };
+    });
+  };
+
+  const applyCharacterPreset = (index: number) => {
+    const character = getSelectedCharacter();
+    const preset = CHARACTER_PRESETS[index];
+    if (!character || !preset) return;
+    commit(() => { character.appearance = { ...preset.appearance }; });
+  };
+
+  const applyOutfitPreset = (id: string) => {
+    const character = getSelectedCharacter();
+    const preset = OUTFIT_PRESETS.find((candidate) => candidate.id === id);
+    if (!character || !preset) return;
+    commit(() => {
+      character.appearance.shirt = preset.shirt;
+      character.appearance.trim = preset.trim;
+      character.appearance.pants = preset.pants;
+      character.appearance.shoes = preset.shoes;
+    });
+  };
+
   const resetShipped = () => {
     if (!window.confirm("Reset this browser draft to the shipped town schema?")) return;
     schema = cloneTownSchema(options.shippedSchema);
@@ -297,35 +355,35 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
     options.onSelectionChange?.(selectedAsset ?? null);
     shell.hidden = !active;
     shell.innerHTML = `
-      ${paletteOpen ? `<section class="builder-palette" aria-label="Town asset palette">
+      ${paletteOpen ? `<section class="builder-palette" aria-label="Town builder library">
         <header class="builder-header">
           <div>
-            <span class="builder-kicker">Local builder</span>
-            <strong>Town kit</strong>
+            <span class="builder-kicker">Build mode</span>
+            <strong>Town library</strong>
           </div>
           <div class="builder-header-actions">
-            <button class="builder-icon-button builder-tooltip" type="button" data-action="collapse-palette" aria-label="Close town kit" data-tooltip="Close town kit">×</button>
+            <button class="builder-icon-button builder-tooltip" type="button" data-action="collapse-palette" aria-label="Close town library" data-tooltip="Close library">×</button>
           </div>
         </header>
         <div class="builder-palette-body">
-          <div class="builder-filter-row" role="tablist" aria-label="Asset categories">
+          <div class="builder-workspace-tabs" role="tablist" aria-label="Builder workspace">
+            ${(["catalog", "placed", "residents"] as BuilderPanel[]).map((panel) => `<button type="button" role="tab" data-builder-panel="${panel}" aria-selected="${builderPanel === panel}" class="${builderPanel === panel ? "active" : ""}">${panel === "catalog" ? "Catalog" : panel === "placed" ? `Placed <span>${schema.assets.length}</span>` : `Residents <span>${schema.citizens.length + 1}</span>`}</button>`).join("")}
+          </div>
+          <div class="builder-library-toolbar">
+            <label class="builder-search">
+              <span aria-hidden="true">⌕</span>
+              <input type="search" data-palette-search value="${escapeHtml(paletteSearch)}" placeholder="${builderPanel === "catalog" ? "Search assets" : builderPanel === "placed" ? "Search placed items" : "Search residents"}" aria-label="Search ${builderPanel}" />
+            </label>
+            ${builderPanel === "residents" ? `<button type="button" class="builder-surprise-button" data-action="randomize-character" ${selection.kind === "asset" ? "disabled" : ""}>Surprise me</button>` : ""}
+          </div>
+          ${builderPanel === "catalog" ? `<div class="builder-filter-row" role="tablist" aria-label="Asset categories">
             ${ASSET_TILE_GROUPS.map((group) => `<button type="button" data-filter="${group.id}" class="${paletteFilter === group.id ? "active" : ""}">${group.label}</button>`).join("")}
+          </div>` : ""}
+          <div class="builder-library-content">
+            ${renderBuilderPanel(builderPanel, schema, selection, paletteFilter, paletteSearch)}
           </div>
-          <div class="builder-tile-grid">
-            ${renderAssetTiles(paletteFilter)}
-          </div>
-          <section class="builder-characters">
-            <div class="builder-palette-section-heading">
-              <span class="builder-section-title">Residents</span>
-              <small>${schema.citizens.length + 1} active</small>
-            </div>
-            <div class="builder-character-grid">
-              <button type="button" data-select-character="player" class="builder-character-tile ${selection.kind === "player" ? "selected" : ""}"><span class="builder-resident-mark builder-resident-player" aria-hidden="true"></span><span>Player</span></button>
-              ${schema.citizens.map((citizen, index) => `<button type="button" data-select-character="citizen:${citizen.id}" class="builder-character-tile ${selection.kind === "citizen" && selection.id === citizen.id ? "selected" : ""}"><span class="builder-resident-mark builder-resident-${index % 4}" aria-hidden="true"></span><span>${escapeHtml(citizen.id.replace("citizen-", ""))}</span></button>`).join("")}
-            </div>
-          </section>
           <div class="builder-history-bar">
-            <span>History</span>
+            <span>${historyIndex + 1} / ${history.length} changes</span>
             <div class="builder-draft-row">
               <button type="button" data-action="undo" ${historyIndex === 0 ? "disabled" : ""} aria-label="Undo last change">Undo</button>
               <button type="button" data-action="redo" ${historyIndex >= history.length - 1 ? "disabled" : ""} aria-label="Redo last change">Redo</button>
@@ -334,7 +392,7 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
         </div>
       </section>` : `<div class="builder-drawer-group builder-drawer-group-left">
         <button class="builder-drawer-button builder-back-button builder-tooltip" type="button" data-action="back-to-town" aria-label="Back to town" data-tooltip="Back to town"><span aria-hidden="true">←</span></button>
-        <button class="builder-drawer-button builder-tooltip" type="button" data-action="expand-palette" aria-label="Open town kit" data-tooltip="Open town kit"><span aria-hidden="true">▦</span></button>
+        <button class="builder-drawer-button builder-tooltip" type="button" data-action="expand-palette" aria-label="Open town library" data-tooltip="Open library"><span aria-hidden="true">▦</span></button>
       </div>`}
       ${inspectorOpen ? `<aside class="builder-inspector" aria-label="Selected asset inspector">
         <header class="builder-header">
@@ -426,13 +484,45 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
       paletteFilter = button.dataset.filter as AssetTileGroup;
       render();
     }));
+    shell.querySelectorAll<HTMLButtonElement>("[data-builder-panel]").forEach((button) => button.addEventListener("click", () => {
+      builderPanel = button.dataset.builderPanel as BuilderPanel;
+      paletteSearch = "";
+      render();
+    }));
+    shell.querySelector<HTMLInputElement>("[data-palette-search]")?.addEventListener("input", (event) => {
+      const input = event.currentTarget as HTMLInputElement;
+      paletteSearch = input.value;
+      render();
+      requestAnimationFrame(() => {
+        const nextInput = shell.querySelector<HTMLInputElement>("[data-palette-search]");
+        nextInput?.focus();
+        nextInput?.setSelectionRange(paletteSearch.length, paletteSearch.length);
+      });
+    });
+    shell.querySelectorAll<HTMLButtonElement>("[data-select-placed]").forEach((button) => button.addEventListener("click", () => {
+      const id = button.dataset.selectPlaced;
+      if (!id) return;
+      selection = { kind: "asset", id };
+      inspectorOpen = true;
+      render();
+    }));
     shell.querySelectorAll<HTMLButtonElement>("[data-select-character]").forEach((button) => button.addEventListener("click", () => {
       const [kind, id] = (button.dataset.selectCharacter ?? "player").split(":");
       selection = kind === "citizen" && id ? { kind: "citizen", id } : { kind: "player" };
+      inspectorOpen = true;
       render();
     }));
 
     shell.querySelectorAll<HTMLButtonElement>("[data-add]").forEach((button) => button.addEventListener("click", () => addAsset(button.dataset.add as TownAssetType)));
+    shell.querySelectorAll<HTMLButtonElement>("[data-character-preset]").forEach((button) => button.addEventListener("click", () => applyCharacterPreset(Number(button.dataset.characterPreset))));
+    shell.querySelectorAll<HTMLButtonElement>("[data-outfit-preset]").forEach((button) => button.addEventListener("click", () => applyOutfitPreset(button.dataset.outfitPreset ?? "")));
+    shell.querySelectorAll<HTMLButtonElement>("[data-character-choice]").forEach((button) => button.addEventListener("click", () => {
+      const [field, value] = (button.dataset.characterChoice ?? "").split(":");
+      const character = getSelectedCharacter();
+      if (!character || !field || !value) return;
+      commit(() => applyFieldChange(`character.${field}`, value, undefined, character, canTransformAsset));
+    }));
+    shell.querySelector<HTMLButtonElement>('[data-action="randomize-character"]')?.addEventListener("click", randomizeCharacter);
     shell.querySelectorAll<HTMLButtonElement>("[data-nudge]").forEach((button) => {
       button.addEventListener("click", () => {
         const [x, z] = (button.dataset.nudge ?? "0,0").split(",").map(Number);
@@ -634,11 +724,49 @@ function disposePreviewObject(root: THREE.Object3D): void {
   });
 }
 
-function renderAssetTiles(filter: AssetTileGroup): string {
+function renderBuilderPanel(panel: BuilderPanel, schema: TownSchema, selection: BuilderSelection, filter: AssetTileGroup, search: string): string {
+  const query = search.trim().toLowerCase();
+  if (panel === "catalog") {
+    const tiles = renderAssetTiles(filter, query);
+    return tiles ? `<div class="builder-tile-grid">${tiles}</div>` : renderEmptyState("No assets found", "Try another category or search term.");
+  }
+  if (panel === "placed") {
+    const assets = schema.assets.filter((asset) => `${asset.label ?? ""} ${asset.id} ${assetTypeLabel(asset.type)}`.toLowerCase().includes(query));
+    if (assets.length === 0) return renderEmptyState("Nothing placed matches", "Clear the search or add something from Catalog.");
+    return `<div class="builder-placed-list">${assets.map((asset) => `
+      <button type="button" data-select-placed="${escapeHtml(asset.id)}" class="builder-placed-card ${selection.kind === "asset" && selection.id === asset.id ? "selected" : ""}">
+        <span class="builder-placed-thumb"><img data-asset-thumbnail="${asset.type}" alt="" aria-hidden="true" /></span>
+        <span class="builder-placed-copy"><strong>${escapeHtml(asset.label ?? assetTypeLabel(asset.type))}</strong><small>${escapeHtml(assetTypeLabel(asset.type))} · ${asset.position[0]}, ${asset.position[1]}</small></span>
+        <span aria-hidden="true">›</span>
+      </button>`).join("")}</div>`;
+  }
+
+  const residents = [schema.player, ...schema.citizens].filter((character) => {
+    const name = character.kind === "player" ? "Player" : character.id.replace("citizen-", "");
+    return `${name} ${character.appearance.hairStyle} ${character.appearance.bodyPreset ?? "average"}`.toLowerCase().includes(query);
+  });
+  if (residents.length === 0) return renderEmptyState("No residents found", "Try searching by name, hair, or body style.");
+  return `<div class="builder-resident-roster">${residents.map((character) => {
+    const selected = character.kind === "player"
+      ? selection.kind === "player"
+      : selection.kind === "citizen" && selection.id === character.id;
+    return `<button type="button" data-select-character="${character.kind === "player" ? "player" : `citizen:${character.id}`}" class="builder-resident-card ${selected ? "selected" : ""}">
+      <span class="builder-avatar" style="--avatar-skin:${character.appearance.skin};--avatar-hair:${character.appearance.hair};--avatar-shirt:${character.appearance.shirt}" aria-hidden="true"><i></i></span>
+      <span><strong>${escapeHtml(character.kind === "player" ? "Player" : character.id.replace("citizen-", ""))}</strong><small>${humanizeLabel(character.appearance.hairStyle)} hair · ${humanizeLabel(character.appearance.bodyPreset ?? "average")}</small></span>
+      <span class="builder-status-dot">Active</span>
+    </button>`;
+  }).join("")}</div>`;
+}
+
+function renderEmptyState(title: string, body: string): string {
+  return `<div class="builder-empty-state"><span aria-hidden="true">⌕</span><strong>${title}</strong><small>${body}</small></div>`;
+}
+
+function renderAssetTiles(filter: AssetTileGroup, search = ""): string {
   return ASSET_TYPES
-    .filter((type) => filter === "all" || ASSET_TILE_CONFIG[type].group === filter)
+    .filter((type) => (filter === "all" || ASSET_TILE_CONFIG[type].group === filter) && assetTypeLabel(type).toLowerCase().includes(search))
     .map((type) => {
-      return `<button type="button" class="builder-asset-tile asset-tile-${type}" data-add="${type}" title="Add ${assetTypeLabel(type)}"><img data-asset-thumbnail="${type}" alt="" aria-hidden="true" /><small>${assetTypeLabel(type)}</small></button>`;
+      return `<button type="button" class="builder-asset-tile asset-tile-${type}" data-add="${type}" title="Add ${assetTypeLabel(type)}"><span class="builder-add-badge" aria-hidden="true">+</span><img data-asset-thumbnail="${type}" alt="" aria-hidden="true" /><small>${assetTypeLabel(type)}</small></button>`;
     })
     .join("");
 }
@@ -768,18 +896,63 @@ function renderAssetForm(asset: TownAsset): string {
 
 function renderCharacterForm(character: CharacterSchema): string {
   const movement = character.movement;
+  const appearance = character.appearance;
+  const choiceButtons = (field: string, choices: readonly string[], current: string) => choices.map((choice) => `
+    <button type="button" data-character-choice="${field}:${choice}" class="builder-choice-card ${current === choice ? "selected" : ""}" aria-pressed="${current === choice}">
+      <span class="builder-choice-icon builder-choice-${choice}" aria-hidden="true"></span>
+      <small>${humanizeLabel(choice)}</small>
+    </button>`).join("");
+  const swatches = (field: string, colors: readonly string[], current: string) => colors.map((color) => `
+    <button type="button" data-character-choice="${field}:${color}" class="builder-swatch ${current.toLowerCase() === color.toLowerCase() ? "selected" : ""}" style="--swatch:${color}" aria-label="${field} ${color}" aria-pressed="${current.toLowerCase() === color.toLowerCase()}"></button>`).join("");
   return `
-    <section class="builder-section">
-      <span class="builder-section-title">${character.kind === "player" ? "Player character" : escapeHtml(character.id)}</span>
-      <label class="builder-field"><span>Hair style</span>
-        <select data-schema-field="character.hairStyle">
-          ${["crop", "swept", "afro", "bald"].map((style) => `<option value="${style}" ${character.appearance.hairStyle === style ? "selected" : ""}>${style}</option>`).join("")}
-        </select>
-      </label>
-      <div class="builder-color-grid">
-        ${COLOR_FIELDS.map((field) => colorField(field, `character.${field}`, character.appearance[field])).join("")}
+    <section class="builder-section builder-character-editor">
+      <div class="builder-editor-heading">
+        <span class="builder-section-title">${character.kind === "player" ? "Player character" : escapeHtml(character.id)}</span>
+        <button type="button" class="builder-randomize" data-action="randomize-character">↻ Randomize</button>
       </div>
-      ${movement ? `<div class="builder-field-row">${numberField("Walk", "character.walk", movement.walk, 0.01, 0.5, 1.5)}${numberField("Sprint", "character.sprint", movement.sprint, 0.01, 0.5, 1.5)}${numberField("Jump", "character.jump", movement.jump, 0.01, 0.5, 1.5)}</div>` : ""}
+      <div class="builder-customizer-block">
+        <div class="builder-card-heading"><span>Start with a look</span><small>Presets</small></div>
+        <div class="builder-preset-grid">
+          ${CHARACTER_PRESETS.map((preset, index) => `<button type="button" data-character-preset="${index}" class="builder-preset-card"><span class="builder-avatar" style="--avatar-skin:${preset.appearance.skin};--avatar-hair:${preset.appearance.hair};--avatar-shirt:${preset.appearance.shirt}" aria-hidden="true"><i></i></span><small>${preset.label}</small></button>`).join("")}
+        </div>
+      </div>
+      <div class="builder-customizer-block">
+        <div class="builder-card-heading"><span>Body</span><small>Silhouette</small></div>
+        <div class="builder-choice-grid builder-choice-grid-four">
+          ${choiceButtons("bodyPreset", ["compact", "average", "tall", "broad"], appearance.bodyPreset ?? "average")}
+        </div>
+      </div>
+      <div class="builder-customizer-block">
+        <div class="builder-card-heading"><span>Hair</span><small>${humanizeLabel(appearance.hairStyle)}</small></div>
+        <div class="builder-choice-grid">
+          ${choiceButtons("hairStyle", HAIR_STYLES, appearance.hairStyle)}
+        </div>
+        <div class="builder-swatch-row">${swatches("hair", HAIR_COLORS, appearance.hair)}</div>
+      </div>
+      <div class="builder-customizer-block">
+        <div class="builder-card-heading"><span>Skin tone</span><small>8 shades</small></div>
+        <div class="builder-swatch-row builder-skin-row">${swatches("skin", SKIN_TONES, appearance.skin)}</div>
+      </div>
+      <div class="builder-customizer-block">
+        <div class="builder-card-heading"><span>Face & accessories</span><small>Details</small></div>
+        <div class="builder-choice-grid builder-choice-grid-four">
+          ${choiceButtons("faceStyle", ["soft", "round", "bright"], appearance.faceStyle ?? "soft")}
+        </div>
+        <div class="builder-choice-grid builder-choice-grid-four">
+          ${choiceButtons("accessory", ["none", "glasses", "cap", "beanie"], appearance.accessory ?? "none")}
+        </div>
+      </div>
+      <div class="builder-customizer-block">
+        <div class="builder-card-heading"><span>Outfit</span><small>Mix and match</small></div>
+        <div class="builder-outfit-grid">
+          ${OUTFIT_PRESETS.map((preset) => `<button type="button" data-outfit-preset="${preset.id}" class="builder-outfit-card"><span style="--shirt:${preset.shirt};--pants:${preset.pants};--shoes:${preset.shoes}" aria-hidden="true"></span><small>${preset.label}</small></button>`).join("")}
+        </div>
+        <details class="builder-advanced">
+          <summary>Fine-tune colours</summary>
+          <div class="builder-color-grid">${COLOR_FIELDS.map((field) => colorField(humanizeLabel(field), `character.${field}`, appearance[field])).join("")}</div>
+        </details>
+      </div>
+      ${movement ? `<details class="builder-advanced"><summary>Movement tuning</summary><div class="builder-field-row">${numberField("Walk", "character.walk", movement.walk, 0.01, 0.5, 1.5)}${numberField("Sprint", "character.sprint", movement.sprint, 0.01, 0.5, 1.5)}${numberField("Jump", "character.jump", movement.jump, 0.01, 0.5, 1.5)}</div></details>` : ""}
     </section>
   `;
 }
@@ -817,6 +990,9 @@ function applyFieldChange(
     if (field === "character.trim") character.appearance.trim = String(value);
     if (field === "character.pants") character.appearance.pants = String(value);
     if (field === "character.shoes") character.appearance.shoes = String(value);
+    if (field === "character.bodyPreset") character.appearance.bodyPreset = value as NonNullable<CharacterAppearance["bodyPreset"]>;
+    if (field === "character.faceStyle") character.appearance.faceStyle = value as NonNullable<CharacterAppearance["faceStyle"]>;
+    if (field === "character.accessory") character.appearance.accessory = value as NonNullable<CharacterAppearance["accessory"]>;
     if (character.movement) {
       if (field === "character.walk") character.movement.walk = Number(value);
       if (field === "character.sprint") character.movement.sprint = Number(value);
@@ -962,7 +1138,11 @@ function colorField(label: string, field: string, value: string): string {
 }
 
 function assetTypeLabel(type: TownAssetType): string {
-  return type.replace(/([A-Z])/g, " $1").replace(/^./, (letter) => letter.toUpperCase());
+  return humanizeLabel(type);
+}
+
+function humanizeLabel(value: string): string {
+  return value.replace(/([A-Z])/g, " $1").replace(/^./, (letter) => letter.toUpperCase());
 }
 
 function escapeHtml(value: string): string {

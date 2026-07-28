@@ -27,6 +27,12 @@ export type PlayerRig = {
   hairMaterial?: THREE.MeshStandardMaterial;
   skinMaterial?: THREE.MeshStandardMaterial;
   hairGroup?: THREE.Group;
+  accessoryGroup?: THREE.Group;
+  head?: THREE.Mesh;
+  mouth?: THREE.Object3D;
+  eyes?: THREE.Object3D[];
+  hem?: THREE.Object3D;
+  neck?: THREE.Object3D;
 };
 
 export type Citizen = {
@@ -87,38 +93,24 @@ export function createPlayer(): THREE.Group {
 
   const hairGroup = new THREE.Group();
   group.add(hairGroup);
-  const hair = new THREE.Mesh(
-    new THREE.SphereGeometry(0.32, 26, 14, 0, Math.PI * 2, 0, Math.PI / 2),
-    hairMaterial
-  );
-  hair.position.set(0, 1.645, 0.005);
-  hair.scale.set(1.015, 0.79, 1);
-  hair.castShadow = true;
-  hairGroup.add(hair);
-
-  for (const [x, y] of [
-    [-0.18, 1.61],
-    [0, 1.63],
-    [0.18, 1.61]
-  ] as const) {
-    const fringe = new THREE.Mesh(new THREE.SphereGeometry(0.095, 16, 10), hairMaterial);
-    fringe.position.set(x, y, -0.268);
-    fringe.scale.set(1, 0.46, 0.52);
-    fringe.castShadow = true;
-    hairGroup.add(fringe);
-  }
+  buildHairStyle(hairGroup, "crop", hairMaterial);
 
   const eyeMaterial = new THREE.MeshStandardMaterial({ color: "#14100d", roughness: 0.58 });
+  const eyes: THREE.Object3D[] = [];
   for (const x of [-0.095, 0.095]) {
     const eye = new THREE.Mesh(new THREE.SphereGeometry(0.03, 14, 10), eyeMaterial);
     eye.position.set(x, 1.535, -0.292);
     group.add(eye);
+    eyes.push(eye);
   }
 
   const mouthMaterial = new THREE.MeshStandardMaterial({ color: "#a33c37", roughness: 0.7 });
   const mouth = roundedPart(0.082, 0.019, 0.018, 0.006, mouthMaterial, 2);
   mouth.position.set(0, 1.44, -0.295);
   group.add(mouth);
+
+  const accessoryGroup = new THREE.Group();
+  group.add(accessoryGroup);
 
   const armRigs: THREE.Group[] = [];
   for (const x of [-0.385, 0.385]) {
@@ -210,7 +202,13 @@ export function createPlayer(): THREE.Group {
     shoeMaterial: shoes,
     hairMaterial,
     skinMaterial: skin,
-    hairGroup
+    hairGroup,
+    accessoryGroup,
+    head,
+    mouth,
+    eyes,
+    hem,
+    neck
   } satisfies PlayerRig;
 
   group.scale.setScalar(0.88);
@@ -254,8 +252,33 @@ export function applyCharacterAppearance(
   rig.trailDots?.forEach((dot) => dot.material.color.set(appearance.shirt));
   if (rig.hairGroup) {
     rig.hairGroup.visible = appearance.hairStyle !== "bald";
-    const hairScale = appearance.hairStyle === "afro" ? 1.22 : appearance.hairStyle === "crop" ? 0.86 : 1;
-    rig.hairGroup.scale.set(hairScale, appearance.hairStyle === "afro" ? 1.14 : 1, hairScale);
+    if (rig.hairGroup.userData.style !== appearance.hairStyle) buildHairStyle(rig.hairGroup, appearance.hairStyle, rig.hairMaterial);
+  }
+  if (rig.accessoryGroup) {
+    const accessory = appearance.accessory ?? "none";
+    if (rig.accessoryGroup.userData.style !== accessory) buildAccessory(rig.accessoryGroup, accessory, rig.hairMaterial);
+  }
+
+  const bodyPreset = appearance.bodyPreset ?? "average";
+  const bodyShape = {
+    compact: { torsoX: 1.06, torsoY: 0.9, head: 1.07 },
+    average: { torsoX: 1, torsoY: 1, head: 1 },
+    tall: { torsoX: 0.94, torsoY: 1.12, head: 0.96 },
+    broad: { torsoX: 1.18, torsoY: 1, head: 1.02 }
+  }[bodyPreset];
+  rig.torso.scale.set(bodyShape.torsoX, bodyShape.torsoY, 1);
+  rig.hem?.scale.set(bodyShape.torsoX, 1, 1);
+  rig.head?.scale.set(bodyShape.head, bodyShape.head * 0.98, bodyShape.head * 0.97);
+
+  const faceStyle = appearance.faceStyle ?? "soft";
+  const eyeScale = faceStyle === "bright" ? 1.2 : faceStyle === "round" ? 1.08 : 1;
+  rig.eyes?.forEach((eye, index) => {
+    eye.scale.setScalar(eyeScale);
+    eye.position.x = (index === 0 ? -1 : 1) * (faceStyle === "round" ? 0.088 : 0.095);
+  });
+  if (rig.mouth) {
+    const mouthWidth = faceStyle === "bright" ? 1.28 : faceStyle === "round" ? 0.9 : 1;
+    rig.mouth.scale.set(mouthWidth, 1, 1);
   }
   if (movement) {
     player.userData.walkMultiplier = movement.walk;
@@ -263,6 +286,99 @@ export function applyCharacterAppearance(
     player.userData.jumpMultiplier = movement.jump;
   }
   player.userData.characterAppearance = appearance;
+}
+
+function buildHairStyle(group: THREE.Group, style: CharacterAppearance["hairStyle"], material: THREE.Material): void {
+  group.children.splice(0).forEach((child) => {
+    if (child instanceof THREE.Mesh) child.geometry.dispose();
+  });
+  group.userData.style = style;
+  group.visible = style !== "bald";
+  if (style === "bald") return;
+
+  const addSphere = (radius: number, position: [number, number, number], scale: [number, number, number]) => {
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 20, 14), material);
+    mesh.position.set(...position);
+    mesh.scale.set(...scale);
+    mesh.castShadow = true;
+    group.add(mesh);
+  };
+
+  if (style === "afro" || style === "coily") {
+    const points = style === "afro"
+      ? [[0, 1.72, 0], [-0.19, 1.68, 0], [0.19, 1.68, 0], [0, 1.75, 0.17], [0, 1.75, -0.14]]
+      : [[-0.17, 1.69, 0], [0, 1.73, 0], [0.17, 1.69, 0], [-0.1, 1.66, -0.2], [0.1, 1.66, -0.2]];
+    points.forEach((point) => addSphere(style === "afro" ? 0.19 : 0.14, point as [number, number, number], [1, 1, 1]));
+    return;
+  }
+
+  const cap = new THREE.Mesh(new THREE.SphereGeometry(0.32, 24, 14, 0, Math.PI * 2, 0, Math.PI / 2), material);
+  cap.position.set(0, 1.645, 0.005);
+  cap.scale.set(style === "bob" || style === "long" ? 1.06 : 1.015, style === "crop" ? 0.68 : 0.79, 1);
+  cap.castShadow = true;
+  group.add(cap);
+
+  if (style === "mohawk") {
+    cap.visible = false;
+    for (const z of [-0.2, -0.08, 0.04, 0.16, 0.28]) addSphere(0.105, [0, 1.77, z], [0.7, 1.45, 0.8]);
+    return;
+  }
+  if (style === "bun") addSphere(0.15, [0, 1.89, 0.12], [1, 1, 1]);
+  if (style === "bob" || style === "long") {
+    const length = style === "long" ? 0.48 : 0.3;
+    [-0.27, 0.27].forEach((x) => {
+      const side = roundedPart(0.13, length, 0.19, 0.055, material, 4);
+      side.position.set(x, style === "long" ? 1.47 : 1.56, 0.01);
+      group.add(side);
+    });
+  }
+  if (style === "braids") {
+    [-0.23, 0.23].forEach((x) => {
+      for (let index = 0; index < 4; index += 1) addSphere(0.067, [x, 1.55 - index * 0.11, 0.03], [0.85, 1.05, 0.85]);
+    });
+  }
+
+  const fringeCount = style === "swept" ? 4 : 3;
+  for (let index = 0; index < fringeCount; index += 1) {
+    const x = style === "swept" ? -0.2 + index * 0.13 : -0.18 + index * 0.18;
+    addSphere(0.095, [x, 1.61 + (style === "swept" ? index * 0.014 : index === 1 ? 0.02 : 0), -0.268], [1, 0.46, 0.52]);
+  }
+}
+
+function buildAccessory(group: THREE.Group, style: NonNullable<CharacterAppearance["accessory"]>, hairMaterial: THREE.Material): void {
+  group.children.splice(0).forEach((child) => {
+    if (child instanceof THREE.Mesh) child.geometry.dispose();
+    if (child instanceof THREE.Line) child.geometry.dispose();
+  });
+  group.userData.style = style;
+  if (style === "none") return;
+
+  if (style === "glasses") {
+    const material = new THREE.MeshStandardMaterial({ color: "#302a25", roughness: 0.55 });
+    [-0.1, 0.1].forEach((x) => {
+      const lens = new THREE.Mesh(new THREE.TorusGeometry(0.065, 0.012, 8, 20), material);
+      lens.position.set(x, 1.54, -0.315);
+      group.add(lens);
+    });
+    const bridge = roundedPart(0.075, 0.014, 0.014, 0.004, material, 2);
+    bridge.position.set(0, 1.54, -0.315);
+    group.add(bridge);
+    return;
+  }
+
+  const hatMaterial = style === "cap"
+    ? new THREE.MeshStandardMaterial({ color: "#d45e4b", roughness: 0.76 })
+    : hairMaterial;
+  const crown = new THREE.Mesh(new THREE.SphereGeometry(0.345, 22, 12, 0, Math.PI * 2, 0, Math.PI / 2), hatMaterial);
+  crown.position.set(0, 1.74, 0);
+  crown.scale.y = style === "beanie" ? 0.82 : 0.62;
+  crown.castShadow = true;
+  group.add(crown);
+  if (style === "cap") {
+    const brim = roundedPart(0.34, 0.035, 0.18, 0.02, hatMaterial, 3);
+    brim.position.set(0, 1.7, -0.28);
+    group.add(brim);
+  }
 }
 
 export function createCharacterPreview(spec: CharacterSchema): THREE.Group {

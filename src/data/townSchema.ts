@@ -22,7 +22,21 @@ export type TownAssetType =
   | "gardenPlot"
   | "grassClump";
 
-export type HairStyle = "crop" | "swept" | "afro" | "bald";
+export type HairStyle =
+  | "crop"
+  | "swept"
+  | "afro"
+  | "bald"
+  | "bob"
+  | "bun"
+  | "braids"
+  | "coily"
+  | "mohawk"
+  | "long";
+
+export type BodyPreset = "compact" | "average" | "tall" | "broad";
+export type FaceStyle = "soft" | "round" | "bright";
+export type AccessoryStyle = "none" | "glasses" | "cap" | "beanie";
 
 export type CharacterAppearance = {
   skin: string;
@@ -32,6 +46,9 @@ export type CharacterAppearance = {
   trim: string;
   pants: string;
   shoes: string;
+  bodyPreset?: BodyPreset;
+  faceStyle?: FaceStyle;
+  accessory?: AccessoryStyle;
 };
 
 export type CharacterSchema = {
@@ -133,7 +150,10 @@ const BUILDER_PROP_ASSET_IDS = new Set([
   "grass-clump-10"
 ]);
 
-const HAIR_STYLES = new Set<HairStyle>(["crop", "swept", "afro", "bald"]);
+const HAIR_STYLES = new Set<HairStyle>(["crop", "swept", "afro", "bald", "bob", "bun", "braids", "coily", "mohawk", "long"]);
+const BODY_PRESETS = new Set<BodyPreset>(["compact", "average", "tall", "broad"]);
+const FACE_STYLES = new Set<FaceStyle>(["soft", "round", "bright"]);
+const ACCESSORY_STYLES = new Set<AccessoryStyle>(["none", "glasses", "cap", "beanie"]);
 
 export const TOWN_SCHEMA_STORAGE_KEY = "the100hackathoner.town-schema.v1";
 
@@ -210,6 +230,9 @@ function assertCharacter(character: unknown): asserts character is CharacterSche
   }
   const appearance = value.appearance;
   if (!appearance || !HAIR_STYLES.has(appearance.hairStyle)) throw new Error(`Character ${value.id} has an invalid appearance.`);
+  if (appearance.bodyPreset !== undefined && !BODY_PRESETS.has(appearance.bodyPreset)) throw new Error(`Character ${value.id} has an invalid body preset.`);
+  if (appearance.faceStyle !== undefined && !FACE_STYLES.has(appearance.faceStyle)) throw new Error(`Character ${value.id} has an invalid face style.`);
+  if (appearance.accessory !== undefined && !ACCESSORY_STYLES.has(appearance.accessory)) throw new Error(`Character ${value.id} has an invalid accessory.`);
   for (const color of [appearance.skin, appearance.hair, appearance.shirt, appearance.trim, appearance.pants, appearance.shoes]) {
     if (typeof color !== "string" || !/^#[0-9a-f]{6}$/i.test(color)) {
       throw new Error(`Character ${value.id} has an invalid color.`);
