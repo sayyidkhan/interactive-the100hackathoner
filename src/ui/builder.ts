@@ -18,6 +18,7 @@ type BuilderConfirmation =
 
 export type TownBuilderApi = {
   isActive: () => boolean;
+  getPlacementAssetId: () => string | null;
   selectAsset: (id: string) => void;
   selectCharacter: (kind: "player" | "citizen", id?: string) => void;
   moveAsset: (id: string, x: number, z: number) => void;
@@ -118,8 +119,9 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
   let paletteFilter: AssetTileGroup = "all";
   let builderPanel: BuilderPanel = "catalog";
   let paletteSearch = "";
-  let paletteOpen = true;
-  let inspectorOpen = true;
+  let paletteOpen = false;
+  let inspectorOpen = false;
+  let placement: { assetId: string; isNew: boolean; baseHistoryIndex: number } | null = null;
   let confirmation: BuilderConfirmation | null = null;
   let selectionPreview: AssetPreview | null = null;
   let tilePreviewRenderer: TilePreviewRenderer | null = null;
@@ -231,6 +233,7 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
   };
 
   const addAsset = (type: TownAssetType) => {
+    const baseHistoryIndex = historyIndex;
     const id = `${type}-${Date.now().toString(36)}`;
     const asset: TownAsset = {
       id,
@@ -249,6 +252,9 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
       asset.position = position;
       schema.assets.push(asset);
       selection = { kind: "asset", id };
+      placement = { assetId: id, isNew: true, baseHistoryIndex };
+      paletteOpen = false;
+      inspectorOpen = false;
     });
   };
 
@@ -295,8 +301,25 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
   };
 
   const commitAssetMove = () => {
-    if (!recordHistory()) return;
-    notify();
+    placement = null;
+    if (recordHistory()) notify();
+    render();
+  };
+
+  const cancelPlacement = () => {
+    if (!placement) return;
+    if (placement.isNew) {
+      schema = parseTownSchema(JSON.parse(history[placement.baseHistoryIndex]));
+      history.splice(placement.baseHistoryIndex + 1);
+      historyIndex = placement.baseHistoryIndex;
+      ensureSelection();
+      notify();
+    } else {
+      schema = parseTownSchema(JSON.parse(history[historyIndex]));
+      ensureSelection();
+      notify();
+    }
+    placement = null;
     render();
   };
 
@@ -374,7 +397,7 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
     options.onSelectionChange?.(selectedAsset ?? null);
     shell.hidden = !active;
     shell.innerHTML = `
-      ${paletteOpen ? `<section class="builder-palette" aria-label="Town builder library">
+      ${paletteOpen ? `<section class="builder-palette builder-transient-drawer" aria-label="Town builder library">
         <header class="builder-header">
           <div>
             <span class="builder-kicker">Build mode</span>
@@ -409,10 +432,7 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
             </div>
           </div>
         </div>
-      </section>` : `<div class="builder-drawer-group builder-drawer-group-left">
-        <button class="builder-drawer-button builder-back-button builder-tooltip" type="button" data-action="back-to-town" aria-label="Back to town" data-tooltip="Back to town"><span aria-hidden="true">←</span></button>
-        <button class="builder-drawer-button builder-tooltip" type="button" data-action="expand-palette" aria-label="Open town library" data-tooltip="Open library"><span aria-hidden="true">▦</span></button>
-      </div>`}
+      </section>` : placement ? "" : renderBuilderToolbar(builderPanel, schema, historyIndex, history.length)}
       ${inspectorOpen ? `<aside class="builder-inspector" aria-label="Selected asset inspector">
         <header class="builder-header">
           <div>
@@ -422,14 +442,15 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
           <button class="builder-icon-button builder-tooltip" type="button" data-action="collapse-inspector" aria-label="Close inspector" data-tooltip="Close inspector">×</button>
         </header>
         <div class="builder-inspector-scroll">
-          ${selectedAsset ? `<div class="builder-asset-preview" data-selection-preview aria-label="${escapeHtml(assetTypeLabel(selectedAsset.type))} 3D preview"></div>${renderAssetForm(selectedAsset)}` : selectedCharacter ? `<div class="builder-asset-preview builder-character-preview" data-selection-preview aria-label="${escapeHtml(selectedCharacter.kind === "player" ? "Player" : selectedCharacter.id)} 3D preview"></div>${renderCharacterForm(selectedCharacter)}` : ""}
+          ${selectedAsset ? `<div class="builder-asset-preview builder-object-preview" data-selection-preview aria-label="${escapeHtml(assetTypeLabel(selectedAsset.type))} 3D preview"></div>${renderAssetForm(selectedAsset)}` : selectedCharacter ? `<div class="builder-asset-preview builder-character-preview" data-selection-preview aria-label="${escapeHtml(selectedCharacter.kind === "player" ? "Player" : selectedCharacter.id)} 3D preview"></div>${renderCharacterForm(selectedCharacter)}` : ""}
           <section class="builder-section builder-utility-section">
             <div class="builder-action-grid builder-utility-actions">
               <button type="button" data-action="reset" class="builder-danger">Reset draft</button>
             </div>
           </section>
         </div>
-      </aside>` : `<button class="builder-drawer-button builder-inspector-toggle builder-tooltip" type="button" data-action="expand-inspector" aria-label="Open inspector" data-tooltip="Open inspector"><span aria-hidden="true">i</span></button>`}
+      </aside>` : !paletteOpen && !placement && (selectedAsset || selectedCharacter) ? renderCompactSelection(selectedAsset, selectedCharacter) : ""}
+      ${placement && selectedAsset ? renderPlacementHud(selectedAsset, placement.isNew) : ""}
       <div class="builder-map-controls ${inspectorOpen ? "builder-map-controls-inspector-open" : ""}" aria-label="Map controls">
         <button class="builder-tooltip" type="button" data-action="zoom-in" aria-label="Zoom in" data-tooltip="Zoom in">+</button>
         <button class="builder-tooltip" type="button" data-action="zoom-reset" aria-label="Reset map view" data-tooltip="Reset map view"><span class="builder-target-glyph" aria-hidden="true"></span></button>
@@ -487,6 +508,7 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
     });
     shell.querySelector<HTMLButtonElement>('[data-action="expand-palette"]')?.addEventListener("click", () => {
       paletteOpen = true;
+      inspectorOpen = false;
       render();
     });
     shell.querySelector<HTMLButtonElement>('[data-action="collapse-inspector"]')?.addEventListener("click", () => {
@@ -495,8 +517,16 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
     });
     shell.querySelector<HTMLButtonElement>('[data-action="expand-inspector"]')?.addEventListener("click", () => {
       inspectorOpen = true;
+      paletteOpen = false;
       render();
     });
+    shell.querySelectorAll<HTMLButtonElement>("[data-open-panel]").forEach((button) => button.addEventListener("click", () => {
+      builderPanel = button.dataset.openPanel as BuilderPanel;
+      paletteSearch = "";
+      paletteOpen = true;
+      inspectorOpen = false;
+      render();
+    }));
     shell.querySelector<HTMLButtonElement>('[data-action="zoom-in"]')?.addEventListener("click", () => options.onCameraZoom?.(-7));
     shell.querySelector<HTMLButtonElement>('[data-action="zoom-out"]')?.addEventListener("click", () => options.onCameraZoom?.(7));
     shell.querySelector<HTMLButtonElement>('[data-action="zoom-reset"]')?.addEventListener("click", () => options.onCameraReset?.());
@@ -523,13 +553,15 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
       const id = button.dataset.selectPlaced;
       if (!id) return;
       selection = { kind: "asset", id };
-      inspectorOpen = true;
+      paletteOpen = false;
+      inspectorOpen = false;
       render();
     }));
     shell.querySelectorAll<HTMLButtonElement>("[data-select-character]").forEach((button) => button.addEventListener("click", () => {
       const [kind, id] = (button.dataset.selectCharacter ?? "player").split(":");
       selection = kind === "citizen" && id ? { kind: "citizen", id } : { kind: "player" };
-      inspectorOpen = true;
+      paletteOpen = false;
+      inspectorOpen = false;
       render();
     }));
 
@@ -543,6 +575,7 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
       commit(() => applyFieldChange(`character.${field}`, value, undefined, character, canTransformAsset));
     }));
     shell.querySelector<HTMLButtonElement>('[data-action="randomize-character"]')?.addEventListener("click", randomizeCharacter);
+    shell.querySelector<HTMLButtonElement>('[data-action="cancel-placement"]')?.addEventListener("click", cancelPlacement);
     shell.querySelectorAll<HTMLButtonElement>("[data-nudge]").forEach((button) => {
       button.addEventListener("click", () => {
         const [x, z] = (button.dataset.nudge ?? "0,0").split(",").map(Number);
@@ -611,7 +644,40 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
         render();
         return;
       }
+      if (placement) {
+        cancelPlacement();
+        return;
+      }
+      if (paletteOpen) {
+        paletteOpen = false;
+        render();
+        return;
+      }
+      if (inspectorOpen) {
+        inspectorOpen = false;
+        render();
+        return;
+      }
       setActive(false);
+      return;
+    }
+    if (event.key.toLowerCase() === "b") {
+      builderPanel = "catalog";
+      paletteOpen = !paletteOpen;
+      inspectorOpen = false;
+      render();
+      return;
+    }
+    if (placement && event.key.toLowerCase() === "q") {
+      rotateAsset(-15);
+      return;
+    }
+    if (placement && event.key.toLowerCase() === "e") {
+      rotateAsset(15);
+      return;
+    }
+    if (placement && event.key === "Enter") {
+      commitAssetMove();
       return;
     }
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
@@ -620,6 +686,11 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
     }
   });
 
+  root.addEventListener("pointerdown", (event) => {
+    if (!active || !paletteOpen || !(event.target instanceof HTMLCanvasElement)) return;
+    paletteOpen = false;
+    render();
+  });
   root.addEventListener("builder:toggle", () => setActive(!active));
   root.classList.toggle("builder-mode", active);
   options.onActiveChange(active);
@@ -627,14 +698,21 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
 
   return {
     isActive: () => active,
+    getPlacementAssetId: () => placement?.isNew ? placement.assetId : null,
     selectAsset: (id) => {
       if (!schema.assets.some((asset) => asset.id === id)) return;
       selection = { kind: "asset", id };
+      placement = { assetId: id, isNew: false, baseHistoryIndex: historyIndex };
+      paletteOpen = false;
+      inspectorOpen = false;
       if (active) render();
     },
     selectCharacter: (kind, id) => {
       if (kind === "player") selection = { kind: "player" };
       else if (id && schema.citizens.some((citizen) => citizen.id === id)) selection = { kind: "citizen", id };
+      placement = null;
+      paletteOpen = false;
+      inspectorOpen = false;
       if (active) render();
     },
     moveAsset,
@@ -758,6 +836,55 @@ function disposePreviewObject(root: THREE.Object3D): void {
     const materials = Array.isArray(object.material) ? object.material : [object.material];
     materials.forEach((material) => material.dispose());
   });
+}
+
+function renderBuilderToolbar(activePanel: BuilderPanel, schema: TownSchema, historyIndex: number, historyLength: number): string {
+  return `
+    <nav class="builder-bottom-toolbar" aria-label="Builder tools">
+      <button type="button" data-action="back-to-town" class="builder-toolbar-icon" aria-label="Back to town">←</button>
+      <span class="builder-toolbar-divider" aria-hidden="true"></span>
+      <button type="button" data-open-panel="catalog" class="${activePanel === "catalog" ? "active" : ""}"><span aria-hidden="true">▦</span> Library <kbd>B</kbd></button>
+      <button type="button" data-open-panel="placed" class="${activePanel === "placed" ? "active" : ""}">Placed <small>${schema.assets.length}</small></button>
+      <button type="button" data-open-panel="residents" class="${activePanel === "residents" ? "active" : ""}">Residents <small>${schema.citizens.length + 1}</small></button>
+      <span class="builder-toolbar-divider" aria-hidden="true"></span>
+      <button type="button" data-action="undo" class="builder-toolbar-icon" aria-label="Undo" ${historyIndex === 0 ? "disabled" : ""}>↶</button>
+      <button type="button" data-action="redo" class="builder-toolbar-icon" aria-label="Redo" ${historyIndex >= historyLength - 1 ? "disabled" : ""}>↷</button>
+    </nav>
+  `;
+}
+
+function renderCompactSelection(asset?: TownAsset, character?: CharacterSchema): string {
+  const title = asset
+    ? asset.label ?? assetTypeLabel(asset.type)
+    : character?.kind === "player"
+      ? "Player"
+      : character?.id.replace("citizen-", "") ?? "Selection";
+  const meta = asset
+    ? `${assetTypeLabel(asset.type)} · ${asset.position[0]}, ${asset.position[1]}`
+    : character
+      ? `${humanizeLabel(character.appearance.hairStyle)} hair · ${humanizeLabel(character.appearance.bodyPreset ?? "average")}`
+      : "";
+  return `
+    <section class="builder-compact-selection" aria-label="Current selection">
+      <span class="builder-selection-mark" aria-hidden="true">${asset ? "◆" : "●"}</span>
+      <span class="builder-selection-copy"><small>Selected</small><strong>${escapeHtml(title)}</strong><span>${escapeHtml(meta)}</span></span>
+      ${asset ? `<button type="button" data-action="duplicate" aria-label="Duplicate ${escapeHtml(title)}">Duplicate</button>` : ""}
+      <button type="button" data-action="expand-inspector" class="builder-edit-details">Edit details</button>
+    </section>
+  `;
+}
+
+function renderPlacementHud(asset: TownAsset, isNew: boolean): string {
+  return `
+    <section class="builder-placement-hud" aria-live="polite">
+      <span class="builder-placement-pulse" aria-hidden="true"></span>
+      <span><small>${isNew ? "Placing" : "Moving"}</small><strong>${escapeHtml(asset.label ?? assetTypeLabel(asset.type))}</strong></span>
+      <span class="builder-placement-instruction">${isNew ? "Move pointer, then click to place" : "Drag to reposition"}</span>
+      <button type="button" data-rotate="-15" aria-label="Rotate left">↺ <kbd>Q</kbd></button>
+      <button type="button" data-rotate="15" aria-label="Rotate right">↻ <kbd>E</kbd></button>
+      <button type="button" data-action="cancel-placement" class="builder-placement-cancel">Cancel <kbd>Esc</kbd></button>
+    </section>
+  `;
 }
 
 function renderBuilderPanel(panel: BuilderPanel, schema: TownSchema, selection: BuilderSelection, filter: AssetTileGroup, search: string): string {
