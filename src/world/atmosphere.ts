@@ -72,6 +72,9 @@ type LightningBolt = {
   impacted: boolean;
 };
 
+const BURN_MARK_HOLD_SECONDS = 12;
+const BURN_MARK_FADE_SECONDS = 10;
+
 export function createAtmosphere(scene: THREE.Scene): AtmosphereObject[] {
   const atmosphere: AtmosphereObject[] = [];
   const cloudMaterial = new THREE.MeshBasicMaterial({
@@ -513,6 +516,7 @@ function createLightningBolt(delay: number): LightningBolt {
 
 function updateLightning(lightning: LightningEffect, time: number, storming: boolean, delta = 0): void {
   updateStormSparks(lightning, delta);
+  updateBurnMarks(lightning, time);
   if (!storming) {
     lightning.boltGroup.visible = false;
     lightning.light.intensity = 0;
@@ -721,16 +725,43 @@ function addBurnMark(lightning: LightningEffect, impactPoint: THREE.Vector3, tim
   mark.scale.set(scale, scale * (0.78 + Math.random() * 0.34), 1);
   mark.renderOrder = 1;
   mark.userData.createdAt = time;
+  mark.userData.baseOpacity = material.opacity;
   lightning.group.add(mark);
   lightning.burnMarks.push(mark);
   if (lightning.burnMarks.length > 18) {
     const oldest = lightning.burnMarks.shift();
-    if (oldest) {
-      lightning.group.remove(oldest);
-      oldest.geometry.dispose();
-      oldest.material.dispose();
-    }
+    if (oldest) removeBurnMark(lightning, oldest);
   }
+}
+
+function updateBurnMarks(lightning: LightningEffect, time: number): void {
+  const lifetime = BURN_MARK_HOLD_SECONDS + BURN_MARK_FADE_SECONDS;
+  for (let index = lightning.burnMarks.length - 1; index >= 0; index -= 1) {
+    const mark = lightning.burnMarks[index];
+    const createdAt = Number(mark.userData.createdAt ?? time);
+    const age = Math.max(0, time - createdAt);
+    if (age >= lifetime) {
+      lightning.burnMarks.splice(index, 1);
+      removeBurnMark(lightning, mark);
+      continue;
+    }
+    const fadeProgress = THREE.MathUtils.smoothstep(
+      age,
+      BURN_MARK_HOLD_SECONDS,
+      lifetime
+    );
+    const baseOpacity = Number(mark.userData.baseOpacity ?? 0.78);
+    mark.material.opacity = baseOpacity * (1 - fadeProgress);
+  }
+}
+
+function removeBurnMark(
+  lightning: LightningEffect,
+  mark: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>
+): void {
+  lightning.group.remove(mark);
+  mark.geometry.dispose();
+  mark.material.dispose();
 }
 
 function createSparkTexture(): THREE.CanvasTexture {
