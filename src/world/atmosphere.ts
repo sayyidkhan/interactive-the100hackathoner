@@ -43,15 +43,33 @@ export type WeatherParticles = {
 
 type LightningEffect = {
   group: THREE.Group;
-  core: THREE.Mesh<THREE.TubeGeometry, THREE.MeshBasicMaterial>;
-  glow: THREE.Mesh<THREE.TubeGeometry, THREE.MeshBasicMaterial>;
-  branchCore: THREE.Mesh<THREE.TubeGeometry, THREE.MeshBasicMaterial>;
-  branchGlow: THREE.Mesh<THREE.TubeGeometry, THREE.MeshBasicMaterial>;
+  boltGroup: THREE.Group;
+  bolts: LightningBolt[];
   light: THREE.PointLight;
+  sparks: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>;
+  sparkPositions: Float32Array;
+  sparkVelocities: Float32Array;
+  sparkAges: Float32Array;
+  sparkLifetimes: Float32Array;
+  sparkColors: Float32Array;
+  sparkCursor: number;
+  burnMarks: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>[];
+  burnTexture: THREE.CanvasTexture;
   nextStrikeAt: number;
   strikeStartedAt: number;
   active: boolean;
   stormActive: boolean;
+};
+
+type LightningBolt = {
+  group: THREE.Group;
+  core: THREE.Mesh<THREE.TubeGeometry, THREE.MeshBasicMaterial>;
+  glow: THREE.Mesh<THREE.TubeGeometry, THREE.MeshBasicMaterial>;
+  branchCore: THREE.Mesh<THREE.TubeGeometry, THREE.MeshBasicMaterial>;
+  branchGlow: THREE.Mesh<THREE.TubeGeometry, THREE.MeshBasicMaterial>;
+  impactPoint: THREE.Vector3;
+  delay: number;
+  impacted: boolean;
 };
 
 export function createAtmosphere(scene: THREE.Scene): AtmosphereObject[] {
@@ -345,7 +363,7 @@ export function updateWeatherParticles(
   const storming = condition === "storm";
   particles.rain.visible = raining;
   particles.snow.visible = snowing;
-  updateLightning(particles.lightning, time, storming);
+  updateLightning(particles.lightning, time, storming, delta);
   if (!raining && !snowing) return;
   particles.rain.geometry.setDrawRange(0, storming ? particles.fallSpeeds.length : raining ? 720 : 520);
   particles.rain.material.opacity = storming ? 0.94 : 0.76;
@@ -372,6 +390,70 @@ export function updateWeatherParticles(
 }
 
 function createLightningEffect(): LightningEffect {
+  const group = new THREE.Group();
+  group.name = "weather-lightning-effects";
+  const boltGroup = new THREE.Group();
+  boltGroup.name = "weather-lightning-bolts";
+  group.add(boltGroup);
+  const bolts = Array.from({ length: 4 }, (_, index) => createLightningBolt(index * 0.17));
+  bolts.forEach((bolt) => boltGroup.add(bolt.group));
+  boltGroup.visible = false;
+
+  const sparkCount = 240;
+  const sparkPositions = new Float32Array(sparkCount * 3);
+  const sparkVelocities = new Float32Array(sparkCount * 3);
+  const sparkAges = new Float32Array(sparkCount);
+  const sparkLifetimes = new Float32Array(sparkCount);
+  const sparkColors = new Float32Array(sparkCount * 3);
+  for (let index = 0; index < sparkCount; index += 1) {
+    sparkPositions[index * 3 + 1] = -100;
+  }
+  const sparkGeometry = new THREE.BufferGeometry();
+  sparkGeometry.setAttribute("position", new THREE.BufferAttribute(sparkPositions, 3).setUsage(THREE.DynamicDrawUsage));
+  sparkGeometry.setAttribute("color", new THREE.BufferAttribute(sparkColors, 3).setUsage(THREE.DynamicDrawUsage));
+  const sparkMaterial = new THREE.PointsMaterial({
+    map: createSparkTexture(),
+    size: 0.26,
+    sizeAttenuation: true,
+    transparent: true,
+    opacity: 0.96,
+    depthTest: false,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    vertexColors: true
+  });
+  const sparks = new THREE.Points(sparkGeometry, sparkMaterial);
+  sparks.name = "weather-lightning-sparks";
+  sparks.frustumCulled = false;
+  sparks.renderOrder = 13;
+  group.add(sparks);
+
+  const burnTexture = createBurnTexture();
+  const light = new THREE.PointLight("#d9e8ff", 0, 82, 1.25);
+  light.position.set(0, 13, 0);
+  light.castShadow = false;
+  return {
+    group,
+    boltGroup,
+    bolts,
+    light,
+    sparks,
+    sparkPositions,
+    sparkVelocities,
+    sparkAges,
+    sparkLifetimes,
+    sparkColors,
+    sparkCursor: 0,
+    burnMarks: [],
+    burnTexture,
+    nextStrikeAt: Number.POSITIVE_INFINITY,
+    strikeStartedAt: Number.NEGATIVE_INFINITY,
+    active: false,
+    stormActive: false
+  };
+}
+
+function createLightningBolt(delay: number): LightningBolt {
   const placeholderCurve = new THREE.CatmullRomCurve3([
     new THREE.Vector3(0, 1, 0),
     new THREE.Vector3(0, 0, 0)
@@ -409,7 +491,7 @@ function createLightningEffect(): LightningEffect {
     glowMaterial.clone()
   );
   const group = new THREE.Group();
-  group.name = "weather-lightning";
+  group.name = "weather-lightning-bolt";
   group.visible = false;
   group.renderOrder = 12;
   for (const mesh of [glow, branchGlow, core, branchCore]) {
@@ -417,26 +499,22 @@ function createLightningEffect(): LightningEffect {
     mesh.renderOrder = 12;
     group.add(mesh);
   }
-  const light = new THREE.PointLight("#d9e8ff", 0, 82, 1.25);
-  light.position.set(0, 13, 0);
-  light.castShadow = false;
   return {
     group,
     core,
     glow,
     branchCore,
     branchGlow,
-    light,
-    nextStrikeAt: Number.POSITIVE_INFINITY,
-    strikeStartedAt: Number.NEGATIVE_INFINITY,
-    active: false,
-    stormActive: false
+    impactPoint: new THREE.Vector3(),
+    delay,
+    impacted: false
   };
 }
 
-function updateLightning(lightning: LightningEffect, time: number, storming: boolean): void {
+function updateLightning(lightning: LightningEffect, time: number, storming: boolean, delta = 0): void {
+  updateStormSparks(lightning, delta);
   if (!storming) {
-    lightning.group.visible = false;
+    lightning.boltGroup.visible = false;
     lightning.light.intensity = 0;
     lightning.active = false;
     lightning.stormActive = false;
@@ -450,39 +528,77 @@ function updateLightning(lightning: LightningEffect, time: number, storming: boo
   }
 
   if (!lightning.active && time >= lightning.nextStrikeAt) {
-    regenerateLightningBolt(lightning);
+    lightning.bolts.forEach((bolt) => regenerateLightningBolt(bolt));
     lightning.active = true;
     lightning.strikeStartedAt = time;
     lightning.nextStrikeAt = Number.POSITIVE_INFINITY;
+    lightning.boltGroup.visible = true;
   }
   if (!lightning.active) return;
 
   const elapsed = time - lightning.strikeStartedAt;
-  let strength = 0;
-  if (elapsed < 0.07) strength = 1;
-  else if (elapsed < 0.14) strength = THREE.MathUtils.lerp(1, 0.16, (elapsed - 0.07) / 0.07);
-  else if (elapsed < 0.21) strength = 0.16;
-  else if (elapsed < 0.28) strength = 0.88;
-  else if (elapsed < 0.46) strength = THREE.MathUtils.lerp(0.88, 0, (elapsed - 0.28) / 0.18);
-  else {
-    lightning.active = false;
-    lightning.group.visible = false;
-    lightning.light.intensity = 0;
-    lightning.nextStrikeAt = time + 2.4 + Math.random() * 3.8;
-    return;
+  let strongestFlash = 0;
+  let latestImpact: THREE.Vector3 | undefined;
+  let anyBoltVisible = false;
+  for (const bolt of lightning.bolts) {
+    const localElapsed = elapsed - bolt.delay;
+    if (localElapsed < 0) {
+      bolt.group.visible = false;
+      continue;
+    }
+
+    const travelDuration = 0.48;
+    const travelProgress = THREE.MathUtils.clamp(localElapsed / travelDuration, 0, 1);
+    const easedProgress = 1 - (1 - travelProgress) ** 2.4;
+    setTubeProgress(bolt.core, easedProgress);
+    setTubeProgress(bolt.glow, easedProgress);
+    const branchProgress = THREE.MathUtils.clamp((easedProgress - 0.42) / 0.58, 0, 1);
+    setTubeProgress(bolt.branchCore, branchProgress);
+    setTubeProgress(bolt.branchGlow, branchProgress);
+
+    if (travelProgress >= 1 && !bolt.impacted) {
+      bolt.impacted = true;
+      spawnGroundSparks(lightning, bolt.impactPoint);
+      addBurnMark(lightning, bolt.impactPoint, time);
+    }
+
+    const impactElapsed = localElapsed - travelDuration;
+    let strength = travelProgress < 1 ? 0.82 : 0;
+    if (impactElapsed >= 0 && impactElapsed < 0.08) strength = 1;
+    else if (impactElapsed < 0.17 && impactElapsed >= 0) strength = THREE.MathUtils.lerp(1, 0.2, (impactElapsed - 0.08) / 0.09);
+    else if (impactElapsed < 0.25 && impactElapsed >= 0.17) strength = 0.2;
+    else if (impactElapsed < 0.34 && impactElapsed >= 0.25) strength = 0.86;
+    else if (impactElapsed < 0.58 && impactElapsed >= 0.34) strength = THREE.MathUtils.lerp(0.86, 0, (impactElapsed - 0.34) / 0.24);
+
+    const visible = localElapsed < travelDuration + 0.58;
+    bolt.group.visible = visible;
+    anyBoltVisible ||= visible;
+    bolt.core.material.opacity = strength;
+    bolt.branchCore.material.opacity = strength * 0.9;
+    bolt.glow.material.opacity = strength * 0.34;
+    bolt.branchGlow.material.opacity = strength * 0.24;
+    if (strength > strongestFlash) {
+      strongestFlash = strength;
+      latestImpact = bolt.impactPoint;
+    }
   }
 
-  lightning.group.visible = true;
-  lightning.core.material.opacity = strength;
-  lightning.branchCore.material.opacity = strength * 0.9;
-  lightning.glow.material.opacity = strength * 0.32;
-  lightning.branchGlow.material.opacity = strength * 0.22;
-  lightning.light.intensity = strength * 12;
+  lightning.boltGroup.visible = anyBoltVisible;
+  lightning.light.intensity = strongestFlash * 11;
+  if (latestImpact) lightning.light.position.set(latestImpact.x, 13, latestImpact.z);
+
+  const lastBolt = lightning.bolts[lightning.bolts.length - 1];
+  if (elapsed > lastBolt.delay + 1.08) {
+    lightning.active = false;
+    lightning.boltGroup.visible = false;
+    lightning.light.intensity = 0;
+    lightning.nextStrikeAt = time + 2.8 + Math.random() * 3.6;
+  }
 }
 
-function regenerateLightningBolt(lightning: LightningEffect): void {
-  const startX = (Math.random() - 0.5) * 34;
-  const startZ = (Math.random() - 0.5) * 32;
+function regenerateLightningBolt(bolt: LightningBolt): void {
+  const startX = (Math.random() - 0.5) * 32;
+  const startZ = (Math.random() - 0.5) * 30;
   const travelX = (Math.random() - 0.5) * 10;
   const travelZ = (Math.random() - 0.5) * 10;
   const points: THREE.Vector3[] = [];
@@ -492,7 +608,7 @@ function regenerateLightningBolt(lightning: LightningEffect): void {
     const jitter = 0.25 + progress * 1.35;
     points.push(new THREE.Vector3(
       startX + travelX * progress + (Math.random() - 0.5) * jitter,
-      22 - progress * 21.3,
+      22 - progress * 21.42,
       startZ + travelZ * progress + (Math.random() - 0.5) * jitter
     ));
   }
@@ -506,13 +622,17 @@ function regenerateLightningBolt(lightning: LightningEffect): void {
   ];
   const mainCurve = new THREE.CatmullRomCurve3(points);
   const branchCurve = new THREE.CatmullRomCurve3(branchPoints);
-  replaceTubeGeometry(lightning.core, mainCurve, 0.055);
-  replaceTubeGeometry(lightning.glow, mainCurve, 0.2);
-  replaceTubeGeometry(lightning.branchCore, branchCurve, 0.038);
-  replaceTubeGeometry(lightning.branchGlow, branchCurve, 0.13);
-
-  const midpoint = points[Math.floor(points.length / 2)];
-  lightning.light.position.set(midpoint.x, 13, midpoint.z);
+  replaceTubeGeometry(bolt.core, mainCurve, 0.055);
+  replaceTubeGeometry(bolt.glow, mainCurve, 0.2);
+  replaceTubeGeometry(bolt.branchCore, branchCurve, 0.038);
+  replaceTubeGeometry(bolt.branchGlow, branchCurve, 0.13);
+  bolt.impactPoint.copy(points[points.length - 1]);
+  bolt.impacted = false;
+  bolt.group.visible = false;
+  setTubeProgress(bolt.core, 0);
+  setTubeProgress(bolt.glow, 0);
+  setTubeProgress(bolt.branchCore, 0);
+  setTubeProgress(bolt.branchGlow, 0);
 }
 
 function replaceTubeGeometry(
@@ -522,6 +642,132 @@ function replaceTubeGeometry(
 ): void {
   mesh.geometry.dispose();
   mesh.geometry = new THREE.TubeGeometry(curve, 36, radius, 5, false);
+}
+
+function setTubeProgress(
+  mesh: THREE.Mesh<THREE.TubeGeometry, THREE.MeshBasicMaterial>,
+  progress: number
+): void {
+  const indexCount = mesh.geometry.index?.count ?? 0;
+  const segmentSize = 30;
+  const visibleCount = Math.floor((indexCount * THREE.MathUtils.clamp(progress, 0, 1)) / segmentSize) * segmentSize;
+  mesh.geometry.setDrawRange(0, visibleCount);
+}
+
+function spawnGroundSparks(lightning: LightningEffect, impactPoint: THREE.Vector3): void {
+  const sparkCount = 28;
+  for (let spark = 0; spark < sparkCount; spark += 1) {
+    const index = lightning.sparkCursor;
+    lightning.sparkCursor = (lightning.sparkCursor + 1) % lightning.sparkAges.length;
+    const offset = index * 3;
+    const angle = Math.random() * Math.PI * 2;
+    const horizontalSpeed = 1.8 + Math.random() * 4.6;
+    lightning.sparkPositions[offset] = impactPoint.x;
+    lightning.sparkPositions[offset + 1] = 0.18 + Math.random() * 0.16;
+    lightning.sparkPositions[offset + 2] = impactPoint.z;
+    lightning.sparkVelocities[offset] = Math.cos(angle) * horizontalSpeed;
+    lightning.sparkVelocities[offset + 1] = 2.6 + Math.random() * 5.4;
+    lightning.sparkVelocities[offset + 2] = Math.sin(angle) * horizontalSpeed;
+    lightning.sparkAges[index] = 0;
+    lightning.sparkLifetimes[index] = 0.48 + Math.random() * 0.48;
+  }
+  lightning.sparks.geometry.attributes.position.needsUpdate = true;
+}
+
+function updateStormSparks(lightning: LightningEffect, delta: number): void {
+  if (delta <= 0) return;
+  for (let index = 0; index < lightning.sparkAges.length; index += 1) {
+    const lifetime = lightning.sparkLifetimes[index];
+    if (lifetime <= 0) continue;
+    const offset = index * 3;
+    const age = lightning.sparkAges[index] + delta;
+    lightning.sparkAges[index] = age;
+    if (age >= lifetime || lightning.sparkPositions[offset + 1] <= 0.05) {
+      lightning.sparkLifetimes[index] = 0;
+      lightning.sparkPositions[offset + 1] = -100;
+      lightning.sparkColors[offset] = 0;
+      lightning.sparkColors[offset + 1] = 0;
+      lightning.sparkColors[offset + 2] = 0;
+      continue;
+    }
+    lightning.sparkVelocities[offset + 1] -= 9.4 * delta;
+    lightning.sparkPositions[offset] += lightning.sparkVelocities[offset] * delta;
+    lightning.sparkPositions[offset + 1] += lightning.sparkVelocities[offset + 1] * delta;
+    lightning.sparkPositions[offset + 2] += lightning.sparkVelocities[offset + 2] * delta;
+    const life = 1 - age / lifetime;
+    lightning.sparkColors[offset] = 1;
+    lightning.sparkColors[offset + 1] = 0.24 + life * 0.66;
+    lightning.sparkColors[offset + 2] = 0.03 + life * 0.18;
+  }
+  lightning.sparks.geometry.attributes.position.needsUpdate = true;
+  lightning.sparks.geometry.attributes.color.needsUpdate = true;
+}
+
+function addBurnMark(lightning: LightningEffect, impactPoint: THREE.Vector3, time: number): void {
+  const material = new THREE.MeshBasicMaterial({
+    map: lightning.burnTexture,
+    color: "#3b281d",
+    transparent: true,
+    opacity: 0.78,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -2
+  });
+  const mark = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.5), material);
+  mark.name = "weather-lightning-scorch";
+  mark.position.set(impactPoint.x, 0.045, impactPoint.z);
+  mark.rotation.set(-Math.PI / 2, 0, Math.random() * Math.PI);
+  const scale = 0.72 + Math.random() * 0.58;
+  mark.scale.set(scale, scale * (0.78 + Math.random() * 0.34), 1);
+  mark.renderOrder = 1;
+  mark.userData.createdAt = time;
+  lightning.group.add(mark);
+  lightning.burnMarks.push(mark);
+  if (lightning.burnMarks.length > 18) {
+    const oldest = lightning.burnMarks.shift();
+    if (oldest) {
+      lightning.group.remove(oldest);
+      oldest.geometry.dispose();
+      oldest.material.dispose();
+    }
+  }
+}
+
+function createSparkTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = 32;
+  canvas.height = 32;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Could not create lightning spark texture");
+  const glow = context.createRadialGradient(16, 16, 1, 16, 16, 15);
+  glow.addColorStop(0, "rgba(255,255,235,1)");
+  glow.addColorStop(0.22, "rgba(255,204,82,1)");
+  glow.addColorStop(0.58, "rgba(255,117,30,0.62)");
+  glow.addColorStop(1, "rgba(255,82,20,0)");
+  context.fillStyle = glow;
+  context.fillRect(0, 0, 32, 32);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function createBurnTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = 128;
+  canvas.height = 128;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Could not create lightning scorch texture");
+  const scorch = context.createRadialGradient(64, 64, 8, 64, 64, 62);
+  scorch.addColorStop(0, "rgba(24,14,10,0.92)");
+  scorch.addColorStop(0.32, "rgba(45,25,16,0.82)");
+  scorch.addColorStop(0.62, "rgba(91,50,28,0.42)");
+  scorch.addColorStop(0.84, "rgba(71,44,27,0.16)");
+  scorch.addColorStop(1, "rgba(47,34,24,0)");
+  context.fillStyle = scorch;
+  context.fillRect(0, 0, 128, 128);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
 }
 
 export function updateFireflies(fireflies: Firefly, time: number): void {
