@@ -12,6 +12,9 @@ import {
 } from "../data/townSchema";
 
 type BuilderSelection = { kind: "asset"; id: string } | { kind: "player" } | { kind: "citizen"; id: string };
+type BuilderConfirmation =
+  | { kind: "delete-asset"; assetId: string; assetName: string }
+  | { kind: "reset-draft" };
 
 export type TownBuilderApi = {
   isActive: () => boolean;
@@ -117,6 +120,7 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
   let paletteSearch = "";
   let paletteOpen = true;
   let inspectorOpen = true;
+  let confirmation: BuilderConfirmation | null = null;
   let selectionPreview: AssetPreview | null = null;
   let tilePreviewRenderer: TilePreviewRenderer | null = null;
   let tilePreviewsUnavailable = false;
@@ -298,10 +302,20 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
 
   const deleteAsset = () => {
     const asset = getSelectedAsset();
-    if (!asset || !window.confirm(`Remove ${asset.label ?? asset.id}?`)) return;
+    if (!asset) return;
+    confirmation = {
+      kind: "delete-asset",
+      assetId: asset.id,
+      assetName: asset.label ?? assetTypeLabel(asset.type)
+    };
+    render();
+  };
+
+  const confirmDeleteAsset = (assetId: string) => {
     commit(() => {
-      schema.assets = schema.assets.filter((candidate) => candidate.id !== asset.id);
+      schema.assets = schema.assets.filter((candidate) => candidate.id !== assetId);
       selection = schema.assets[0] ? { kind: "asset", id: schema.assets[0].id } : { kind: "player" };
+      confirmation = null;
     });
   };
 
@@ -339,11 +353,16 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
   };
 
   const resetShipped = () => {
-    if (!window.confirm("Reset this browser draft to the shipped town schema?")) return;
+    confirmation = { kind: "reset-draft" };
+    render();
+  };
+
+  const confirmResetShipped = () => {
     schema = cloneTownSchema(options.shippedSchema);
     history.splice(0, history.length, JSON.stringify(schema));
     historyIndex = 0;
     selection = { kind: "asset", id: schema.assets[0]?.id ?? "" };
+    confirmation = null;
     clearTownSchemaDraft();
     options.onSchemaChange(cloneTownSchema(schema));
     render();
@@ -416,6 +435,7 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
         <button class="builder-tooltip" type="button" data-action="zoom-reset" aria-label="Reset map view" data-tooltip="Reset map view"><span class="builder-target-glyph" aria-hidden="true"></span></button>
         <button class="builder-tooltip" type="button" data-action="zoom-out" aria-label="Zoom out" data-tooltip="Zoom out">-</button>
       </div>
+      ${confirmation ? renderConfirmation(confirmation) : ""}
     `;
 
     const refreshSelectionPreview = () => {
@@ -537,6 +557,17 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
     shell.querySelector<HTMLButtonElement>('[data-action="undo"]')?.addEventListener("click", () => restoreHistory(historyIndex - 1));
     shell.querySelector<HTMLButtonElement>('[data-action="redo"]')?.addEventListener("click", () => restoreHistory(historyIndex + 1));
     shell.querySelector<HTMLButtonElement>('[data-action="reset"]')?.addEventListener("click", resetShipped);
+    shell.querySelectorAll<HTMLElement>('[data-action="cancel-confirmation"]').forEach((element) => element.addEventListener("click", () => {
+      confirmation = null;
+      render();
+    }));
+    shell.querySelector<HTMLElement>("[data-confirmation-card]")?.addEventListener("click", (event) => event.stopPropagation());
+    shell.querySelector<HTMLButtonElement>('[data-action="confirm-destructive"]')?.addEventListener("click", () => {
+      if (confirmation?.kind === "delete-asset") confirmDeleteAsset(confirmation.assetId);
+      else if (confirmation?.kind === "reset-draft") confirmResetShipped();
+    });
+
+    if (confirmation) requestAnimationFrame(() => shell.querySelector<HTMLButtonElement>('[data-action="cancel-confirmation"]')?.focus());
 
     shell.querySelectorAll<HTMLInputElement>('[data-schema-field="asset.color"], [data-schema-field="asset.roofColor"], [data-schema-field="asset.stripeColor"], [data-schema-field^="character."][type="color"]').forEach((input) => {
       input.addEventListener("input", () => {
@@ -575,6 +606,11 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
     if (!active) return;
     if (isEditableTarget(event.target)) return;
     if (event.key === "Escape") {
+      if (confirmation) {
+        confirmation = null;
+        render();
+        return;
+      }
       setActive(false);
       return;
     }
@@ -760,6 +796,30 @@ function renderBuilderPanel(panel: BuilderPanel, schema: TownSchema, selection: 
 
 function renderEmptyState(title: string, body: string): string {
   return `<div class="builder-empty-state"><span aria-hidden="true">⌕</span><strong>${title}</strong><small>${body}</small></div>`;
+}
+
+function renderConfirmation(confirmation: BuilderConfirmation): string {
+  const deleting = confirmation.kind === "delete-asset";
+  const title = deleting ? `Remove ${confirmation.assetName}?` : "Reset your town draft?";
+  const description = deleting
+    ? "This asset will disappear from the town. You can still restore it with Undo."
+    : "Every local builder change will be replaced with the shipped town layout. This cannot be undone.";
+  return `
+    <div class="builder-confirmation-backdrop" data-action="cancel-confirmation">
+      <section class="builder-confirmation" role="alertdialog" aria-modal="true" aria-labelledby="builder-confirmation-title" aria-describedby="builder-confirmation-description" data-confirmation-card>
+        <div class="builder-confirmation-icon" aria-hidden="true">${deleting ? "−" : "↺"}</div>
+        <div class="builder-confirmation-copy">
+          <span class="builder-kicker">${deleting ? "Remove asset" : "Reset draft"}</span>
+          <h2 id="builder-confirmation-title">${escapeHtml(title)}</h2>
+          <p id="builder-confirmation-description">${description}</p>
+        </div>
+        <div class="builder-confirmation-actions">
+          <button type="button" data-action="cancel-confirmation">Keep it</button>
+          <button type="button" data-action="confirm-destructive" class="builder-confirm-destructive">${deleting ? "Remove asset" : "Reset town"}</button>
+        </div>
+      </section>
+    </div>
+  `;
 }
 
 function renderAssetTiles(filter: AssetTileGroup, search = ""): string {
