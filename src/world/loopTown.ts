@@ -523,6 +523,7 @@ function createTown(scene: THREE.Scene, schema: TownSchema): TownRuntime {
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = 0.005;
   ground.receiveShadow = true;
+  ground.userData.environmentRole = "ground";
   scene.add(ground);
   addLandscapeDetails(scene);
   addPerimeterWalls(scene);
@@ -538,6 +539,7 @@ function createTown(scene: THREE.Scene, schema: TownSchema): TownRuntime {
   plaza.rotation.x = -Math.PI / 2;
   plaza.position.y = 0.018;
   plaza.receiveShadow = true;
+  plaza.userData.environmentRole = "path";
   scene.add(plaza);
   addPathStones(scene);
 

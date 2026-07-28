@@ -46,21 +46,86 @@ export type EnvironmentController = {
 
 const WEATHER_REFRESH_MS = 30 * 60 * 1000;
 const WEATHER_REFRESH_JITTER_MS = 2 * 60 * 1000;
-const DAY_BACKGROUNDS: Record<Exclude<SeasonChoice, "auto">, string> = {
-  spring: "#f5e6dd",
-  summer: "#f4e7d3",
-  autumn: "#f0dfcf",
-  winter: "#e6ecec",
-  wet: "#e2e9df",
-  dry: "#f2e0c7"
+type EnvironmentMaterialRole = "ground" | "lawn" | "foliage" | "bloom" | "path" | "water";
+type SeasonPalette = Record<EnvironmentMaterialRole, string> & {
+  background: string;
+  sun: string;
+  sky: string;
+  environmentBoost: number;
 };
-const FOLIAGE_COLORS: Record<Exclude<SeasonChoice, "auto">, string> = {
-  spring: "#79a35f",
-  summer: "#527f50",
-  autumn: "#b66d3d",
-  winter: "#8b8b7c",
-  wet: "#4f8050",
-  dry: "#9b7d49"
+const SEASON_PALETTES: Record<Exclude<SeasonChoice, "auto">, SeasonPalette> = {
+  spring: {
+    background: "#f5e3df",
+    ground: "#a8ca93",
+    lawn: "#9dbe7e",
+    foliage: "#78a45f",
+    bloom: "#e99cab",
+    path: "#ead5b7",
+    water: "#68b2c0",
+    sun: "#ffe6cf",
+    sky: "#fff5e8",
+    environmentBoost: 1.04
+  },
+  summer: {
+    background: "#f4e7cc",
+    ground: "#9cbe7f",
+    lawn: "#8fae6b",
+    foliage: "#4f814d",
+    bloom: "#efb355",
+    path: "#dfc7a4",
+    water: "#4da7be",
+    sun: "#fff0c0",
+    sky: "#fff8dc",
+    environmentBoost: 1.12
+  },
+  autumn: {
+    background: "#edd9c8",
+    ground: "#b6aa76",
+    lawn: "#a4935e",
+    foliage: "#b66536",
+    bloom: "#cf8247",
+    path: "#dfc09d",
+    water: "#6b9ca8",
+    sun: "#f6c27f",
+    sky: "#f7dfbf",
+    environmentBoost: 0.96
+  },
+  winter: {
+    background: "#e2eaeb",
+    ground: "#cbd5cb",
+    lawn: "#bbc8b9",
+    foliage: "#878b80",
+    bloom: "#c5c3bd",
+    path: "#d8d4c9",
+    water: "#769ea8",
+    sun: "#e7f0f5",
+    sky: "#edf4f5",
+    environmentBoost: 0.86
+  },
+  wet: {
+    background: "#e0e8df",
+    ground: "#92b78a",
+    lawn: "#81a879",
+    foliage: "#4e8050",
+    bloom: "#db9aa6",
+    path: "#d2c1a6",
+    water: "#4c9fb4",
+    sun: "#dfeadf",
+    sky: "#e5efec",
+    environmentBoost: 0.9
+  },
+  dry: {
+    background: "#f0dfc6",
+    ground: "#b7ad7b",
+    lawn: "#a79b69",
+    foliage: "#987a46",
+    bloom: "#d89454",
+    path: "#dec29b",
+    water: "#6aa3ad",
+    sun: "#f3c982",
+    sky: "#f5dfbd",
+    environmentBoost: 0.94
+  }
 };
 
 export function createEnvironmentController(options: EnvironmentControllerOptions): EnvironmentController {
@@ -142,9 +207,15 @@ export function createEnvironmentController(options: EnvironmentControllerOption
 
   const refreshSeasonMaterials = (root: THREE.Object3D = options.scene) => {
     const season = getSeason();
-    const color = new THREE.Color(FOLIAGE_COLORS[season]);
+    const palette = SEASON_PALETTES[season];
     root.traverse((object) => {
-      if (!(object instanceof THREE.Mesh) || !object.userData.windSway) return;
+      if (!(object instanceof THREE.Mesh)) return;
+      const role = (
+        object.userData.environmentRole
+        ?? (object.userData.windSway ? "foliage" : undefined)
+      ) as EnvironmentMaterialRole | undefined;
+      if (!role || !(role in palette)) return;
+      const color = new THREE.Color(palette[role]);
       const materials = Array.isArray(object.material) ? object.material : [object.material];
       materials.forEach((material) => {
         if (!(material instanceof THREE.MeshStandardMaterial)) return;
@@ -197,7 +268,8 @@ export function createEnvironmentController(options: EnvironmentControllerOption
     const night = 1 - daylight;
     const overcast = weather === "cloudy" ? 0.18 : weather === "rain" ? 0.34 : weather === "storm" ? 0.48 : weather === "snow" ? 0.14 : 0;
     const brightness = THREE.MathUtils.clamp(daylight * (1 - overcast), 0.14, 1);
-    const dayBackground = new THREE.Color(DAY_BACKGROUNDS[season]);
+    const palette = SEASON_PALETTES[season];
+    const dayBackground = new THREE.Color(palette.background);
     const nightBackground = new THREE.Color("#304153");
     const stormBackground = new THREE.Color("#748087");
     const targetBackground = nightBackground.clone().lerp(dayBackground, Math.max(brightness, 0.08));
@@ -214,11 +286,19 @@ export function createEnvironmentController(options: EnvironmentControllerOption
     options.lights.sun.intensity = THREE.MathUtils.damp(options.lights.sun.intensity, 0.24 + brightness * 1.44, 3.2, delta);
     options.lights.hemisphere.intensity = THREE.MathUtils.damp(options.lights.hemisphere.intensity, 0.31 + brightness * 0.46, 3.2, delta);
     options.lights.fill.intensity = THREE.MathUtils.damp(options.lights.fill.intensity, 0.2 + night * 0.2, 3.2, delta);
-    options.lights.sun.color.lerp(new THREE.Color(daylight > 0.22 ? "#ffedd2" : "#efb487"), 1 - Math.exp(-delta * 2));
-    options.lights.hemisphere.color.lerp(new THREE.Color(daylight > 0.2 ? "#fff6e6" : "#7185a0"), 1 - Math.exp(-delta * 2));
+    const daylightBlend = THREE.MathUtils.smoothstep(daylight, 0.12, 0.58);
+    const seasonalSun = new THREE.Color("#efb487").lerp(new THREE.Color(palette.sun), daylightBlend);
+    const seasonalSky = new THREE.Color("#7185a0").lerp(new THREE.Color(palette.sky), daylightBlend);
+    options.lights.sun.color.lerp(seasonalSun, 1 - Math.exp(-delta * 2));
+    options.lights.hemisphere.color.lerp(seasonalSky, 1 - Math.exp(-delta * 2));
     const sunAngle = ((localHour - 6) / 24) * Math.PI * 2;
     options.lights.sun.position.set(Math.cos(sunAngle) * 34, 10 + daylight * 34, Math.sin(sunAngle) * 30);
-    options.scene.environmentIntensity = THREE.MathUtils.damp(options.scene.environmentIntensity, 0.08 + brightness * 0.14, 2.6, delta);
+    options.scene.environmentIntensity = THREE.MathUtils.damp(
+      options.scene.environmentIntensity,
+      (0.08 + brightness * 0.14) * palette.environmentBoost,
+      2.6,
+      delta
+    );
 
     const cloudOpacity = weather === "clear" ? 0.38 : weather === "cloudy" ? 0.68 : 0.82;
     options.atmosphere.forEach((cloud) => {

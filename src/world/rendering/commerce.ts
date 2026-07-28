@@ -103,6 +103,7 @@ export function addMarketLawn(scene: THREE.Scene, x: number, z: number, width = 
   lawn.rotation.x = -Math.PI / 2;
   lawn.position.set(x, 0.014, z);
   lawn.receiveShadow = true;
+  lawn.userData.environmentRole = "lawn";
   scene.add(lawn);
 
   for (const [offsetX, offsetZ, size] of [

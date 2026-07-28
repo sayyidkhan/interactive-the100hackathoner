@@ -22,9 +22,11 @@ export function addGardenPlot(scene: THREE.Scene, x: number, z: number, rotation
       plant.position.set(offsetX, 0.38, offsetZ);
       plant.scale.y = 0.7;
       plant.castShadow = true;
+      plant.userData.environmentRole = "foliage";
       group.add(plant);
       const flower = new THREE.Mesh(new THREE.SphereGeometry(0.052, 7, 5), bloom);
       flower.position.set(offsetX + 0.03, 0.49, offsetZ);
+      flower.userData.environmentRole = "bloom";
       group.add(flower);
     }
   }
@@ -70,6 +72,7 @@ export function addPicnicLawn(scene: THREE.Scene, x: number, z: number, rotation
   lawn.rotation.z = rotation;
   lawn.position.set(x, 0.014, z);
   lawn.receiveShadow = true;
+  lawn.userData.environmentRole = "lawn";
   scene.add(lawn);
 
   for (const [offsetX, offsetZ, size] of [
@@ -92,6 +95,7 @@ export function addGrassClump(scene: THREE.Scene, x: number, z: number, size: nu
     const blade = new THREE.Mesh(new THREE.ConeGeometry(0.055 * size, 0.34 * size, 4), material);
     blade.position.set(offsetX * size, 0.17 * size, offsetZ * size);
     blade.rotation.z = rotation;
+    blade.userData.environmentRole = "foliage";
     group.add(blade);
   }
   group.position.set(x, 0, z);
@@ -114,6 +118,7 @@ export function addShrub(scene: THREE.Scene, x: number, z: number, size: number)
     leaf.scale.y = 0.72;
     leaf.castShadow = true;
     leaf.receiveShadow = true;
+    leaf.userData.environmentRole = "foliage";
     group.add(leaf);
   }
 
@@ -232,10 +237,12 @@ export function addFlowerBed(scene: THREE.Scene, x: number, z: number, flowerCol
     const leaf = new THREE.Mesh(new THREE.IcosahedronGeometry(0.16, 0), leafMaterial);
     leaf.position.set(x + Math.cos(angle) * radius, 0.28, z + Math.sin(angle) * radius);
     leaf.castShadow = true;
+    leaf.userData.environmentRole = "foliage";
     scene.add(leaf);
     const bloom = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), flowerMaterial);
     bloom.position.set(leaf.position.x, 0.43, leaf.position.z);
     bloom.castShadow = true;
+    bloom.userData.environmentRole = "bloom";
     scene.add(bloom);
   }
 }
