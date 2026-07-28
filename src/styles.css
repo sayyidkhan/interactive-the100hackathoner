@@ -11,13 +11,18 @@
   -webkit-font-smoothing: antialiased;
   --ink: #352d24;
   --muted: #756d61;
-  --paper: #fffaf0;
-  --paper-2: #f5ead9;
+  --paper: #fbf7ef;
+  --paper-2: #efe5d6;
   --accent: #ee765f;
   --accent-dark: #ca5543;
   --gold: #ffc83d;
   --line: rgba(65, 50, 33, 0.14);
-  --shadow: 0 24px 70px rgba(56, 44, 30, 0.24);
+  --shadow: 0 24px 70px rgba(56, 44, 30, 0.18);
+  --hud-surface: rgba(251, 247, 239, 0.88);
+  --hud-surface-strong: rgba(251, 247, 239, 0.94);
+  --hud-border: rgba(255, 255, 255, 0.64);
+  --hud-shadow: 0 18px 48px rgba(61, 49, 36, 0.11);
+  --hud-blur: blur(18px) saturate(0.88);
 }
 
 * {
@@ -78,30 +83,30 @@ button {
 }
 
 .progress-pill {
-  top: 24px;
-  left: 24px;
+  top: 26px;
+  left: 26px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   justify-content: center;
-  width: min(228px, calc(100vw - 48px));
-  min-height: 74px;
-  padding: 10px 14px 9px;
+  width: min(238px, calc(100vw - 52px));
+  min-height: 84px;
+  padding: 14px 20px 13px;
   color: var(--ink);
-  background: rgba(255, 252, 246, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.88);
-  border-radius: 8px;
-  box-shadow: 0 12px 28px rgba(61, 49, 36, 0.1);
+  background: var(--hud-surface);
+  border: 1px solid var(--hud-border);
+  border-radius: 26px;
+  box-shadow: var(--hud-shadow);
   cursor: pointer;
   pointer-events: auto;
-  backdrop-filter: blur(14px);
-  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+  backdrop-filter: var(--hud-blur);
+  transition: transform 220ms ease, box-shadow 220ms ease, background 220ms ease;
 }
 
 .progress-pill:hover {
-  background: rgba(255, 253, 247, 0.98);
-  box-shadow: 0 18px 38px rgba(61, 49, 36, 0.2);
-  transform: translateY(-2px);
+  background: var(--hud-surface-strong);
+  box-shadow: 0 20px 54px rgba(61, 49, 36, 0.14);
+  transform: translateY(-1px);
 }
 
 .progress-pill:focus-visible {
@@ -125,7 +130,7 @@ button {
   display: block;
   width: 100%;
   margin: 2px 0;
-  color: #5a4434;
+  color: #55473b;
   font-family: "Bebas Neue", "Arial Narrow", sans-serif;
   font-size: 29px;
   font-weight: 400;
@@ -148,11 +153,11 @@ button {
   transform: translateX(-50%);
   padding: 9px 14px;
   color: rgba(53, 45, 36, 0.78);
-  background: rgba(255, 250, 240, 0.76);
+  background: rgba(251, 247, 239, 0.72);
   border-radius: 999px;
   font-size: 12px;
-  box-shadow: 0 10px 28px rgba(60, 48, 36, 0.1);
-  backdrop-filter: blur(12px);
+  box-shadow: 0 14px 38px rgba(60, 48, 36, 0.09);
+  backdrop-filter: var(--hud-blur);
 }
 
 .controls-hint span {
@@ -172,14 +177,16 @@ button {
   height: 40px;
   place-items: center;
   color: var(--ink);
-  background: rgba(255, 250, 240, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.72);
+  background: var(--hud-surface);
+  border: 1px solid var(--hud-border);
   border-radius: 50%;
-  box-shadow: 0 12px 34px rgba(60, 48, 36, 0.12);
+  box-shadow: 0 14px 38px rgba(60, 48, 36, 0.1);
   cursor: pointer;
   transition:
-    transform 160ms ease,
-    background 160ms ease;
+    transform 220ms ease,
+    background 220ms ease,
+    box-shadow 220ms ease;
+  backdrop-filter: var(--hud-blur);
 }
 
 .tool-panel {
@@ -209,10 +216,10 @@ button {
 .tool-panel button {
   width: 36px;
   height: 36px;
-  background: rgba(255, 250, 240, 0.92);
-  border-color: rgba(255, 255, 255, 0.72);
+  background: var(--hud-surface);
+  border-color: var(--hud-border);
   border-radius: 50%;
-  box-shadow: 0 9px 24px rgba(60, 48, 36, 0.12);
+  box-shadow: 0 12px 30px rgba(60, 48, 36, 0.09);
   font-size: 14px;
 }
 
@@ -225,8 +232,8 @@ button {
 }
 
 .corner-controls button:hover {
-  transform: translateY(-2px);
-  background: #fffaf0;
+  transform: translateY(-1px);
+  background: var(--hud-surface-strong);
 }
 
 .corner-controls button.active,
@@ -1178,14 +1185,15 @@ button {
   bottom: 22px;
   left: 50%;
   transform: translateX(-50%);
-  padding: 10px 16px;
-  color: #3d2f17;
-  background: #ffc83d;
-  border: 1px solid rgba(255, 255, 255, 0.52);
+  padding: 11px 20px;
+  color: #493b27;
+  background: rgba(238, 181, 43, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.4);
   border-radius: 999px;
-  box-shadow: 0 14px 36px rgba(97, 68, 18, 0.24);
+  box-shadow: 0 16px 44px rgba(83, 59, 21, 0.16);
   font-size: 12px;
   font-weight: 700;
+  backdrop-filter: blur(14px) saturate(0.9);
 }
 
 .proximity-card {
@@ -1196,14 +1204,14 @@ button {
   padding: 10px 12px;
   color: var(--ink);
   background:
-    linear-gradient(135deg, color-mix(in srgb, var(--artifact-tint, #f6d9d1) 78%, transparent), rgba(255, 250, 240, 0.94)),
-    rgba(255, 250, 240, 0.94);
-  border: 1px solid color-mix(in srgb, var(--artifact-accent, #ee765f) 28%, rgba(255, 255, 255, 0.72));
-  border-radius: 7px;
-  box-shadow: 0 18px 48px rgba(60, 48, 36, 0.16);
+    linear-gradient(135deg, color-mix(in srgb, var(--artifact-tint, #f6d9d1) 62%, transparent), rgba(251, 247, 239, 0.88)),
+    var(--hud-surface);
+  border: 1px solid color-mix(in srgb, var(--artifact-accent, #ee765f) 18%, var(--hud-border));
+  border-radius: 18px;
+  box-shadow: var(--hud-shadow);
   pointer-events: none;
   transform: translateX(-50%);
-  backdrop-filter: blur(14px);
+  backdrop-filter: var(--hud-blur);
   transition:
     opacity 180ms ease,
     transform 180ms ease;
@@ -1287,11 +1295,12 @@ button {
   padding: 13px 16px;
   color: var(--ink);
   background:
-    linear-gradient(135deg, color-mix(in srgb, var(--artifact-tint, #f6d9d1) 70%, transparent), rgba(255, 250, 240, 0.94)),
-    rgba(255, 250, 240, 0.94);
-  border: 1px solid color-mix(in srgb, var(--artifact-accent, #ee765f) 28%, rgba(255, 255, 255, 0.72));
-  border-radius: 7px;
-  box-shadow: 0 18px 48px rgba(60, 48, 36, 0.18);
+    linear-gradient(135deg, color-mix(in srgb, var(--artifact-tint, #f6d9d1) 58%, transparent), rgba(251, 247, 239, 0.88)),
+    var(--hud-surface);
+  border: 1px solid color-mix(in srgb, var(--artifact-accent, #ee765f) 18%, var(--hud-border));
+  border-radius: 18px;
+  box-shadow: var(--hud-shadow);
+  backdrop-filter: var(--hud-blur);
   opacity: 0;
   pointer-events: none;
   transform: translate(0, 8px);
@@ -1377,11 +1386,11 @@ button {
   width: min(200px, calc(100vw - 48px));
   padding: 10px 12px;
   color: var(--ink);
-  background: rgba(255, 250, 240, 0.88);
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  border-radius: 7px;
-  box-shadow: 0 12px 34px rgba(60, 48, 36, 0.12);
-  backdrop-filter: blur(14px);
+  background: var(--hud-surface);
+  border: 1px solid var(--hud-border);
+  border-radius: 18px;
+  box-shadow: var(--hud-shadow);
+  backdrop-filter: var(--hud-blur);
 }
 
 .waypoint-label,
@@ -1488,22 +1497,22 @@ button {
   width: 132px;
   padding: 9px;
   color: var(--ink);
-  background: rgba(255, 250, 240, 0.86);
-  border: 1px solid rgba(255, 255, 255, 0.68);
-  border-radius: 7px;
-  box-shadow: 0 12px 34px rgba(60, 48, 36, 0.12);
+  background: var(--hud-surface);
+  border: 1px solid var(--hud-border);
+  border-radius: 18px;
+  box-shadow: var(--hud-shadow);
   cursor: pointer;
   pointer-events: auto;
   text-align: left;
-  backdrop-filter: blur(14px);
+  backdrop-filter: var(--hud-blur);
   transition:
     transform 160ms ease,
     background 160ms ease;
 }
 
 .town-map:hover {
-  transform: translateY(-2px);
-  background: rgba(255, 250, 240, 0.96);
+  transform: translateY(-1px);
+  background: var(--hud-surface-strong);
 }
 
 .town-map-label,

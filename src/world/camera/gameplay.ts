@@ -3,8 +3,13 @@ import type { WaterTowerAnchor } from "../interactions/waterTower";
 
 const CAMERA_OFFSET = new THREE.Vector3(-5.8, 5.05, 8.75);
 const CAMERA_DEFAULT_DISTANCE = CAMERA_OFFSET.length();
+const CAMERA_DEFAULT_PITCH = Math.atan2(CAMERA_OFFSET.y, Math.hypot(CAMERA_OFFSET.x, CAMERA_OFFSET.z));
+const CAMERA_MIN_PITCH = 0.12;
+const CAMERA_MAX_PITCH = 1.15;
 const CAMERA_MIN_DISTANCE = 9.5;
 const CAMERA_MAX_DISTANCE = 20;
+const CAMERA_HORIZONTAL_DIRECTION = new THREE.Vector3(CAMERA_OFFSET.x, 0, CAMERA_OFFSET.z).normalize();
+const CAMERA_UP_AXIS = new THREE.Vector3(0, 1, 0);
 const CINEMATIC_IDLE_MS = 60_000;
 const CINEMATIC_TRANSITION_MS = 4_000;
 const CINEMATIC_EXIT_MS = 900;
@@ -13,6 +18,8 @@ const CINEMATIC_RADIUS = 31;
 export type CameraLookState = {
   yaw: number;
   targetYaw: number;
+  pitch: number;
+  targetPitch: number;
   distance: number;
   targetDistance: number;
   focus: THREE.Vector3;
@@ -42,6 +49,8 @@ export function bindLookControls(element: HTMLCanvasElement): CameraLookState {
   const look: CameraLookState = {
     yaw: 0,
     targetYaw: 0,
+    pitch: CAMERA_DEFAULT_PITCH,
+    targetPitch: CAMERA_DEFAULT_PITCH,
     distance: CAMERA_DEFAULT_DISTANCE,
     targetDistance: CAMERA_DEFAULT_DISTANCE,
     focus: new THREE.Vector3(),
@@ -52,6 +61,7 @@ export function bindLookControls(element: HTMLCanvasElement): CameraLookState {
   };
   let dragging = false;
   let lastX = 0;
+  let lastY = 0;
   let pinchDistance = 0;
   const pointers = new Map<number, { x: number; y: number }>();
 
@@ -64,6 +74,7 @@ export function bindLookControls(element: HTMLCanvasElement): CameraLookState {
   element.addEventListener("pointerdown", (event) => {
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     lastX = event.clientX;
+    lastY = event.clientY;
     element.setPointerCapture(event.pointerId);
     dragging = pointers.size === 1;
     if (pointers.size >= 2) pinchDistance = getPinchDistance();
@@ -80,8 +91,15 @@ export function bindLookControls(element: HTMLCanvasElement): CameraLookState {
     }
     if (!dragging) return;
     const deltaX = event.clientX - lastX;
+    const deltaY = event.clientY - lastY;
     lastX = event.clientX;
+    lastY = event.clientY;
     look.targetYaw -= deltaX * 0.006;
+    look.targetPitch = THREE.MathUtils.clamp(
+      look.targetPitch + deltaY * 0.004,
+      CAMERA_MIN_PITCH,
+      CAMERA_MAX_PITCH
+    );
   });
 
   element.addEventListener(
@@ -99,6 +117,7 @@ export function bindLookControls(element: HTMLCanvasElement): CameraLookState {
     if (dragging) {
       const remainingPointer = [...pointers.values()][0];
       lastX = remainingPointer.x;
+      lastY = remainingPointer.y;
     } else {
       pinchDistance = 0;
     }
@@ -109,6 +128,7 @@ export function bindLookControls(element: HTMLCanvasElement): CameraLookState {
   element.addEventListener("pointercancel", release);
   element.addEventListener("dblclick", () => {
     look.targetYaw = 0;
+    look.targetPitch = CAMERA_DEFAULT_PITCH;
     look.targetDistance = CAMERA_DEFAULT_DISTANCE;
   });
 
@@ -173,11 +193,17 @@ export function startIdleCinematic(
 
 function updateLookState(look: CameraLookState, delta: number): void {
   look.yaw = THREE.MathUtils.damp(look.yaw, look.targetYaw, 9, delta);
+  look.pitch = THREE.MathUtils.damp(look.pitch, look.targetPitch, 9, delta);
   look.distance = THREE.MathUtils.damp(look.distance, look.targetDistance, 9, delta);
 }
 
 function getGameplayCameraPosition(target: THREE.Vector3, look: CameraLookState): THREE.Vector3 {
-  const offset = CAMERA_OFFSET.clone().setLength(look.distance).applyAxisAngle(new THREE.Vector3(0, 1, 0), look.yaw);
+  const horizontalDistance = look.distance * Math.cos(look.pitch);
+  const offset = CAMERA_HORIZONTAL_DIRECTION
+    .clone()
+    .multiplyScalar(horizontalDistance)
+    .applyAxisAngle(CAMERA_UP_AXIS, look.yaw);
+  offset.y = look.distance * Math.sin(look.pitch);
   return new THREE.Vector3(target.x + offset.x, target.y + offset.y, target.z + offset.z);
 }
 

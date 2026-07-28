@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { CharacterAppearance, CharacterSchema } from "../data/townSchema";
 import { PersonaOption } from "../ui/hud";
 import { roundRect, splitCanvasLines } from "./rendering/canvas";
@@ -37,158 +38,133 @@ export type Citizen = {
   speechMaterial: THREE.SpriteMaterial;
 };
 
+function roundedPart(
+  width: number,
+  height: number,
+  depth: number,
+  radius: number,
+  material: THREE.Material,
+  segments = 5
+): THREE.Mesh {
+  const mesh = new THREE.Mesh(
+    new RoundedBoxGeometry(width, height, depth, segments, radius),
+    material
+  );
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
 export function createPlayer(): THREE.Group {
   const group = new THREE.Group();
-  const skin = new THREE.MeshStandardMaterial({ color: "#8a604a", roughness: 0.68 });
-  const shirt = new THREE.MeshStandardMaterial({ color: "#ef765f", roughness: 0.62 });
-  const shirtDark = new THREE.MeshStandardMaterial({ color: "#c95749", roughness: 0.68 });
-  const pants = new THREE.MeshStandardMaterial({ color: "#254b5f", roughness: 0.72 });
-  const shoes = new THREE.MeshStandardMaterial({ color: "#f2f0e9", roughness: 0.55 });
-  const hairMaterial = new THREE.MeshStandardMaterial({ color: "#241f1a", roughness: 0.84 });
+  const skin = new THREE.MeshStandardMaterial({ color: "#8a604a", roughness: 0.78 });
+  const shirt = new THREE.MeshStandardMaterial({ color: "#ef765f", roughness: 0.74 });
+  const shirtDark = new THREE.MeshStandardMaterial({ color: "#c95749", roughness: 0.8 });
+  const pants = new THREE.MeshStandardMaterial({ color: "#254b5f", roughness: 0.82 });
+  const shoes = new THREE.MeshStandardMaterial({ color: "#f2f0e9", roughness: 0.72 });
+  const hairMaterial = new THREE.MeshStandardMaterial({ color: "#241f1a", roughness: 0.86 });
 
-  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.34, 0.38, 12, 24), shirt);
-  torso.position.y = 0.98;
-  torso.scale.z = 0.72;
-  torso.castShadow = true;
-  torso.receiveShadow = true;
+  const torso = roundedPart(0.58, 0.66, 0.38, 0.12, shirt);
+  torso.position.y = 0.95;
+  torso.userData.baseY = torso.position.y;
   group.add(torso);
 
-  const hem = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.37, 0.08, 24), shirtDark);
-  hem.position.y = 0.61;
-  hem.scale.z = 0.7;
-  hem.castShadow = true;
+  const hem = roundedPart(0.565, 0.075, 0.375, 0.03, shirtDark, 3);
+  hem.position.y = 0.635;
   group.add(hem);
 
-  const collar = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.025, 8, 20), shirtDark);
-  collar.position.set(0, 1.38, -0.02);
-  collar.rotation.x = Math.PI / 2;
-  collar.scale.z = 0.55;
-  collar.castShadow = true;
-  group.add(collar);
-
-  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.15, 0.18, 18), skin);
-  neck.position.y = 1.48;
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.115, 0.11, 16), skin);
+  neck.position.y = 1.315;
+  neck.castShadow = true;
   group.add(neck);
 
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.36, 28, 22), skin);
-  head.position.y = 1.72;
-  head.scale.set(0.96, 1.02, 0.92);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.305, 26, 20), skin);
+  head.position.y = 1.56;
+  head.scale.set(1, 0.98, 0.97);
   head.castShadow = true;
+  head.receiveShadow = true;
   group.add(head);
 
   const hairGroup = new THREE.Group();
   group.add(hairGroup);
   const hair = new THREE.Mesh(
-    new THREE.SphereGeometry(0.375, 28, 14, 0, Math.PI * 2, 0, Math.PI / 2),
+    new THREE.SphereGeometry(0.32, 26, 14, 0, Math.PI * 2, 0, Math.PI / 2),
     hairMaterial
   );
-  hair.position.y = 1.84;
-  hair.scale.set(1.02, 0.78, 0.95);
+  hair.position.set(0, 1.645, 0.005);
+  hair.scale.set(1.015, 0.79, 1);
   hair.castShadow = true;
   hairGroup.add(hair);
 
-  for (const [x, scale] of [
-    [-0.18, 0.95],
-    [0, 1.1],
-    [0.18, 0.82]
+  for (const [x, y] of [
+    [-0.18, 1.61],
+    [0, 1.63],
+    [0.18, 1.61]
   ] as const) {
-    const fringe = new THREE.Mesh(new THREE.SphereGeometry(0.11 * scale, 12, 8), hairMaterial);
-    fringe.position.set(x, 1.82, -0.28);
-    fringe.scale.y = 0.55;
+    const fringe = new THREE.Mesh(new THREE.SphereGeometry(0.095, 16, 10), hairMaterial);
+    fringe.position.set(x, y, -0.268);
+    fringe.scale.set(1, 0.46, 0.52);
     fringe.castShadow = true;
     hairGroup.add(fringe);
   }
 
-  for (const x of [-0.32, 0.32]) {
-    const ear = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), skin);
-    ear.position.set(x, 1.7, -0.03);
-    ear.castShadow = true;
-    group.add(ear);
-  }
-
-  const eyeMaterial = new THREE.MeshStandardMaterial({ color: "#14100d", roughness: 0.45 });
-  for (const x of [-0.12, 0.12]) {
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 8), eyeMaterial);
-    eye.position.set(x, 1.72, -0.33);
+  const eyeMaterial = new THREE.MeshStandardMaterial({ color: "#14100d", roughness: 0.58 });
+  for (const x of [-0.095, 0.095]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.03, 14, 10), eyeMaterial);
+    eye.position.set(x, 1.535, -0.292);
     group.add(eye);
-
-    const brow = new THREE.Mesh(new THREE.CapsuleGeometry(0.012, 0.09, 4, 8), hairMaterial);
-    brow.position.set(x, 1.81, -0.34);
-    brow.rotation.x = Math.PI / 2;
-    brow.rotation.z = x > 0 ? -0.12 : 0.12;
-    hairGroup.add(brow);
   }
 
-  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.1, 10), skin);
-  nose.position.set(0, 1.66, -0.36);
-  nose.rotation.x = -Math.PI / 2;
-  group.add(nose);
-
-  const mouth = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.012, 0.09, 4, 8),
-    new THREE.MeshStandardMaterial({ color: "#a33c37", roughness: 0.6 })
-  );
-  mouth.position.set(0, 1.58, -0.345);
-  mouth.rotation.x = Math.PI / 2;
-  mouth.rotation.z = Math.PI / 2;
+  const mouthMaterial = new THREE.MeshStandardMaterial({ color: "#a33c37", roughness: 0.7 });
+  const mouth = roundedPart(0.082, 0.019, 0.018, 0.006, mouthMaterial, 2);
+  mouth.position.set(0, 1.44, -0.295);
   group.add(mouth);
 
   const armRigs: THREE.Group[] = [];
-  for (const x of [-0.52, 0.52]) {
+  for (const x of [-0.385, 0.385]) {
     const armRig = new THREE.Group();
-    armRig.position.set(x, 1.18, -0.01);
-    armRig.rotation.z = x > 0 ? -0.08 : 0.08;
+    armRig.position.set(x, 1.17, -0.005);
     group.add(armRig);
     armRigs.push(armRig);
 
-    const sleeve = new THREE.Mesh(new THREE.CapsuleGeometry(0.13, 0.14, 8, 14), shirt);
-    sleeve.position.y = -0.05;
-    sleeve.castShadow = true;
-    sleeve.receiveShadow = true;
-    armRig.add(sleeve);
-
-    const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.34, 8, 14), skin);
-    arm.position.y = -0.35;
-    arm.castShadow = true;
-    arm.receiveShadow = true;
+    const arm = roundedPart(0.15, 0.42, 0.16, 0.065, shirt);
+    arm.position.y = -0.19;
     armRig.add(arm);
 
-    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 10), skin);
-    hand.position.y = -0.58;
+    const cuff = roundedPart(0.154, 0.068, 0.164, 0.025, shirtDark, 3);
+    cuff.position.y = -0.375;
+    armRig.add(cuff);
+
+    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.076, 16, 11), skin);
+    hand.position.y = -0.455;
     hand.castShadow = true;
     armRig.add(hand);
   }
 
   const legRigs: THREE.Group[] = [];
-  for (const x of [-0.18, 0.18]) {
+  for (const x of [-0.155, 0.155]) {
     const legRig = new THREE.Group();
-    legRig.position.set(x, 0.62, 0);
+    legRig.position.set(x, 0.635, 0);
     group.add(legRig);
     legRigs.push(legRig);
 
-    const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.38, 8, 14), pants);
-    leg.position.y = -0.22;
-    leg.castShadow = true;
-    leg.receiveShadow = true;
+    const leg = roundedPart(0.18, 0.42, 0.2, 0.07, pants);
+    leg.position.y = -0.185;
     legRig.add(leg);
 
-    const shoe = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.18, 8, 14), shoes);
-    shoe.position.set(0, -0.52, -0.06);
-    shoe.rotation.x = Math.PI / 2;
-    shoe.scale.x = 0.85;
-    shoe.castShadow = true;
-    shoe.receiveShadow = true;
+    const shoe = roundedPart(0.19, 0.115, 0.275, 0.045, shoes, 4);
+    shoe.position.set(0, -0.43, -0.04);
     legRig.add(shoe);
   }
 
-  const shadow = createSoftShadow(0.86, 0.56, 0.22);
-  shadow.position.y = 0.012;
+  const shadow = createSoftShadow(0.84, 0.52, 0.18);
+  shadow.position.y = 0.04;
   group.add(shadow);
 
   const personaAuraMaterial = new THREE.MeshBasicMaterial({
     color: "#c95749",
     transparent: true,
-    opacity: 0.14,
+    opacity: 0.055,
     depthWrite: false
   });
   const personaAura = new THREE.Mesh(new THREE.TorusGeometry(0.56, 0.018, 8, 56), personaAuraMaterial);
@@ -237,7 +213,7 @@ export function createPlayer(): THREE.Group {
     hairGroup
   } satisfies PlayerRig;
 
-  group.scale.setScalar(0.78);
+  group.scale.setScalar(0.88);
   return group;
 }
 
@@ -352,9 +328,10 @@ export function updatePlayerRig(player: THREE.Group, walkTime: number, moving: b
   rig.rightArm.rotation.x = THREE.MathUtils.lerp(rig.rightArm.rotation.x, -swing, settle);
   rig.leftLeg.rotation.x = THREE.MathUtils.lerp(rig.leftLeg.rotation.x, -swing * 0.78, settle);
   rig.rightLeg.rotation.x = THREE.MathUtils.lerp(rig.rightLeg.rotation.x, swing * 0.78, settle);
-  rig.torso.position.y = 0.98 + (moving ? Math.abs(Math.sin(walkTime)) * 0.025 : 0);
+  const torsoBaseY = (rig.torso.userData.baseY as number | undefined) ?? 0.95;
+  rig.torso.position.y = torsoBaseY + (moving ? Math.abs(Math.sin(walkTime)) * 0.022 : 0);
 
-  rig.shadow.position.y = 0.012 - player.position.y;
+  rig.shadow.position.y = 0.04 - player.position.y;
   const shadowMaterial = rig.shadow instanceof THREE.Mesh ? rig.shadow.material : null;
   if (shadowMaterial instanceof THREE.MeshBasicMaterial) {
     shadowMaterial.opacity = THREE.MathUtils.clamp(0.25 - player.position.y * 0.11, 0.06, 0.25);
@@ -363,7 +340,7 @@ export function updatePlayerRig(player: THREE.Group, walkTime: number, moving: b
   if (rig.personaAura && rig.personaAuraMaterial && rig.trailDots) {
     const auraPulse = 1 + Math.sin(walkTime * (moving ? 0.8 : 0.45)) * (moving ? 0.055 : 0.025);
     rig.personaAura.scale.setScalar((sprinting ? 1.16 : moving ? 1.04 : 0.94) * auraPulse);
-    rig.personaAuraMaterial.opacity = moving ? (sprinting ? 0.38 : 0.26) : 0.13;
+    rig.personaAuraMaterial.opacity = moving ? (sprinting ? 0.2 : 0.11) : 0.045;
 
     rig.trailDots.forEach((dot, index) => {
       const pulse = Math.max(0, Math.sin(walkTime * 1.15 - dot.phase));

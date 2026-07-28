@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { addSoftShadow } from "./rendering/shadows";
 import { TOWN_SPREAD } from "./worldConstants";
 
@@ -79,134 +80,140 @@ export function updateTownAnimals(animals: TownAnimal[], time: number, delta: nu
   }
 }
 
+function animalMesh(geometry: THREE.BufferGeometry, material: THREE.Material): THREE.Mesh {
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
 function createGoose(): THREE.Group {
   const group = new THREE.Group();
-  const white = new THREE.MeshStandardMaterial({ color: "#fbf5e8", roughness: 0.58 });
-  const orange = new THREE.MeshStandardMaterial({ color: "#d99537", roughness: 0.54 });
-  const dark = new THREE.MeshStandardMaterial({ color: "#2e302d", roughness: 0.6 });
+  const white = new THREE.MeshStandardMaterial({ color: "#f7f0df", roughness: 0.76 });
+  const wingWhite = new THREE.MeshStandardMaterial({ color: "#e9e2d2", roughness: 0.8 });
+  const orange = new THREE.MeshStandardMaterial({ color: "#d89035", roughness: 0.7 });
+  const dark = new THREE.MeshStandardMaterial({ color: "#292824", roughness: 0.68 });
 
-  const body = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 12), white);
-  body.scale.set(1.28, 0.8, 1.55);
-  body.position.y = 0.4;
+  const body = animalMesh(new THREE.SphereGeometry(0.32, 22, 16), white);
+  body.scale.set(0.95, 0.82, 1.3);
+  body.position.set(0, 0.4, 0.02);
   group.add(body);
 
-  const neck = new THREE.Mesh(new THREE.CapsuleGeometry(0.075, 0.27, 5, 10), white);
-  neck.position.set(0, 0.69, -0.26);
-  neck.rotation.x = -0.18;
+  const neck = animalMesh(new THREE.CapsuleGeometry(0.065, 0.4, 7, 14), white);
+  neck.position.set(0, 0.72, -0.25);
+  neck.rotation.x = -0.16;
   group.add(neck);
 
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.145, 12, 10), white);
-  head.scale.set(1, 0.94, 1.08);
-  head.position.set(0, 0.91, -0.33);
+  const head = animalMesh(new THREE.SphereGeometry(0.13, 20, 14), white);
+  head.scale.set(1, 0.96, 1.04);
+  head.position.set(0, 1.03, -0.34);
   group.add(head);
 
-  const beak = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), orange);
-  beak.scale.set(0.8, 0.35, 1.32);
-  beak.position.set(0, 0.88, -0.48);
+  const beak = animalMesh(new THREE.ConeGeometry(0.052, 0.17, 12), orange);
+  beak.position.set(0, 1.01, -0.48);
+  beak.rotation.x = -Math.PI / 2;
   group.add(beak);
 
-  for (const x of [-0.28, 0.28]) {
-    const wing = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 9), white);
-    wing.scale.set(0.48, 0.48, 1.12);
-    wing.position.set(x, 0.45, 0.03);
-    wing.rotation.z = x * 0.65;
+  for (const x of [-0.275, 0.275]) {
+    const wing = animalMesh(new THREE.SphereGeometry(0.19, 18, 12), wingWhite);
+    wing.scale.set(0.38, 0.5, 1.12);
+    wing.position.set(x, 0.44, -0.005);
+    wing.rotation.z = x > 0 ? 0.18 : -0.18;
     group.add(wing);
   }
 
-  const legs: THREE.Group[] = [];
-  for (const x of [-0.045, 0.045]) {
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.014, 6, 4), dark);
-    eye.position.set(x, 0.95, -0.43);
+  for (const x of [-0.062, 0.062]) {
+    const eye = animalMesh(new THREE.SphereGeometry(0.014, 8, 6), dark);
+    eye.position.set(x, 1.065, -0.445);
     group.add(eye);
+  }
 
+  const legs: THREE.Group[] = [];
+  for (const x of [-0.095, 0.095]) {
     const legRig = new THREE.Group();
-    legRig.position.set(x * 2.4, 0.27, 0.02);
+    legRig.position.set(x, 0.25, 0.02);
     group.add(legRig);
     legs.push(legRig);
-    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.25, 6), orange);
-    leg.position.y = -0.12;
+    const leg = animalMesh(new THREE.CylinderGeometry(0.016, 0.018, 0.24, 8), orange);
+    leg.position.y = -0.11;
     legRig.add(leg);
-    const foot = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.025, 0.13), orange);
-    foot.position.set(0, -0.25, -0.04);
+    const foot = animalMesh(new RoundedBoxGeometry(0.085, 0.035, 0.15, 3, 0.014), orange);
+    foot.position.set(0, -0.235, -0.045);
     legRig.add(foot);
   }
 
   group.userData.legs = legs;
-  addSoftShadow(group, 0.08, 0.06, 0.82, 0.48, 0, 0.16);
-  group.scale.setScalar(0.76);
+  addSoftShadow(group, 0.08, 0.06, 0.76, 0.46, 0, 0.14);
+  group.scale.setScalar(0.8);
   return group;
 }
 
 function createCorgi(): THREE.Group {
   const group = new THREE.Group();
-  const tan = new THREE.MeshStandardMaterial({ color: "#bc763b", roughness: 0.56 });
-  const cream = new THREE.MeshStandardMaterial({ color: "#f2dfbc", roughness: 0.58 });
-  const dark = new THREE.MeshStandardMaterial({ color: "#302820", roughness: 0.56 });
+  const tan = new THREE.MeshStandardMaterial({ color: "#c17b3f", roughness: 0.76 });
+  const cream = new THREE.MeshStandardMaterial({ color: "#f0dfbe", roughness: 0.8 });
+  const dark = new THREE.MeshStandardMaterial({ color: "#302820", roughness: 0.68 });
 
-  const body = new THREE.Mesh(new THREE.SphereGeometry(0.34, 16, 12), tan);
-  body.scale.set(1.25, 0.72, 1.05);
-  body.position.y = 0.42;
+  const body = animalMesh(new RoundedBoxGeometry(0.48, 0.34, 0.72, 6, 0.11), tan);
+  body.position.y = 0.38;
   group.add(body);
 
-  const chest = new THREE.Mesh(new THREE.SphereGeometry(0.21, 12, 9), cream);
-  chest.scale.set(1.08, 1.12, 0.35);
-  chest.position.set(0, 0.41, -0.29);
+  const chest = animalMesh(new RoundedBoxGeometry(0.28, 0.27, 0.055, 5, 0.025), cream);
+  chest.position.set(0, 0.39, -0.375);
   group.add(chest);
 
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.27, 16, 12), tan);
-  head.scale.set(1.06, 0.94, 0.95);
-  head.position.set(0, 0.7, -0.34);
+  const head = animalMesh(new THREE.SphereGeometry(0.22, 22, 16), tan);
+  head.scale.set(1.03, 0.98, 0.96);
+  head.position.set(0, 0.65, -0.35);
   group.add(head);
 
   for (const x of [-0.14, 0.14]) {
-    const ear = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.25, 4), tan);
-    ear.position.set(x, 0.99, -0.31);
-    ear.rotation.y = Math.PI / 4;
+    const ear = animalMesh(new THREE.ConeGeometry(0.082, 0.22, 5), tan);
+    ear.position.set(x, 0.875, -0.34);
+    ear.rotation.z = x > 0 ? -0.1 : 0.1;
     group.add(ear);
   }
 
   const legs: THREE.Group[] = [];
-  for (const x of [-0.22, 0.22]) {
-    for (const z of [-0.12, 0.12]) {
+  for (const x of [-0.16, 0.16]) {
+    for (const z of [-0.22, 0.22]) {
       const legRig = new THREE.Group();
-      legRig.position.set(x, 0.29, z);
+      legRig.position.set(x, 0.285, z);
       group.add(legRig);
       legs.push(legRig);
-      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.28, 7), cream);
-      leg.position.y = -0.14;
+      const leg = animalMesh(new RoundedBoxGeometry(0.105, 0.2, 0.105, 4, 0.04), cream);
+      leg.position.y = -0.105;
       legRig.add(leg);
-      const paw = new THREE.Mesh(new THREE.SphereGeometry(0.065, 8, 6), cream);
-      paw.scale.z = 1.25;
-      paw.position.set(0, -0.29, -0.025);
+      const paw = animalMesh(new RoundedBoxGeometry(0.115, 0.065, 0.15, 4, 0.025), cream);
+      paw.position.set(0, -0.225, -0.025);
       legRig.add(paw);
     }
   }
 
-  const forehead = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 8), cream);
-  forehead.scale.set(0.72, 1.18, 0.35);
-  forehead.position.set(0, 0.79, -0.58);
+  const forehead = animalMesh(new THREE.SphereGeometry(0.07, 14, 10), cream);
+  forehead.scale.set(0.62, 1.2, 0.3);
+  forehead.position.set(0, 0.745, -0.558);
   group.add(forehead);
-  const muzzle = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 8), cream);
-  muzzle.scale.set(1.1, 0.75, 0.75);
-  muzzle.position.set(0, 0.64, -0.55);
+  const muzzle = animalMesh(new RoundedBoxGeometry(0.235, 0.125, 0.16, 5, 0.052), cream);
+  muzzle.position.set(0, 0.575, -0.515);
   group.add(muzzle);
-  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), dark);
-  nose.position.set(0, 0.66, -0.68);
+  const nose = animalMesh(new THREE.SphereGeometry(0.034, 12, 8), dark);
+  nose.position.set(0, 0.6, -0.615);
   group.add(nose);
-  for (const x of [-0.1, 0.1]) {
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 6), dark);
-    eye.position.set(x, 0.75, -0.58);
+  for (const x of [-0.075, 0.075]) {
+    const eye = animalMesh(new THREE.SphereGeometry(0.021, 10, 7), dark);
+    eye.position.set(x, 0.685, -0.55);
     group.add(eye);
   }
-  const tail = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.34, 7), tan);
-  tail.position.set(0, 0.61, 0.35);
-  tail.rotation.x = 0.62;
+  const tail = animalMesh(new THREE.ConeGeometry(0.065, 0.32, 9), tan);
+  tail.position.set(0, 0.57, 0.405);
+  tail.rotation.x = 0.58;
   group.add(tail);
 
   group.userData.legs = legs;
   group.userData.tail = tail;
-  addSoftShadow(group, 0.08, 0.08, 0.92, 0.5, 0, 0.16);
-  group.scale.setScalar(0.88);
+  addSoftShadow(group, 0.08, 0.08, 0.76, 0.46, 0, 0.14);
+  group.scale.setScalar(0.94);
   return group;
 }
 

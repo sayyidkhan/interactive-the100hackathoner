@@ -141,6 +141,7 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
   };
 
   const canPlaceAsset = (candidate: TownAsset) => !schema.assets.some((asset) => asset.id !== candidate.id && assetsOverlap(candidate, asset));
+  const canTransformAsset = (_candidate: TownAsset) => true;
 
   const findAvailablePosition = (asset: TownAsset, preferred: [number, number]): [number, number] | null => {
     const centerX = snapToGrid(preferred[0]);
@@ -241,7 +242,7 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
     const asset = getSelectedAsset();
     if (!asset) return;
     const position: [number, number] = [Number((asset.position[0] + x).toFixed(2)), Number((asset.position[1] + z).toFixed(2))];
-    if (!canPlaceAsset({ ...asset, position })) return;
+    if (!canTransformAsset({ ...asset, position })) return;
     commit(() => { asset.position = position; });
   };
 
@@ -250,7 +251,7 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
     if (!asset) return;
     const rotation = (asset.rotation ?? 0) + (degrees * Math.PI) / 180;
     const nextRotation = Math.atan2(Math.sin(rotation), Math.cos(rotation));
-    if (!canPlaceAsset({ ...asset, rotation: nextRotation })) return;
+    if (!canTransformAsset({ ...asset, rotation: nextRotation })) return;
     commit(() => { asset.rotation = nextRotation; });
   };
 
@@ -258,7 +259,7 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
     const asset = schema.assets.find((candidate) => candidate.id === id);
     if (!asset) return;
     const position: [number, number] = [snapToGrid(x), snapToGrid(z)];
-    if (!canPlaceAsset({ ...asset, position })) return;
+    if (!canTransformAsset({ ...asset, position })) return;
     asset.position = position;
     options.onAssetPositionPreview?.(asset);
     options.onSelectionChange?.(asset);
@@ -452,7 +453,20 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
         const selectedAsset = getSelectedAsset();
         const selectedCharacter = getSelectedCharacter();
         if (!selectedAsset && !selectedCharacter) return;
-        applyFieldChange(input.dataset.schemaField ?? "", input.value, selectedAsset, selectedCharacter, canPlaceAsset);
+        applyFieldChange(input.dataset.schemaField ?? "", input.value, selectedAsset, selectedCharacter, canTransformAsset);
+        notify();
+        refreshSelectionPreview();
+      });
+    });
+
+    shell.querySelectorAll<HTMLInputElement>('[data-schema-field="asset.x"], [data-schema-field="asset.z"], [data-schema-field="asset.rotation"], [data-schema-field="asset.scale"]').forEach((input) => {
+      input.addEventListener("input", () => {
+        if (input.value === "" || !input.validity.valid) return;
+        const selectedAsset = getSelectedAsset();
+        if (!selectedAsset) return;
+        const applied = applyFieldChange(input.dataset.schemaField ?? "", Number(input.value), selectedAsset, undefined, canTransformAsset);
+        input.setCustomValidity(applied === false ? "This transform would overlap another asset." : "");
+        if (applied === false) return;
         notify();
         refreshSelectionPreview();
       });
@@ -462,7 +476,7 @@ export function createTownBuilder(root: HTMLElement, options: BuilderOptions): T
       input.addEventListener("change", () => {
         const field = input.dataset.schemaField ?? "";
         const value = input instanceof HTMLInputElement && input.type === "number" ? Number(input.value) : input.value;
-        commit(() => applyFieldChange(field, value, getSelectedAsset(), getSelectedCharacter(), canPlaceAsset));
+        commit(() => applyFieldChange(field, value, getSelectedAsset(), getSelectedCharacter(), canTransformAsset));
       });
     });
   };
@@ -775,15 +789,18 @@ function applyFieldChange(
   value: string | number,
   asset?: TownAsset,
   character?: CharacterSchema,
-  canPlaceAsset?: (asset: TownAsset) => boolean
+  canApplyTransform?: (asset: TownAsset) => boolean
 ): boolean | void {
   if (asset) {
     const candidate: TownAsset = { ...asset, position: [...asset.position] as [number, number] };
     if (field === "asset.x") candidate.position[0] = Number(value);
     if (field === "asset.z") candidate.position[1] = Number(value);
-    if (field === "asset.rotation") candidate.rotation = (Number(value) * Math.PI) / 180;
+    if (field === "asset.rotation") {
+      const rotation = (Number(value) * Math.PI) / 180;
+      candidate.rotation = Math.atan2(Math.sin(rotation), Math.cos(rotation));
+    }
     if (field === "asset.scale") candidate.scale = Math.min(3, Math.max(0.2, Number(value) || 1));
-    if (["asset.x", "asset.z", "asset.rotation", "asset.scale"].includes(field) && canPlaceAsset && !canPlaceAsset(candidate)) return false;
+    if (["asset.x", "asset.z", "asset.rotation", "asset.scale"].includes(field) && canApplyTransform && !canApplyTransform(candidate)) return false;
     if (field === "asset.x" || field === "asset.z") asset.position = candidate.position;
     if (field === "asset.rotation") asset.rotation = candidate.rotation;
     if (field === "asset.scale") asset.scale = candidate.scale;

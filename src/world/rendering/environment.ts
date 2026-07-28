@@ -55,8 +55,8 @@ export function addPerimeterWalls(scene: THREE.Scene): void {
 
 export function addLandscapeDetails(scene: THREE.Scene): void {
   const lawnMaterials = [
-    new THREE.MeshStandardMaterial({ color: "#b5c98d", roughness: 0.98 }),
-    new THREE.MeshStandardMaterial({ color: "#b0c486", roughness: 0.98 })
+    new THREE.MeshStandardMaterial({ color: "#a3c393", roughness: 0.96 }),
+    new THREE.MeshStandardMaterial({ color: "#9abb87", roughness: 0.96 })
   ];
   const patches = [
     [-23, -19, 6.8, 0.82, 0.15, 0],
@@ -80,7 +80,7 @@ export function addLandscapeDetails(scene: THREE.Scene): void {
 export function addPath(scene: THREE.Scene, x: number, z: number, width: number, depth: number, rotation: number): void {
   const path = new THREE.Mesh(
     new THREE.PlaneGeometry(width, depth),
-    new THREE.MeshStandardMaterial({ color: "#d9c29c", roughness: 0.76 })
+    new THREE.MeshStandardMaterial({ color: "#d9c6a8", roughness: 0.84 })
   );
   path.rotation.x = -Math.PI / 2;
   path.rotation.z = rotation;
@@ -90,7 +90,7 @@ export function addPath(scene: THREE.Scene, x: number, z: number, width: number,
 }
 
 export function addPathStones(scene: THREE.Scene): void {
-  const stoneMaterial = new THREE.MeshStandardMaterial({ color: "#d7c59c", roughness: 0.95 });
+  const stoneMaterial = new THREE.MeshStandardMaterial({ color: "#d8c5a8", roughness: 0.95 });
   const positions = [
     [-5.8, -0.7],
     [-3.9, 0.6],

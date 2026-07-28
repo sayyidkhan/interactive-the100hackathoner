@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { DISCOVERIES, type DiscoveryEntry } from "../data/discoveries";
 import {
   TownAsset,
@@ -96,6 +97,15 @@ type TownRuntime = {
   assetLayer: THREE.Group;
 };
 
+type FoliageSway = {
+  object: THREE.Object3D;
+  phase: number;
+  amplitude: number;
+  baseX: number;
+  baseY: number;
+  baseZ: number;
+};
+
 const NEW_DISCOVERY_CARD_DELAY_MS = 620;
 
 type LoopTownOptions = {
@@ -110,15 +120,21 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.02;
+  renderer.toneMapping = THREE.NeutralToneMapping;
+  renderer.toneMappingExposure = 0.91;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   root.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color("#f4ecdd");
-  scene.fog = new THREE.Fog("#f4ecdd", 46, 96);
+  scene.background = new THREE.Color("#f6ead8");
+  scene.fog = new THREE.Fog("#f6ead8", 48, 104);
+  const environmentGenerator = new THREE.PMREMGenerator(renderer);
+  const environmentScene = new RoomEnvironment();
+  scene.environment = environmentGenerator.fromScene(environmentScene, 0.035).texture;
+  scene.environmentIntensity = 0.19;
+  environmentScene.dispose();
+  environmentGenerator.dispose();
 
   const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 130);
   camera.position.set(9, 7, 10);
@@ -177,6 +193,7 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
 
   createTownLights(scene);
   const town = createTown(scene, townSchema);
+  let foliage = collectFoliage(town.assetLayer);
   const builderSelectionMarker = createBuilderSelectionMarker(scene);
   const builderGrid = createBuilderGrid(scene);
   let colliders = town.colliders;
@@ -200,6 +217,7 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
   const applyTownSchema = (nextSchema: TownSchema) => {
     clearGroup(town.assetLayer);
     renderTownAssets(town.assetLayer, nextSchema.assets);
+    foliage = collectFoliage(town.assetLayer);
     colliders = createTownColliders(nextSchema);
     applyCharacterAppearance(player, nextSchema.player.appearance, nextSchema.player.movement);
     clearGroup(citizenLayer);
@@ -243,6 +261,10 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
     onActiveChange: (active) => {
       builderActive = active;
       builderGrid.visible = active;
+      atmosphere.forEach((item) => { item.object.visible = !active; });
+      sakuraPetals.mesh.visible = !active;
+      fireflies.core.visible = !active;
+      fireflies.halo.visible = !active;
       if (!active) {
         builderSelectionMarker.visible = false;
         return;
@@ -393,6 +415,7 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
       hud.showGoalToast();
     }
     updateAtmosphere(atmosphere, delta);
+    updateFoliage(foliage, clock.elapsedTime, delta);
     updateTownAnimals(animals, clock.elapsedTime, delta);
     updateSakuraPetals(sakuraPetals, clock.elapsedTime);
     updateFireflies(fireflies, clock.elapsedTime);
@@ -419,12 +442,54 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
     .finally(() => renderer.setAnimationLoop(animate));
 }
 
+function collectFoliage(root: THREE.Object3D): FoliageSway[] {
+  const foliage: FoliageSway[] = [];
+  root.traverse((object) => {
+    const windSway = object.userData.windSway as { phase: number; amplitude: number } | undefined;
+    if (!windSway) return;
+    foliage.push({
+      object,
+      phase: windSway.phase,
+      amplitude: windSway.amplitude,
+      baseX: object.rotation.x,
+      baseY: object.position.y,
+      baseZ: object.rotation.z
+    });
+  });
+  return foliage;
+}
+
+function updateFoliage(foliage: FoliageSway[], time: number, delta: number): void {
+  for (const leaf of foliage) {
+    const broadSway = Math.sin(time * 0.52 + leaf.phase);
+    const fineSway = Math.sin(time * 0.19 + leaf.phase * 1.7);
+    leaf.object.rotation.x = THREE.MathUtils.damp(
+      leaf.object.rotation.x,
+      leaf.baseX + broadSway * leaf.amplitude * 0.62,
+      5,
+      delta
+    );
+    leaf.object.rotation.z = THREE.MathUtils.damp(
+      leaf.object.rotation.z,
+      leaf.baseZ + (broadSway * 0.72 + fineSway * 0.28) * leaf.amplitude,
+      5,
+      delta
+    );
+    leaf.object.position.y = THREE.MathUtils.damp(
+      leaf.object.position.y,
+      leaf.baseY + fineSway * leaf.amplitude * 0.18,
+      4,
+      delta
+    );
+  }
+}
+
 function createTown(scene: THREE.Scene, schema: TownSchema): TownRuntime {
   addWaterfront(scene);
 
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(72, 72),
-    new THREE.MeshStandardMaterial({ color: "#a9bd8f", roughness: 0.82 })
+    new THREE.MeshStandardMaterial({ color: "#a8c79a", roughness: 0.86 })
   );
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = 0.005;
@@ -439,7 +504,7 @@ function createTown(scene: THREE.Scene, schema: TownSchema): TownRuntime {
   addPath(scene, 1.5, 7.3, 39, 3.2, 0);
   const plaza = new THREE.Mesh(
     new THREE.CircleGeometry(7.2, 56),
-    new THREE.MeshStandardMaterial({ color: "#dfc49a", roughness: 0.74 })
+    new THREE.MeshStandardMaterial({ color: "#ecdcc2", roughness: 0.82 })
   );
   plaza.rotation.x = -Math.PI / 2;
   plaza.position.y = 0.018;
