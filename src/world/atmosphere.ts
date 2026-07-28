@@ -38,6 +38,20 @@ export type WeatherParticles = {
   positions: Float32Array;
   fallSpeeds: Float32Array;
   drifts: Float32Array;
+  lightning: LightningEffect;
+};
+
+type LightningEffect = {
+  group: THREE.Group;
+  core: THREE.Mesh<THREE.TubeGeometry, THREE.MeshBasicMaterial>;
+  glow: THREE.Mesh<THREE.TubeGeometry, THREE.MeshBasicMaterial>;
+  branchCore: THREE.Mesh<THREE.TubeGeometry, THREE.MeshBasicMaterial>;
+  branchGlow: THREE.Mesh<THREE.TubeGeometry, THREE.MeshBasicMaterial>;
+  light: THREE.PointLight;
+  nextStrikeAt: number;
+  strikeStartedAt: number;
+  active: boolean;
+  stormActive: boolean;
 };
 
 export function createAtmosphere(scene: THREE.Scene): AtmosphereObject[] {
@@ -207,7 +221,7 @@ export function createFireflies(scene: THREE.Scene): Firefly {
 }
 
 export function createWeatherParticles(scene: THREE.Scene): WeatherParticles {
-  const count = 440;
+  const count = 1120;
   const positions = new Float32Array(count * 3);
   const fallSpeeds = new Float32Array(count);
   const drifts = new Float32Array(count);
@@ -221,14 +235,14 @@ export function createWeatherParticles(scene: THREE.Scene): WeatherParticles {
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3).setUsage(THREE.DynamicDrawUsage));
   const rainMaterial = new THREE.PointsMaterial({
-    color: "#c8d8df",
+    color: "#dcebf1",
     map: createPrecipitationTexture("rain"),
-    size: 0.32,
+    size: 0.4,
     sizeAttenuation: true,
     transparent: true,
-    opacity: 0.62,
+    opacity: 0.72,
     depthWrite: false,
-    alphaTest: 0.08,
+    alphaTest: 0.04,
     fog: true
   });
   const snowMaterial = new THREE.PointsMaterial({
@@ -250,8 +264,9 @@ export function createWeatherParticles(scene: THREE.Scene): WeatherParticles {
   snow.frustumCulled = false;
   rain.renderOrder = 4;
   snow.renderOrder = 4;
-  scene.add(rain, snow);
-  return { rain, snow, positions, fallSpeeds, drifts };
+  const lightning = createLightningEffect();
+  scene.add(rain, snow, lightning.group, lightning.light);
+  return { rain, snow, positions, fallSpeeds, drifts, lightning };
 }
 
 export function updateAtmosphere(atmosphere: AtmosphereObject[], delta: number): void {
@@ -327,17 +342,24 @@ export function updateWeatherParticles(
 ): void {
   const snowing = condition === "snow";
   const raining = condition === "rain" || condition === "storm";
+  const storming = condition === "storm";
   particles.rain.visible = raining;
   particles.snow.visible = snowing;
+  updateLightning(particles.lightning, time, storming);
   if (!raining && !snowing) return;
-  particles.rain.material.opacity = condition === "storm" ? 0.76 : 0.62;
-  particles.rain.material.size = condition === "storm" ? 0.38 : 0.32;
-  const velocity = snowing ? 1.15 : condition === "storm" ? 9.5 : 7.2;
+  particles.rain.geometry.setDrawRange(0, storming ? particles.fallSpeeds.length : raining ? 720 : 520);
+  particles.rain.material.opacity = storming ? 0.94 : 0.76;
+  particles.rain.material.size = storming ? 0.54 : 0.42;
+  const velocity = snowing ? 1.15 : storming ? 13.5 : 8.8;
   const wind = THREE.MathUtils.clamp(windSpeed / 40, 0.06, 0.8);
   for (let index = 0; index < particles.fallSpeeds.length; index += 1) {
     const offset = index * 3;
     particles.positions[offset + 1] -= velocity * particles.fallSpeeds[index] * delta;
-    particles.positions[offset] += wind * delta * (snowing ? Math.sin(time * 0.55 + particles.drifts[index]) : 1.8);
+    particles.positions[offset] += wind * delta * (snowing
+      ? Math.sin(time * 0.55 + particles.drifts[index])
+      : storming
+        ? 3.1
+        : 2.1);
     if (snowing) particles.positions[offset + 2] += Math.cos(time * 0.42 + particles.drifts[index]) * delta * 0.18;
     if (particles.positions[offset + 1] < 0.2) {
       particles.positions[offset + 1] = 9 + Math.random() * 4;
@@ -347,6 +369,159 @@ export function updateWeatherParticles(
     if (particles.positions[offset] > 31) particles.positions[offset] = -31;
   }
   particles.rain.geometry.attributes.position.needsUpdate = true;
+}
+
+function createLightningEffect(): LightningEffect {
+  const placeholderCurve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0, 1, 0),
+    new THREE.Vector3(0, 0, 0)
+  ]);
+  const coreMaterial = new THREE.MeshBasicMaterial({
+    color: "#fffdf2",
+    transparent: true,
+    opacity: 0,
+    depthTest: false,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending
+  });
+  const glowMaterial = new THREE.MeshBasicMaterial({
+    color: "#b9d7ff",
+    transparent: true,
+    opacity: 0,
+    depthTest: false,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending
+  });
+  const core = new THREE.Mesh(
+    new THREE.TubeGeometry(placeholderCurve, 2, 0.05, 4, false),
+    coreMaterial
+  );
+  const glow = new THREE.Mesh(
+    new THREE.TubeGeometry(placeholderCurve, 2, 0.18, 5, false),
+    glowMaterial
+  );
+  const branchCore = new THREE.Mesh(
+    new THREE.TubeGeometry(placeholderCurve, 2, 0.035, 4, false),
+    coreMaterial.clone()
+  );
+  const branchGlow = new THREE.Mesh(
+    new THREE.TubeGeometry(placeholderCurve, 2, 0.12, 5, false),
+    glowMaterial.clone()
+  );
+  const group = new THREE.Group();
+  group.name = "weather-lightning";
+  group.visible = false;
+  group.renderOrder = 12;
+  for (const mesh of [glow, branchGlow, core, branchCore]) {
+    mesh.frustumCulled = false;
+    mesh.renderOrder = 12;
+    group.add(mesh);
+  }
+  const light = new THREE.PointLight("#d9e8ff", 0, 82, 1.25);
+  light.position.set(0, 13, 0);
+  light.castShadow = false;
+  return {
+    group,
+    core,
+    glow,
+    branchCore,
+    branchGlow,
+    light,
+    nextStrikeAt: Number.POSITIVE_INFINITY,
+    strikeStartedAt: Number.NEGATIVE_INFINITY,
+    active: false,
+    stormActive: false
+  };
+}
+
+function updateLightning(lightning: LightningEffect, time: number, storming: boolean): void {
+  if (!storming) {
+    lightning.group.visible = false;
+    lightning.light.intensity = 0;
+    lightning.active = false;
+    lightning.stormActive = false;
+    lightning.nextStrikeAt = Number.POSITIVE_INFINITY;
+    return;
+  }
+
+  if (!lightning.stormActive) {
+    lightning.stormActive = true;
+    lightning.nextStrikeAt = time + 0.45;
+  }
+
+  if (!lightning.active && time >= lightning.nextStrikeAt) {
+    regenerateLightningBolt(lightning);
+    lightning.active = true;
+    lightning.strikeStartedAt = time;
+    lightning.nextStrikeAt = Number.POSITIVE_INFINITY;
+  }
+  if (!lightning.active) return;
+
+  const elapsed = time - lightning.strikeStartedAt;
+  let strength = 0;
+  if (elapsed < 0.07) strength = 1;
+  else if (elapsed < 0.14) strength = THREE.MathUtils.lerp(1, 0.16, (elapsed - 0.07) / 0.07);
+  else if (elapsed < 0.21) strength = 0.16;
+  else if (elapsed < 0.28) strength = 0.88;
+  else if (elapsed < 0.46) strength = THREE.MathUtils.lerp(0.88, 0, (elapsed - 0.28) / 0.18);
+  else {
+    lightning.active = false;
+    lightning.group.visible = false;
+    lightning.light.intensity = 0;
+    lightning.nextStrikeAt = time + 2.4 + Math.random() * 3.8;
+    return;
+  }
+
+  lightning.group.visible = true;
+  lightning.core.material.opacity = strength;
+  lightning.branchCore.material.opacity = strength * 0.9;
+  lightning.glow.material.opacity = strength * 0.32;
+  lightning.branchGlow.material.opacity = strength * 0.22;
+  lightning.light.intensity = strength * 12;
+}
+
+function regenerateLightningBolt(lightning: LightningEffect): void {
+  const startX = (Math.random() - 0.5) * 34;
+  const startZ = (Math.random() - 0.5) * 32;
+  const travelX = (Math.random() - 0.5) * 10;
+  const travelZ = (Math.random() - 0.5) * 10;
+  const points: THREE.Vector3[] = [];
+  const segments = 15;
+  for (let index = 0; index <= segments; index += 1) {
+    const progress = index / segments;
+    const jitter = 0.25 + progress * 1.35;
+    points.push(new THREE.Vector3(
+      startX + travelX * progress + (Math.random() - 0.5) * jitter,
+      22 - progress * 21.3,
+      startZ + travelZ * progress + (Math.random() - 0.5) * jitter
+    ));
+  }
+
+  const branchOrigin = points[7];
+  const branchPoints = [
+    branchOrigin.clone(),
+    branchOrigin.clone().add(new THREE.Vector3((Math.random() - 0.5) * 2.2, -1.6, (Math.random() - 0.5) * 2.2)),
+    branchOrigin.clone().add(new THREE.Vector3((Math.random() - 0.5) * 4.8, -3.8, (Math.random() - 0.5) * 4.8)),
+    branchOrigin.clone().add(new THREE.Vector3((Math.random() - 0.5) * 7.2, -6.4, (Math.random() - 0.5) * 7.2))
+  ];
+  const mainCurve = new THREE.CatmullRomCurve3(points);
+  const branchCurve = new THREE.CatmullRomCurve3(branchPoints);
+  replaceTubeGeometry(lightning.core, mainCurve, 0.055);
+  replaceTubeGeometry(lightning.glow, mainCurve, 0.2);
+  replaceTubeGeometry(lightning.branchCore, branchCurve, 0.038);
+  replaceTubeGeometry(lightning.branchGlow, branchCurve, 0.13);
+
+  const midpoint = points[Math.floor(points.length / 2)];
+  lightning.light.position.set(midpoint.x, 13, midpoint.z);
+}
+
+function replaceTubeGeometry(
+  mesh: THREE.Mesh<THREE.TubeGeometry, THREE.MeshBasicMaterial>,
+  curve: THREE.CatmullRomCurve3,
+  radius: number
+): void {
+  mesh.geometry.dispose();
+  mesh.geometry = new THREE.TubeGeometry(curve, 36, radius, 5, false);
 }
 
 export function updateFireflies(fireflies: Firefly, time: number): void {
