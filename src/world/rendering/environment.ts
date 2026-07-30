@@ -1,5 +1,9 @@
 import * as THREE from "three";
-import { TOWN_SPREAD } from "../worldConstants";
+import {
+  PERIMETER_WALL_CENTER,
+  PERIMETER_WALL_THICKNESS,
+  TOWN_SPREAD
+} from "../worldConstants";
 import { addRock } from "./props";
 
 export function addWaterfront(scene: THREE.Scene): void {
@@ -22,9 +26,9 @@ export function addWaterfront(scene: THREE.Scene): void {
 }
 
 export function addPerimeterWalls(scene: THREE.Scene): void {
-  const boundary = 35;
+  const boundary = PERIMETER_WALL_CENTER;
   const wallHeight = 3.25;
-  const wallThickness = 1.45;
+  const wallThickness = PERIMETER_WALL_THICKNESS;
   const wallMaterial = new THREE.MeshStandardMaterial({
     color: "#456d43",
     emissive: "#29472d",
