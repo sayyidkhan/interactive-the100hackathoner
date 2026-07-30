@@ -20,6 +20,7 @@ export type MoonVisual = {
 
 export type SakuraPetal = {
   mesh: THREE.InstancedMesh<THREE.ShapeGeometry, THREE.MeshBasicMaterial>;
+  leafMesh: THREE.InstancedMesh<THREE.ShapeGeometry, THREE.MeshBasicMaterial>;
   origins: THREE.Vector3[];
   phases: Float32Array;
   drifts: Float32Array;
@@ -27,6 +28,7 @@ export type SakuraPetal = {
   scales: Float32Array;
   spinRates: Float32Array;
   transform: THREE.Object3D;
+  style: FallingFoliage;
 };
 
 export type Firefly = {
@@ -233,22 +235,31 @@ export function updateMoonTexture(moon: MoonVisual, phase: number): void {
 }
 
 export function createSakuraPetals(scene: THREE.Scene): SakuraPetal {
-  const count = 128;
-  const shape = new THREE.Shape();
-  shape.moveTo(0, 0.13);
-  shape.quadraticCurveTo(0.1, 0.03, 0, -0.13);
-  shape.quadraticCurveTo(-0.1, 0.03, 0, 0.13);
-  const geometry = new THREE.ShapeGeometry(shape);
+  const count = 280;
+  const petalShape = new THREE.Shape();
+  petalShape.moveTo(0, -0.18);
+  petalShape.bezierCurveTo(0.15, -0.1, 0.18, 0.09, 0.055, 0.19);
+  petalShape.lineTo(0, 0.145);
+  petalShape.lineTo(-0.055, 0.19);
+  petalShape.bezierCurveTo(-0.18, 0.09, -0.15, -0.1, 0, -0.18);
+  const petalGeometry = new THREE.ShapeGeometry(petalShape);
+  const leafShape = new THREE.Shape();
+  leafShape.moveTo(0, 0.21);
+  leafShape.quadraticCurveTo(0.11, 0.01, 0, -0.21);
+  leafShape.quadraticCurveTo(-0.11, 0.01, 0, 0.21);
+  const leafGeometry = new THREE.ShapeGeometry(leafShape);
   const colors = ["#dba8aa", "#e8bfba", "#b89aa4", "#d4aaa9", "#8e817d"];
   const material = new THREE.MeshBasicMaterial({
     color: "#ffffff",
     transparent: true,
-    opacity: 0.62,
+    opacity: 0.84,
     side: THREE.DoubleSide,
     depthWrite: false,
-    vertexColors: true
+    vertexColors: true,
+    fog: false
   });
-  const mesh = new THREE.InstancedMesh(geometry, material, count);
+  const mesh = new THREE.InstancedMesh(petalGeometry, material, count);
+  const leafMesh = new THREE.InstancedMesh(leafGeometry, material.clone(), count);
   const origins: THREE.Vector3[] = [];
   const phases = new Float32Array(count);
   const drifts = new Float32Array(count);
@@ -257,11 +268,13 @@ export function createSakuraPetals(scene: THREE.Scene): SakuraPetal {
   const spinRates = new Float32Array(count);
   const transform = new THREE.Object3D();
   const zones = [
-    { x: 0, z: 1, radius: 10 },
-    { x: 11, z: 13, radius: 7 },
-    { x: -13, z: 9, radius: 7 },
-    { x: 14, z: -10, radius: 7 },
-    { x: -12, z: -12, radius: 7 }
+    { x: 0, z: 1, radius: 12 },
+    { x: 15, z: 14, radius: 9 },
+    { x: -15, z: 13, radius: 9 },
+    { x: 16, z: -12, radius: 9 },
+    { x: -15, z: -13, radius: 9 },
+    { x: 0, z: 24, radius: 8 },
+    { x: 0, z: -22, radius: 8 }
   ] as const;
 
   for (let index = 0; index < count; index += 1) {
@@ -277,23 +290,44 @@ export function createSakuraPetals(scene: THREE.Scene): SakuraPetal {
     origins.push(origin);
     phases[index] = phase;
     drifts[index] = 0.32 + Math.random() * 0.58;
-    fallSpeeds[index] = 0.24 + Math.random() * 0.22;
-    scales[index] = 0.48 + Math.random() * 0.68;
+    fallSpeeds[index] = 0.3 + Math.random() * 0.28;
+    scales[index] = 0.66 + Math.random() * 0.62;
     spinRates[index] = 0.58 + Math.random() * 0.72;
     transform.position.copy(origin);
     transform.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, phase);
     transform.scale.setScalar(scales[index]);
     transform.updateMatrix();
     mesh.setMatrixAt(index, transform.matrix);
+    transform.scale.setScalar(0);
+    transform.updateMatrix();
+    leafMesh.setMatrixAt(index, transform.matrix);
     mesh.setColorAt(index, new THREE.Color(colors[index % colors.length]));
+    leafMesh.setColorAt(index, new THREE.Color("#78985a"));
   }
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  leafMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   mesh.instanceMatrix.needsUpdate = true;
+  leafMesh.instanceMatrix.needsUpdate = true;
   if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  if (leafMesh.instanceColor) leafMesh.instanceColor.needsUpdate = true;
   mesh.frustumCulled = false;
-  mesh.renderOrder = 2;
-  scene.add(mesh);
-  return { mesh, origins, phases, drifts, fallSpeeds, scales, spinRates, transform };
+  leafMesh.frustumCulled = false;
+  mesh.renderOrder = 5;
+  leafMesh.renderOrder = 5;
+  leafMesh.visible = false;
+  scene.add(mesh, leafMesh);
+  return {
+    mesh,
+    leafMesh,
+    origins,
+    phases,
+    drifts,
+    fallSpeeds,
+    scales,
+    spinRates,
+    transform,
+    style: "sakura"
+  };
 }
 
 export function createFireflies(scene: THREE.Scene): Firefly {
@@ -457,11 +491,23 @@ export function updateSakuraPetals(petals: SakuraPetal, time: number): void {
       time * 0.48 * petals.spinRates[index] + phase * 0.6,
       Math.sin(time * 0.72 + phase) * 0.72
     );
-    petals.transform.scale.setScalar(petals.scales[index] * edgeFade);
+    const baseScale = petals.scales[index] * edgeFade;
+    const showPetal = petals.style === "sakura" || (petals.style === "mixed" && index % 2 === 0);
+    const showLeaf = petals.style === "leaves" || (petals.style === "mixed" && index % 2 === 1);
+    petals.transform.scale.setScalar(showPetal ? baseScale : 0);
     petals.transform.updateMatrix();
     petals.mesh.setMatrixAt(index, petals.transform.matrix);
+    petals.transform.rotation.z += Math.sin(time * 0.27 + phase * 1.6) * 0.38;
+    petals.transform.scale.set(
+      showLeaf ? baseScale * 0.72 : 0,
+      showLeaf ? baseScale * 1.12 : 0,
+      showLeaf ? baseScale : 0
+    );
+    petals.transform.updateMatrix();
+    petals.leafMesh.setMatrixAt(index, petals.transform.matrix);
   }
   petals.mesh.instanceMatrix.needsUpdate = true;
+  petals.leafMesh.instanceMatrix.needsUpdate = true;
 }
 
 export function setFallingFoliageAppearance(
@@ -469,7 +515,7 @@ export function setFallingFoliageAppearance(
   style: FallingFoliage,
   season: Exclude<SeasonChoice, "auto">
 ): void {
-  const sakura = ["#dba8aa", "#e8bfba", "#b89aa4", "#d4aaa9", "#f1d0c8"];
+  const sakura = ["#e4a1ad", "#f0bbb8", "#c98c9d", "#e5ada9", "#f4cec7"];
   const seasonalLeaves: Record<Exclude<SeasonChoice, "auto">, string[]> = {
     spring: ["#91aa68", "#b5bd78", "#7e9c5e", "#c6b981", "#89a56b"],
     summer: ["#527c48", "#678e50", "#466f43", "#78985a", "#5f844c"],
@@ -479,12 +525,19 @@ export function setFallingFoliageAppearance(
     dry: ["#b58b4f", "#c6a05e", "#8e7448", "#d0ad67", "#9f7c46"]
   };
   const leaves = seasonalLeaves[season];
-  petals.mesh.visible = style !== "off";
+  petals.style = style;
+  setFallingFoliageVisibility(petals, style !== "off");
   for (let index = 0; index < petals.origins.length; index += 1) {
-    const palette = style === "sakura" || (style === "mixed" && index % 2 === 0) ? sakura : leaves;
-    petals.mesh.setColorAt(index, new THREE.Color(palette[index % palette.length]));
+    petals.mesh.setColorAt(index, new THREE.Color(sakura[index % sakura.length]));
+    petals.leafMesh.setColorAt(index, new THREE.Color(leaves[index % leaves.length]));
   }
   if (petals.mesh.instanceColor) petals.mesh.instanceColor.needsUpdate = true;
+  if (petals.leafMesh.instanceColor) petals.leafMesh.instanceColor.needsUpdate = true;
+}
+
+export function setFallingFoliageVisibility(petals: SakuraPetal, visible: boolean): void {
+  petals.mesh.visible = visible && (petals.style === "sakura" || petals.style === "mixed");
+  petals.leafMesh.visible = visible && (petals.style === "leaves" || petals.style === "mixed");
 }
 
 export function updateWeatherParticles(
@@ -531,11 +584,11 @@ function createLightningEffect(): LightningEffect {
   const boltGroup = new THREE.Group();
   boltGroup.name = "weather-lightning-bolts";
   group.add(boltGroup);
-  const bolts = Array.from({ length: 4 }, (_, index) => createLightningBolt(index * 0.17));
+  const bolts = Array.from({ length: 2 }, (_, index) => createLightningBolt(index * 0.17));
   bolts.forEach((bolt) => boltGroup.add(bolt.group));
   boltGroup.visible = false;
 
-  const sparkCount = 240;
+  const sparkCount = 360;
   const sparkPositions = new Float32Array(sparkCount * 3);
   const sparkVelocities = new Float32Array(sparkCount * 3);
   const sparkAges = new Float32Array(sparkCount);
@@ -549,10 +602,10 @@ function createLightningEffect(): LightningEffect {
   sparkGeometry.setAttribute("color", new THREE.BufferAttribute(sparkColors, 3).setUsage(THREE.DynamicDrawUsage));
   const sparkMaterial = new THREE.PointsMaterial({
     map: createSparkTexture(),
-    size: 0.26,
+    size: 0.42,
     sizeAttenuation: true,
     transparent: true,
-    opacity: 0.96,
+    opacity: 1,
     depthTest: false,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
@@ -792,23 +845,27 @@ function setTubeProgress(
 }
 
 function spawnGroundSparks(lightning: LightningEffect, impactPoint: THREE.Vector3): void {
-  const sparkCount = 28;
+  const sparkCount = 44;
   for (let spark = 0; spark < sparkCount; spark += 1) {
     const index = lightning.sparkCursor;
     lightning.sparkCursor = (lightning.sparkCursor + 1) % lightning.sparkAges.length;
     const offset = index * 3;
     const angle = Math.random() * Math.PI * 2;
-    const horizontalSpeed = 1.8 + Math.random() * 4.6;
+    const horizontalSpeed = 2.2 + Math.random() * 5.1;
     lightning.sparkPositions[offset] = impactPoint.x;
     lightning.sparkPositions[offset + 1] = 0.18 + Math.random() * 0.16;
     lightning.sparkPositions[offset + 2] = impactPoint.z;
     lightning.sparkVelocities[offset] = Math.cos(angle) * horizontalSpeed;
-    lightning.sparkVelocities[offset + 1] = 2.6 + Math.random() * 5.4;
+    lightning.sparkVelocities[offset + 1] = 3.4 + Math.random() * 5.2;
     lightning.sparkVelocities[offset + 2] = Math.sin(angle) * horizontalSpeed;
     lightning.sparkAges[index] = 0;
-    lightning.sparkLifetimes[index] = 0.48 + Math.random() * 0.48;
+    lightning.sparkLifetimes[index] = 0.62 + Math.random() * 0.5;
+    lightning.sparkColors[offset] = 1;
+    lightning.sparkColors[offset + 1] = 0.94 + Math.random() * 0.06;
+    lightning.sparkColors[offset + 2] = 0.08 + Math.random() * 0.12;
   }
   lightning.sparks.geometry.attributes.position.needsUpdate = true;
+  lightning.sparks.geometry.attributes.color.needsUpdate = true;
 }
 
 function updateStormSparks(lightning: LightningEffect, delta: number): void {
@@ -827,14 +884,14 @@ function updateStormSparks(lightning: LightningEffect, delta: number): void {
       lightning.sparkColors[offset + 2] = 0;
       continue;
     }
-    lightning.sparkVelocities[offset + 1] -= 9.4 * delta;
+    lightning.sparkVelocities[offset + 1] -= 8.8 * delta;
     lightning.sparkPositions[offset] += lightning.sparkVelocities[offset] * delta;
     lightning.sparkPositions[offset + 1] += lightning.sparkVelocities[offset + 1] * delta;
     lightning.sparkPositions[offset + 2] += lightning.sparkVelocities[offset + 2] * delta;
     const life = 1 - age / lifetime;
     lightning.sparkColors[offset] = 1;
-    lightning.sparkColors[offset + 1] = 0.24 + life * 0.66;
-    lightning.sparkColors[offset + 2] = 0.03 + life * 0.18;
+    lightning.sparkColors[offset + 1] = 0.62 + life * 0.38;
+    lightning.sparkColors[offset + 2] = 0.04 + life * 0.26;
   }
   lightning.sparks.geometry.attributes.position.needsUpdate = true;
   lightning.sparks.geometry.attributes.color.needsUpdate = true;
@@ -904,10 +961,10 @@ function createSparkTexture(): THREE.CanvasTexture {
   const context = canvas.getContext("2d");
   if (!context) throw new Error("Could not create lightning spark texture");
   const glow = context.createRadialGradient(16, 16, 1, 16, 16, 15);
-  glow.addColorStop(0, "rgba(255,255,235,1)");
-  glow.addColorStop(0.22, "rgba(255,204,82,1)");
-  glow.addColorStop(0.58, "rgba(255,117,30,0.62)");
-  glow.addColorStop(1, "rgba(255,82,20,0)");
+  glow.addColorStop(0, "rgba(255,255,244,1)");
+  glow.addColorStop(0.2, "rgba(255,244,107,1)");
+  glow.addColorStop(0.58, "rgba(255,194,38,0.74)");
+  glow.addColorStop(1, "rgba(255,151,18,0)");
   context.fillStyle = glow;
   context.fillRect(0, 0, 32, 32);
   const texture = new THREE.CanvasTexture(canvas);

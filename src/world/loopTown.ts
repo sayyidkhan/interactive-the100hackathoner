@@ -84,6 +84,11 @@ import {
 } from "./camera/builder";
 import { applySceneShadows, createSoftShadow, createTownLights } from "./rendering/shadows";
 import {
+  createSeasonalScenery,
+  refreshSeasonalSceneryLayout,
+  updateSeasonalScenery
+} from "./seasonalScenery";
+import {
   addLandscapeDetails,
   addPath,
   addPathStones,
@@ -199,6 +204,7 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
 
   const townLights = createTownLights(scene);
   const town = createTown(scene, townSchema);
+  const seasonalScenery = createSeasonalScenery(scene, town.assetLayer);
   let foliage = collectFoliage(town.assetLayer);
   const builderSelectionMarker = createBuilderSelectionMarker(scene);
   const builderGrid = createBuilderGrid(scene);
@@ -232,6 +238,7 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
     petals: sakuraPetals,
     fireflies,
     weatherParticles,
+    seasonalScenery,
     onStatus: (status: EnvironmentRuntimeStatus) => {
       root.dataset.weather = status.weather;
       root.dataset.season = status.season;
@@ -249,6 +256,7 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
   const applyTownSchema = (nextSchema: TownSchema) => {
     clearGroup(town.assetLayer);
     renderTownAssets(town.assetLayer, nextSchema.assets);
+    refreshSeasonalSceneryLayout(seasonalScenery, town.assetLayer);
     foliage = collectFoliage(town.assetLayer);
     colliders = createTownColliders(nextSchema);
     applyCharacterAppearance(player, nextSchema.player.appearance, nextSchema.player.movement);
@@ -455,6 +463,7 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
     updateTownAnimals(animals, clock.elapsedTime, delta);
     updateSakuraPetals(sakuraPetals, clock.elapsedTime);
     updateFireflies(fireflies, clock.elapsedTime);
+    updateSeasonalScenery(seasonalScenery, clock.elapsedTime);
     environmentController.update(clock.elapsedTime, delta);
     const targetFov = !builderActive && !cinematic.active && playerMotion.speed > 4.8 ? 46 : 40;
     const previousFov = camera.fov;

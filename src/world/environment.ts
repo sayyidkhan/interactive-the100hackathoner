@@ -20,10 +20,15 @@ import {
   type SakuraPetal,
   type WeatherParticles,
   setFallingFoliageAppearance,
+  setFallingFoliageVisibility,
   updateMoonTexture,
   updateWeatherParticles
 } from "./atmosphere";
 import { type TownLights } from "./rendering/shadows";
+import {
+  type SeasonalScenery,
+  setSeasonalScenerySeason
+} from "./seasonalScenery";
 
 export type EnvironmentRuntimeStatus = {
   loading: boolean;
@@ -44,6 +49,7 @@ type EnvironmentControllerOptions = {
   petals: SakuraPetal;
   fireflies: Firefly;
   weatherParticles: WeatherParticles;
+  seasonalScenery: SeasonalScenery;
   onStatus: (status: EnvironmentRuntimeStatus) => void;
 };
 
@@ -257,6 +263,7 @@ export function createEnvironmentController(options: EnvironmentControllerOption
       lastSeason = season;
       lastFoliage = settings.foliage;
       setFallingFoliageAppearance(options.petals, settings.foliage, season);
+      setSeasonalScenerySeason(options.seasonalScenery, season);
       refreshSeasonMaterials();
     }
     if (settings.weatherMode === "manual") {
@@ -291,6 +298,7 @@ export function createEnvironmentController(options: EnvironmentControllerOption
     if (season !== lastSeason) {
       lastSeason = season;
       setFallingFoliageAppearance(options.petals, settings.foliage, season);
+      setSeasonalScenerySeason(options.seasonalScenery, season);
       refreshSeasonMaterials();
       report();
     }
@@ -382,7 +390,23 @@ export function createEnvironmentController(options: EnvironmentControllerOption
     options.fireflies.halo.visible = fireflyVisibility > 0.04;
     options.fireflies.core.material.opacity = 0.76 * fireflyVisibility;
     options.fireflies.halo.material.opacity = 0.12 * fireflyVisibility;
-    options.petals.mesh.visible = settings.foliage !== "off" && weather !== "storm";
+    setFallingFoliageVisibility(
+      options.petals,
+      settings.foliage !== "off" && weather !== "storm"
+    );
+    const foliageOpacity = weather === "rain" ? 0.76 : 0.84;
+    options.petals.mesh.material.opacity = THREE.MathUtils.damp(
+      options.petals.mesh.material.opacity,
+      foliageOpacity,
+      3.2,
+      delta
+    );
+    options.petals.leafMesh.material.opacity = THREE.MathUtils.damp(
+      options.petals.leafMesh.material.opacity,
+      foliageOpacity,
+      3.2,
+      delta
+    );
     updateWeatherParticles(options.weatherParticles, delta, time, weather, snapshot?.windSpeed ?? 8);
 
     if (currentMinute !== lastReportedMinute) {
