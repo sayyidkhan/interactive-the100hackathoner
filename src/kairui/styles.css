@@ -1,0 +1,242 @@
+
+  :root { --coral: #FF7E5F; --ink: #3A2E28; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #FFE8C9; }
+  body { font-family: 'Nunito', sans-serif; }
+  a { color: var(--coral); }
+  a:hover { color: #E8593A; }
+  #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+
+  /* soft tilt-shift vignette */
+  #vignette { position: fixed; inset: 0; pointer-events: none; z-index: 5;
+    background:
+      radial-gradient(ellipse 140% 90% at 50% 45%, transparent 62%, rgba(30,20,15,0.16) 100%),
+      linear-gradient(to bottom, rgba(30,20,15,0.10), transparent 12%, transparent 88%, rgba(30,20,15,0.12));
+  }
+
+  /* Resume escape hatch — always visible */
+  #resumeBtn { position: fixed; top: 18px; right: 20px; z-index: 20;
+    background: rgba(255,251,244,0.92); color: var(--ink); text-decoration: none;
+    font-weight: 700; font-size: 14px; letter-spacing: 0.02em;
+    padding: 9px 16px; border-radius: 999px;
+    border: 1.5px solid rgba(58,46,40,0.12);
+    box-shadow: 0 2px 10px rgba(58,46,40,0.10);
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease; }
+  #resumeBtn:hover { transform: translateY(-1px) scale(1.03); border-color: var(--coral);
+    box-shadow: 0 4px 14px rgba(255,126,95,0.28); color: var(--ink); }
+
+  /* Chapter dot nav */
+  #dots { position: fixed; right: 20px; top: 50%; transform: translateY(-50%); z-index: 20;
+    display: flex; flex-direction: column; gap: 14px; align-items: flex-end; }
+  .dot { display: flex; align-items: center; gap: 10px; cursor: pointer;
+    background: none; border: none; padding: 4px; font-family: inherit; }
+  .dot .label { font-size: 12.5px; font-weight: 700; color: #FFFBF4; opacity: 0;
+    transform: translateX(6px); transition: opacity 0.2s ease, transform 0.2s ease;
+    text-shadow: 0 1px 6px rgba(20,15,10,0.45); pointer-events: none; }
+  .dot:hover .label, .dot:focus-visible .label { opacity: 1; transform: translateX(0); }
+  .dot .pip { width: 9px; height: 9px; border-radius: 50%; flex: none;
+    background: rgba(255,251,244,0.55); border: 1.5px solid rgba(255,251,244,0.8);
+    transition: background 0.25s ease, transform 0.25s ease, border-color 0.25s ease; }
+  .dot.active .pip { background: var(--coral); border-color: #FFFBF4; transform: scale(1.45); }
+  .dot:hover .pip { transform: scale(1.3); }
+
+  /* Scroll hint */
+  #hint { position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%); z-index: 20;
+    color: #FFFBF4; font-size: 15px; font-style: italic; font-weight: 600;
+    text-shadow: 0 1px 8px rgba(20,15,10,0.4); pointer-events: none;
+    transition: opacity 0.6s ease; }
+  #hint .arrow { display: inline-block; animation: bob 1.6s ease-in-out infinite; font-style: normal; }
+  #hint.hidden { opacity: 0; }
+  @keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(5px); } }
+
+  /* Sound: speaker toggle — same pill treatment as Resume, line-drawn icon */
+  #sndBtn { position: fixed; top: 18px; right: 158px; z-index: 20;
+    background: rgba(255,251,244,0.92); color: var(--ink);
+    padding: 9px 13px; border-radius: 999px;
+    border: 1.5px solid rgba(58,46,40,0.12);
+    box-shadow: 0 2px 10px rgba(58,46,40,0.10);
+    cursor: pointer; display: none; align-items: center; justify-content: center;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, opacity 0.3s ease; }
+  #sndBtn:hover { transform: translateY(-1px) scale(1.03); border-color: var(--coral);
+    box-shadow: 0 4px 14px rgba(255,126,95,0.28); }
+  #sndBtn.show { display: flex; }
+  #sndBtn.muted { opacity: 0.72; }
+  #sndBtn svg { display: block; width: 18px; height: 18px; stroke: var(--ink); stroke-width: 2;
+    stroke-linecap: round; stroke-linejoin: round; fill: none; }
+  #skipWork.gone, #tourBtn.gone { opacity: 0 !important; pointer-events: none !important; }
+
+  /* Persistent skip-to-work link */
+  #skipWork { position: fixed; right: 20px; bottom: 22px; z-index: 20;
+    background: rgba(255,251,244,0.14); color: #FFFBF4;
+    border: 1.5px solid rgba(255,251,244,0.42);
+    font-family: inherit; font-weight: 700; font-size: 12.5px; letter-spacing: 0.02em;
+    padding: 7px 13px; border-radius: 999px; cursor: pointer;
+    -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+    text-shadow: 0 1px 6px rgba(20,15,10,0.4);
+    transition: background 0.2s ease, transform 0.18s ease, border-color 0.2s ease; }
+  #skipWork:hover { background: var(--coral); border-color: var(--coral); transform: translateY(-1px); }
+
+  /* Guided-tour control — stacked above the skip pill on the right edge, near the dot-nav */
+  #tourBtn { position: fixed; right: 20px; bottom: 60px; z-index: 20;
+    background: rgba(255,251,244,0.14); color: #FFFBF4;
+    border: 1.5px solid rgba(255,251,244,0.42);
+    border-radius: 999px; padding: 9px 16px; cursor: pointer;
+    font-family: inherit; font-weight: 700; font-size: 12.5px; letter-spacing: 0.04em;
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    text-shadow: 0 1px 6px rgba(20,15,10,0.4);
+    transition: background 0.2s ease, transform 0.18s ease, border-color 0.2s ease; }
+  #tourBtn:hover { background: var(--coral); border-color: var(--coral); transform: translateY(-1px); }
+  #tourBtn.touring { background: var(--coral); border-color: var(--coral); }
+
+  /* ── Free-sail (Take the helm) + balloon ride ── */
+  #returnShore, #returnGround { position: fixed; left: 16px; top: 16px; z-index: 22; display: none;
+    background: rgba(43,34,28,0.9); color: #FFF7EA; border: none; border-radius: 999px;
+    padding: 11px 20px; font-family: inherit; font-weight: 800; font-size: 14px; cursor: pointer; }
+  #returnShore:hover, #returnGround:hover { background: rgba(64,51,42,0.96); }
+  #sailHint, #rideHint { position: fixed; left: 50%; bottom: 30px; transform: translateX(-50%); z-index: 22;
+    color: #FFFBF4; font-size: 14.5px; font-weight: 600; font-style: italic; opacity: 0;
+    text-shadow: 0 1px 8px rgba(20,15,10,0.55); transition: opacity 0.9s ease; pointer-events: none; white-space: nowrap; }
+  #sailCap { position: fixed; left: 50%; bottom: 66px; transform: translateX(-50%); z-index: 22;
+    color: #FFF7EA; font-size: 17px; font-weight: 700; opacity: 0; transition: opacity 0.5s ease;
+    text-shadow: 0 1px 10px rgba(20,15,10,0.6); pointer-events: none; white-space: nowrap; }
+  #sailPad { position: fixed; right: 16px; bottom: 20px; z-index: 22; display: none; gap: 10px; }
+  #sailPad button { width: 58px; height: 58px; border-radius: 50%; border: none; font-size: 22px;
+    background: rgba(43,34,28,0.82); color: #FFF7EA; font-family: inherit; touch-action: none; cursor: pointer; }
+  body.sailing .chapter, body.sailing #dots, body.sailing #skipWork, body.sailing #tourBtn, body.sailing #hint,
+  body.sailing #tip, body.sailing #resumeBtn, body.sailing #constLabels,
+  body.ballooning .chapter, body.ballooning #dots, body.ballooning #skipWork, body.ballooning #tourBtn, body.ballooning #hint,
+  body.ballooning #tip, body.ballooning #resumeBtn, body.ballooning #constLabels { opacity: 0 !important; pointer-events: none !important;
+    transition: opacity 0.4s ease !important; }
+
+  #fps { position: fixed; left: 12px; bottom: 10px; z-index: 20; color: #FFFBF4;
+    font-size: 11px; font-weight: 700; opacity: 0.75; display: none;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.5); }
+  /* ── Overlay content ── */
+  #ui { position: fixed; inset: 0; z-index: 10; pointer-events: none; overflow: hidden; }
+  .chapter { position: absolute; left: 44px; bottom: 52px; width: min(400px, calc(100vw - 120px));
+    display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+  .chapter > * { opacity: 0; transform: translateY(20px);
+    transition: opacity 0.4s ease, transform 0.4s ease, visibility 0s linear 0.45s; visibility: hidden; }
+  .chapter > *:nth-child(2) { transition-delay: 0.08s, 0.08s, 0.45s; }
+  .chapter > *:nth-child(3) { transition-delay: 0.16s, 0.16s, 0.45s; }
+  .chapter.show > * { opacity: 1; transform: none; visibility: visible; transition-delay: 0s; }
+  .chapter.show > *:nth-child(2) { transition-delay: 0.08s; }
+  .chapter.show > *:nth-child(3) { transition-delay: 0.16s; }
+
+  .card { background: rgba(255,251,244,0.93); border-radius: 16px; padding: 18px 20px; color: var(--ink);
+    box-shadow: 0 6px 24px rgba(30,20,15,0.18); border: 1.5px solid rgba(58,46,40,0.08); width: 100%; box-sizing: border-box; }
+  .chapter.show .card { pointer-events: auto; }
+  .card h2 { margin: 0 0 6px; font-size: 19px; font-weight: 800; }
+  .card p { margin: 0; font-size: 14.5px; line-height: 1.55; }
+  .card .role { font-size: 12px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase;
+    color: #C4593F; margin: 0 0 8px; }
+  .card.swap, .card.pre { opacity: 0 !important; transform: translateY(10px) !important;
+    transition: opacity 0.16s ease, transform 0.16s ease !important; }
+  .card .thumb { display: block; width: 100%; height: 118px; object-fit: cover; border-radius: 12px; margin: 2px 0 10px; }
+  .card .thumb.logo { height: 88px; object-fit: contain; background: #FFF; padding: 10px 14px; box-sizing: border-box; }
+  .g2048 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; background: #BBADA0;
+    padding: 6px; border-radius: 10px; width: 172px; margin: 2px 0 10px; }
+  .g2048 i { aspect-ratio: 1; border-radius: 4px; background: rgba(238,228,218,0.35); font-style: normal;
+    font-weight: 800; font-size: 14px; display: flex; align-items: center; justify-content: center; }
+  @keyframes tilepop { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+  .visit { display: inline-block; margin-top: 10px; font-weight: 800; font-size: 14px; text-decoration: none; }
+  .visit:hover { text-decoration: underline; }
+  .pips { display: flex; gap: 5px; margin-top: 12px; }
+  .pips i { width: 6px; height: 6px; border-radius: 50%; background: rgba(58,46,40,0.18); }
+  .pips i.on { background: var(--coral); }
+
+  .kicker { background: rgba(43,34,28,0.78); color: #FFF3E2; font-size: 13.5px; font-weight: 600;
+    font-style: italic; padding: 8px 15px; border-radius: 999px; line-height: 1.4;
+    box-shadow: 0 3px 12px rgba(30,20,15,0.22); }
+
+  .rack { display: flex; align-items: baseline; gap: 10px; margin-top: 10px; }
+  .rack .chip { flex: none; font-size: 11px; font-weight: 800; letter-spacing: 0.08em;
+    background: var(--coral); color: #FFFBF4; border-radius: 6px; padding: 3px 8px; }
+  .rack span:last-child { font-size: 13.5px; line-height: 1.5; font-weight: 600; }
+
+  /* Hero */
+  #ch-hero { left: 6vw; top: 15vh; bottom: auto; width: min(600px, 88vw); gap: 14px; }
+  #ch-hero h1 { font-family: 'Fredoka', sans-serif; font-weight: 600; margin: 0;
+    font-size: clamp(64px, 10vw, 124px); line-height: 0.95; letter-spacing: 0.01em;
+    color: #FFFBF4; text-shadow: 0 4px 28px rgba(58,30,10,0.38), 0 1px 3px rgba(58,30,10,0.25); }
+  #ch-hero .tag { margin: 0; font-size: 19px; font-weight: 700; color: #FFFBF4; max-width: 440px;
+    line-height: 1.45; text-shadow: 0 1px 10px rgba(58,30,10,0.45); }
+  #ch-hero .sub { margin: 0; font-size: 14.5px; font-weight: 700; color: #FFF3E2;
+    text-shadow: 0 1px 8px rgba(58,30,10,0.5); }
+
+  /* Hover fact tooltip */
+  #tip { position: fixed; left: 0; top: 0; z-index: 12; pointer-events: none; max-width: 265px;
+    background: rgba(43,34,28,0.93); color: #FFF7EA; border-radius: 13px; padding: 11px 14px;
+    opacity: 0; transform: translate(-50%, -112%) scale(0.96);
+    transition: opacity 0.18s ease, transform 0.18s ease; }
+  #tip.show { opacity: 1; transform: translate(-50%, -118%) scale(1); }
+  #tip b { display: block; font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase;
+    color: #FFB597; margin-bottom: 4px; }
+  #tip span { display: block; font-size: 13.5px; line-height: 1.5; }
+  /* hover photo — fixed height reserves space so nothing jumps when the image decodes;
+     onerror strips a missing file (no broken-image icon) */
+  #tip .tip-img { display: block; width: 100%; height: 122px; object-fit: cover;
+    border-radius: 10px; margin: 1px 0 9px; background: rgba(255,247,234,0.08); }
+
+  /* constellation name labels — fade in as each finishes drawing, then hover-only */
+  #constLabels { position: fixed; inset: 0; z-index: 11; pointer-events: none; overflow: hidden; }
+  .clabel { position: absolute; transform: translateX(-50%); opacity: 0; visibility: hidden;
+    font-size: 13px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+    color: #FFE3B0; text-shadow: 0 1px 12px rgba(9,14,32,0.9), 0 0 26px rgba(255,214,150,0.25);
+    white-space: nowrap; }
+
+  /* About card sits upper-left over the water — never over the campsite props */
+  #ch-about { left: 44px; top: 62px; bottom: auto; }
+
+  /* Contact finale: centered beneath the constellations, fades in after they form */
+  #ch-contact { left: 50%; bottom: 58px; transform: translateX(-50%); width: min(640px, 92vw);
+    align-items: center; text-align: center; gap: 10px; }
+  #ch-contact h2 { font-family: 'Fredoka', sans-serif; font-weight: 500; font-size: 34px; margin: 0;
+    color: #FFF4D6; text-shadow: 0 2px 22px rgba(9,14,32,0.85); }
+  #ch-contact .foot { margin: 0; font-size: 12.5px; font-weight: 600;
+    color: rgba(255,244,214,0.58); text-shadow: 0 1px 8px rgba(9,14,32,0.8); }
+  #ch-contact.show > * { transition-delay: 2.2s; }
+  #ch-contact.show > *:nth-child(2) { transition-delay: 2.7s; }
+
+  @media (max-width: 640px) {
+    .chapter { left: 12px; bottom: 14px; width: calc(100vw - 84px); }
+    #ch-about { left: 12px; right: auto; top: 56px; bottom: auto; }
+    #ch-contact { left: 50%; width: 92vw; bottom: 42px; }
+    #ch-hero { left: 6vw; top: 9vh; }
+    #ch-hero .tag { font-size: 16.5px; }
+    .card { padding: 15px 16px; }
+  }
+
+  /* ═══════════ cold-load screen & loading experience ═══════════ */
+  #loader { position: fixed; inset: 0; z-index: 60; background: #FFE8C9; transition: opacity 0.6s ease; }
+  #loader.reveal { opacity: 0; pointer-events: none; }
+  #loader .lwait { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 15px; }
+  #loader .lmsg { color: var(--ink); font-size: 13.5px; font-weight: 700; letter-spacing: 0.14em; padding: 0 24px; text-align: center; }
+  #loader .lmsg i { font-style: normal; animation: ldot 1.4s ease-in-out infinite; }
+  #loader .lmsg i:nth-child(2) { animation-delay: 0.18s; }
+  #loader .lmsg i:nth-child(3) { animation-delay: 0.36s; }
+  @keyframes ldot { 0%, 100% { opacity: 0.15; } 45% { opacity: 1; } }
+  #loader .lbar { width: min(42vw, 220px); height: 2px; border-radius: 2px; overflow: hidden; background: rgba(58,46,40,0.13); }
+  #loader .lbar i { display: block; height: 100%; width: 100%; transform: scaleX(0); transform-origin: 0 50%;
+    transition: transform 0.35s ease; border-radius: 2px; background: var(--coral); }
+  #loader .lsun { width: 34px; height: 34px; margin-top: 4px; animation: lsun 3.2s ease-in-out infinite; }
+  @keyframes lsun { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+  @media (prefers-reduced-motion: reduce) {
+    #loader .lmsg i, #loader .lsun { animation: none; }
+  }
+  /* WebGL-fail fallback: the loading screen becomes a short header, the resume flows beneath it */
+  html.fail, body.fail { overflow: auto !important; height: auto !important; }
+  body.fail #loader { position: relative; height: auto; padding: 88px 24px 44px; }
+  body.fail #loader .lwait { position: static; }
+  body.fail #loader .lbar, body.fail #loader .lsun { display: none; }
+  body.fail #loader .lmsg { font-size: 15px; letter-spacing: 0.02em; font-style: italic; }
+  body.fail :is(#scene, #vignette, #dots, #hint, #skipWork, #tourBtn, #resumeBtn, #tip) { display: none !important; }
+  #fallback { background: #FFF7EA; color: var(--ink); padding: 42px 22px 64px; }
+  #fallback .inner { max-width: 620px; margin: 0 auto; display: grid; gap: 28px; }
+  #fallback h1 { font-family: 'Fredoka', 'Nunito', sans-serif; margin: 0; font-size: 34px; letter-spacing: 0.04em; }
+  #fallback h2 { font-size: 13.5px; letter-spacing: 0.12em; text-transform: uppercase; color: #A3541F; margin: 0 0 6px; }
+  #fallback h3 { margin: 0; font-size: 17.5px; }
+  #fallback p { margin: 4px 0 0; line-height: 1.55; font-size: 15px; }
+  #fallback .role { color: #7A6650; font-size: 13.5px; font-weight: 700; }
+  #fallback .note { font-style: italic; background: rgba(255,126,95,0.10); border-radius: 10px; padding: 10px 14px; }
+  #fallback article + article { margin-top: 16px; }
+  #fallback .links a { margin-right: 16px; font-weight: 700; }

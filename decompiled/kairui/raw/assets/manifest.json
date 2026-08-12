@@ -1,0 +1,140 @@
+{
+  "assets": [
+    {
+      "contentType": "",
+      "id": "ec369bd365bc83cd",
+      "kind": "stylesheet",
+      "name": "fonts.css",
+      "path": "/var/folders/xp/b_jgxsqn0ddd200qdrh041500000gn/T/browser-use/assets/d985d874-aee0-42e3-9a7e-61c1a04109f6/ec369bd365bc83cd.css",
+      "url": "https://kairui.dev/fonts.css"
+    },
+    {
+      "contentType": "application/octet-stream",
+      "id": "24173f90206453af",
+      "kind": "font",
+      "name": "f2.woff2",
+      "path": "/var/folders/xp/b_jgxsqn0ddd200qdrh041500000gn/T/browser-use/assets/d985d874-aee0-42e3-9a7e-61c1a04109f6/24173f90206453af.woff2",
+      "url": "https://kairui.dev/fonts/f2.woff2"
+    },
+    {
+      "contentType": "application/octet-stream",
+      "id": "0f8da2a7a26174b7",
+      "kind": "font",
+      "name": "f12.woff2",
+      "path": "/var/folders/xp/b_jgxsqn0ddd200qdrh041500000gn/T/browser-use/assets/d985d874-aee0-42e3-9a7e-61c1a04109f6/0f8da2a7a26174b7.woff2",
+      "url": "https://kairui.dev/fonts/f12.woff2"
+    },
+    {
+      "contentType": "application/octet-stream",
+      "id": "07dda60c59ab1676",
+      "kind": "font",
+      "name": "f7.woff2",
+      "path": "/var/folders/xp/b_jgxsqn0ddd200qdrh041500000gn/T/browser-use/assets/d985d874-aee0-42e3-9a7e-61c1a04109f6/07dda60c59ab1676.woff2",
+      "url": "https://kairui.dev/fonts/f7.woff2"
+    },
+    {
+      "contentType": "image/webp",
+      "id": "7c42e9b5fdb61d10",
+      "kind": "image",
+      "name": "gobattle.webp",
+      "path": "/var/folders/xp/b_jgxsqn0ddd200qdrh041500000gn/T/browser-use/assets/d985d874-aee0-42e3-9a7e-61c1a04109f6/7c42e9b5fdb61d10.webp",
+      "url": "https://kairui.dev/gobattle.webp"
+    },
+    {
+      "contentType": "image/png",
+      "id": "6228e26cc5fa4ee8",
+      "kind": "image",
+      "name": "umich.png",
+      "path": "/var/folders/xp/b_jgxsqn0ddd200qdrh041500000gn/T/browser-use/assets/d985d874-aee0-42e3-9a7e-61c1a04109f6/6228e26cc5fa4ee8.png",
+      "url": "https://kairui.dev/umich.png"
+    },
+    {
+      "contentType": "image/png",
+      "id": "ddc9f5b80736cdef",
+      "kind": "image",
+      "name": "senate.png",
+      "path": "/var/folders/xp/b_jgxsqn0ddd200qdrh041500000gn/T/browser-use/assets/d985d874-aee0-42e3-9a7e-61c1a04109f6/ddc9f5b80736cdef.png",
+      "url": "https://kairui.dev/senate.png"
+    },
+    {
+      "contentType": "image/png",
+      "id": "4957740d5770b4c2",
+      "kind": "image",
+      "name": "beach.png",
+      "path": "/var/folders/xp/b_jgxsqn0ddd200qdrh041500000gn/T/browser-use/assets/d985d874-aee0-42e3-9a7e-61c1a04109f6/4957740d5770b4c2.png",
+      "url": "https://kairui.dev/beach.png"
+    },
+    {
+      "contentType": "image/png",
+      "id": "d410f1f4a2a4c04b",
+      "kind": "image",
+      "name": "soccer.png",
+      "path": "/var/folders/xp/b_jgxsqn0ddd200qdrh041500000gn/T/browser-use/assets/d985d874-aee0-42e3-9a7e-61c1a04109f6/d410f1f4a2a4c04b.png",
+      "url": "https://kairui.dev/soccer.png"
+    },
+    {
+      "contentType": "image/png",
+      "id": "e0c26cfb3e6afe8e",
+      "kind": "image",
+      "name": "brawl.png",
+      "path": "/var/folders/xp/b_jgxsqn0ddd200qdrh041500000gn/T/browser-use/assets/d985d874-aee0-42e3-9a7e-61c1a04109f6/e0c26cfb3e6afe8e.png",
+      "url": "https://kairui.dev/brawl.png"
+    },
+    {
+      "contentType": "image/png",
+      "id": "0a2d68f1e2315b8b",
+      "kind": "image",
+      "name": "clash.png",
+      "path": "/var/folders/xp/b_jgxsqn0ddd200qdrh041500000gn/T/browser-use/assets/d985d874-aee0-42e3-9a7e-61c1a04109f6/0a2d68f1e2315b8b.png",
+      "url": "https://kairui.dev/clash.png"
+    },
+    {
+      "contentType": "image/webp",
+      "id": "90e96893329942d0",
+      "kind": "image",
+      "name": "platepromos.webp",
+      "path": "/var/folders/xp/b_jgxsqn0ddd200qdrh041500000gn/T/browser-use/assets/d985d874-aee0-42e3-9a7e-61c1a04109f6/90e96893329942d0.webp",
+      "url": "https://kairui.dev/platepromos.webp"
+    },
+    {
+      "contentType": "image/png",
+      "id": "b36f699c4817aafb",
+      "kind": "image",
+      "name": "stanford.png",
+      "path": "/var/folders/xp/b_jgxsqn0ddd200qdrh041500000gn/T/browser-use/assets/d985d874-aee0-42e3-9a7e-61c1a04109f6/b36f699c4817aafb.png",
+      "url": "https://kairui.dev/stanford.png"
+    },
+    {
+      "contentType": "image/png",
+      "id": "345c9718073f02bb",
+      "kind": "image",
+      "name": "meetwise.png",
+      "path": "/var/folders/xp/b_jgxsqn0ddd200qdrh041500000gn/T/browser-use/assets/d985d874-aee0-42e3-9a7e-61c1a04109f6/345c9718073f02bb.png",
+      "url": "https://kairui.dev/meetwise.png"
+    },
+    {
+      "contentType": "image/svg+xml",
+      "id": "3bd3814f201fbae3",
+      "kind": "image",
+      "name": "svg-1",
+      "path": "/var/folders/xp/b_jgxsqn0ddd200qdrh041500000gn/T/browser-use/assets/d985d874-aee0-42e3-9a7e-61c1a04109f6/3bd3814f201fbae3.svg",
+      "url": "inline-svg:3bd3814f201fbae3"
+    }
+  ],
+  "failures": [
+    {
+      "contentType": null,
+      "id": "07b214057ffd7299",
+      "name": "mirai.png",
+      "reason": "Loaded resource fetch failed: Asset bundling failed; page fetch failed: Browser Use encountered an error interacting with this webpage: Error: Asset request failed with HTTP 404\n    at IH (<anonymous>:1:102)",
+      "url": "https://kairui.dev/mirai.png"
+    },
+    {
+      "contentType": null,
+      "id": "ef4ed722408df6e0",
+      "name": "hsk.png",
+      "reason": "Loaded resource fetch failed: Asset bundling failed; page fetch failed: Browser Use encountered an error interacting with this webpage: Error: Asset request failed with HTTP 404\n    at IH (<anonymous>:1:102)",
+      "url": "https://kairui.dev/hsk.png"
+    }
+  ]
+}

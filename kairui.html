@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="description" content="A local, study-only reconstruction of Kairui Ying's procedural Three.js coastal portfolio." />
+    <title>Kairui coastal world — reconstruction</title>
+    <base href="/kairui-assets/" />
+    <link rel="stylesheet" href="/kairui-assets/fonts.css" />
+    <link rel="stylesheet" href="/src/kairui/styles.css" />
+  </head>
+  <body>
+    <div id="loader" aria-live="polite">
+      <div class="lwait">
+        <svg class="lsun" viewBox="0 0 40 40" aria-hidden="true">
+          <circle cx="20" cy="20" r="8" fill="#ffb15c" />
+          <g stroke="#ff7e5f" stroke-width="2.4" stroke-linecap="round">
+            <path d="M20 3v5M20 32v5M3 20h5M32 20h5M8 8l4 4M28 28l4 4M32 8l-4 4M12 28l-4 4" />
+          </g>
+        </svg>
+        <div id="lmsg" class="lmsg">BUILDING THE COAST <i>·</i><i>·</i><i>·</i></div>
+        <div class="lbar"><i id="lbarFill"></i></div>
+      </div>
+    </div>
+
+    <main id="fallback" hidden>
+      <div class="inner">
+        <header>
+          <h1>KAIRUI YING</h1>
+          <p class="role">CS + Industrial Engineering @ UC Berkeley · San Diego, CA</p>
+          <p>Welcome to my corner of the coast. I build things.</p>
+          <p class="note">The 3D version needs a newer browser — everything is here too.</p>
+        </header>
+        <section>
+          <h2>Work</h2>
+          <article><h3>Stanford Medicine</h3><p class="role">AI Engineer · Apr 2025 – Present</p><p>Building an agentic RAG system for doctors with dynamic routing and hybrid SQL + vector retrieval.</p></article>
+          <article><h3>PlatePromos</h3><p class="role">CTO &amp; Co-Founder · 2024–present</p><p>A student restaurant-discount platform serving hundreds of students and dozens of partners.</p></article>
+          <article><h3>Gobattle.io</h3><p class="role">Game Developer · 2023–2025</p><p>A browser MMO built without a game engine and played by more than 50,000 people.</p></article>
+        </section>
+        <section class="links">
+          <h2>Say hi</h2>
+          <p><a href="https://github.com/yinggarykairui">GitHub</a><a href="https://www.linkedin.com/in/garyying/">LinkedIn</a><a href="mailto:yinggarykairui@gmail.com">Email</a><a href="https://kairui.dev/resume.pdf">Resume (PDF)</a></p>
+        </section>
+      </div>
+    </main>
+
+    <canvas id="scene"></canvas>
+    <div id="vignette"></div>
+    <a id="resumeBtn" href="https://kairui.dev/resume.pdf" target="_blank" rel="noopener">Resume (PDF)</a>
+    <nav id="dots" aria-label="Chapters"></nav>
+    <button id="skipWork" aria-label="Skip to work">Skip to work →</button>
+    <button id="tourBtn" aria-label="Take the guided tour">▶ Take the tour</button>
+    <button id="sndBtn" aria-label="Toggle sound" aria-pressed="true">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5v5h3.6L13 19V5L7.6 9.5H4z"></path><path d="M16.2 9.2a4.1 4.1 0 0 1 0 5.6"></path></svg>
+    </button>
+    <div id="hint">scroll to begin <span class="arrow">↓</span></div>
+
+    <div id="ui">
+      <section id="ch-hero" class="chapter show" data-screen-label="Hero">
+        <h1>KAIRUI</h1>
+        <p class="tag">Welcome to my corner of the coast. I build things — scroll and I'll show you around.</p>
+        <p class="sub">CS + Industrial Engineering @ UC Berkeley · San Diego, CA</p>
+      </section>
+      <section id="ch-about" class="chapter" data-screen-label="About">
+        <div class="card">
+          <h2>The stuff I carry with me</h2>
+          <p>I grew up in San Diego, ten minutes from the beach — which explains a lot about this website. I get properly obsessed with games, soccer, languages and lifting because I cannot leave a thing alone until I understand how it works.</p>
+        </div>
+        <p class="kicker">the gear around the campfire has stories — hover it</p>
+      </section>
+      <section id="ch-skills" class="chapter" data-screen-label="Skills">
+        <div class="card">
+          <h2>The workshop</h2>
+          <p><em>Tools I actually use, not a keyword wall.</em></p>
+          <div class="rack"><span class="chip">BUILD</span><span>Python · TypeScript / JavaScript · SQL · NumPy · OpenCV</span></div>
+          <div class="rack"><span class="chip">SHIP</span><span>FastAPI · Next.js · Docker · nginx · GCP + AWS · Flask · Cloudflare Workers</span></div>
+          <div class="rack"><span class="chip">SCALE &amp; SECURE</span><span>LangChain agents · pgvector + HNSW · hybrid retrieval · Postgres RLS · WebSockets</span></div>
+        </div>
+      </section>
+      <section id="ch-work" class="chapter" data-screen-label="Work">
+        <p class="kicker">Every lit building here is a real job. The further down the hill, the closer to today.</p>
+        <div class="card pre" id="workCard"><h2>Gobattle.io</h2><p class="role">Game Developer · 2023–2025</p><p>A browser MMO with 50,000+ players.</p></div>
+      </section>
+      <section id="ch-farewell" class="chapter" data-screen-label="Village farewell"><p class="kicker">Look at the view...</p></section>
+      <section id="ch-projects" class="chapter" data-screen-label="Projects">
+        <p class="kicker">The boats are things I've built. The big one earned it.</p>
+        <div class="card" id="projCard"><h2>2048 AI Solver</h2><p>Minimax with custom heuristics. Wins 98% of 10,000+ simulated runs.</p></div>
+      </section>
+      <section id="ch-contact" class="chapter" data-screen-label="Contact">
+        <h2>The tide's out. Say hi.</h2>
+        <p class="foot">© Kairui · Built by hand with Three.js — take the helm, or take to the sky.</p>
+      </section>
+    </div>
+
+    <nav aria-label="Contact links" class="sr-links">
+      <a href="https://github.com/yinggarykairui">GitHub</a>
+      <a href="https://www.linkedin.com/in/garyying/">LinkedIn</a>
+      <a href="mailto:yinggarykairui@gmail.com">Email</a>
+      <a href="https://kairui.dev/resume.pdf">Resume (PDF)</a>
+    </nav>
+    <div id="tip" role="tooltip"></div>
+    <div id="fps"></div>
+    <button id="returnShore">← Return to shore</button>
+    <div id="sailHint">← → steer &nbsp;·&nbsp; ↑ sail &nbsp;·&nbsp; ↓ slow &nbsp;·&nbsp; Esc returns to shore</div>
+    <div id="sailCap"></div>
+    <div id="sailPad">
+      <button data-k="l" aria-label="Steer left">◀</button><button data-k="d" aria-label="Slow">▼</button><button data-k="u" aria-label="Sail">▲</button><button data-k="r" aria-label="Steer right">▶</button>
+    </div>
+    <button id="returnGround">↓ Return to ground</button>
+    <div id="rideHint">← → nudge the drift &nbsp;·&nbsp; Esc returns to ground</div>
+
+    <script type="module" src="/src/kairui/loader.js"></script>
+    <script type="module" src="/src/kairui/main.js"></script>
+  </body>
+</html>
