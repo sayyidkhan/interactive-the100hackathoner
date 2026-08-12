@@ -248,18 +248,21 @@ export function createSakuraPetals(scene: THREE.Scene): SakuraPetal {
   leafShape.quadraticCurveTo(0.11, 0.01, 0, -0.21);
   leafShape.quadraticCurveTo(-0.11, 0.01, 0, 0.21);
   const leafGeometry = new THREE.ShapeGeometry(leafShape);
-  const colors = ["#dba8aa", "#e8bfba", "#b89aa4", "#d4aaa9", "#8e817d"];
   const material = new THREE.MeshBasicMaterial({
-    color: "#ffffff",
+    color: "#edabb7",
     transparent: true,
-    opacity: 0.84,
+    opacity: 0.9,
     side: THREE.DoubleSide,
     depthWrite: false,
-    vertexColors: true,
-    fog: false
+    vertexColors: false,
+    fog: false,
+    toneMapped: false
   });
+  const leafMaterial = material.clone();
+  leafMaterial.color.set("#78985a");
+  leafMaterial.opacity = 0.84;
   const mesh = new THREE.InstancedMesh(petalGeometry, material, count);
-  const leafMesh = new THREE.InstancedMesh(leafGeometry, material.clone(), count);
+  const leafMesh = new THREE.InstancedMesh(leafGeometry, leafMaterial, count);
   const origins: THREE.Vector3[] = [];
   const phases = new Float32Array(count);
   const drifts = new Float32Array(count);
@@ -294,22 +297,18 @@ export function createSakuraPetals(scene: THREE.Scene): SakuraPetal {
     scales[index] = 0.66 + Math.random() * 0.62;
     spinRates[index] = 0.58 + Math.random() * 0.72;
     transform.position.copy(origin);
-    transform.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, phase);
+    transform.rotation.set(-Math.PI / 2, 0, phase);
     transform.scale.setScalar(scales[index]);
     transform.updateMatrix();
     mesh.setMatrixAt(index, transform.matrix);
     transform.scale.setScalar(0);
     transform.updateMatrix();
     leafMesh.setMatrixAt(index, transform.matrix);
-    mesh.setColorAt(index, new THREE.Color(colors[index % colors.length]));
-    leafMesh.setColorAt(index, new THREE.Color("#78985a"));
   }
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   leafMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   mesh.instanceMatrix.needsUpdate = true;
   leafMesh.instanceMatrix.needsUpdate = true;
-  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-  if (leafMesh.instanceColor) leafMesh.instanceColor.needsUpdate = true;
   mesh.frustumCulled = false;
   leafMesh.frustumCulled = false;
   mesh.renderOrder = 5;
@@ -486,18 +485,22 @@ export function updateSakuraPetals(petals: SakuraPetal, time: number): void {
       0.35 + wrappedHeight,
       origin.z + depthDrift
     );
+    const baseScale = petals.scales[index] * edgeFade;
+    const showPetal = petals.style === "sakura" || (petals.style === "mixed" && index % 2 === 0);
+    const showLeaf = petals.style === "leaves" || (petals.style === "mixed" && index % 2 === 1);
+    petals.transform.rotation.set(
+      -Math.PI / 2 + Math.sin(time * 0.72 + phase) * 0.3,
+      Math.cos(time * 0.46 + phase * 0.7) * 0.18,
+      time * 0.42 * petals.spinRates[index] + phase
+    );
+    petals.transform.scale.setScalar(showPetal ? baseScale : 0);
+    petals.transform.updateMatrix();
+    petals.mesh.setMatrixAt(index, petals.transform.matrix);
     petals.transform.rotation.set(
       time * 0.62 * petals.spinRates[index] + phase,
       time * 0.48 * petals.spinRates[index] + phase * 0.6,
       Math.sin(time * 0.72 + phase) * 0.72
     );
-    const baseScale = petals.scales[index] * edgeFade;
-    const showPetal = petals.style === "sakura" || (petals.style === "mixed" && index % 2 === 0);
-    const showLeaf = petals.style === "leaves" || (petals.style === "mixed" && index % 2 === 1);
-    petals.transform.scale.setScalar(showPetal ? baseScale : 0);
-    petals.transform.updateMatrix();
-    petals.mesh.setMatrixAt(index, petals.transform.matrix);
-    petals.transform.rotation.z += Math.sin(time * 0.27 + phase * 1.6) * 0.38;
     petals.transform.scale.set(
       showLeaf ? baseScale * 0.72 : 0,
       showLeaf ? baseScale * 1.12 : 0,
@@ -515,7 +518,6 @@ export function setFallingFoliageAppearance(
   style: FallingFoliage,
   season: Exclude<SeasonChoice, "auto">
 ): void {
-  const sakura = ["#e4a1ad", "#f0bbb8", "#c98c9d", "#e5ada9", "#f4cec7"];
   const seasonalLeaves: Record<Exclude<SeasonChoice, "auto">, string[]> = {
     spring: ["#91aa68", "#b5bd78", "#7e9c5e", "#c6b981", "#89a56b"],
     summer: ["#527c48", "#678e50", "#466f43", "#78985a", "#5f844c"],
@@ -527,12 +529,8 @@ export function setFallingFoliageAppearance(
   const leaves = seasonalLeaves[season];
   petals.style = style;
   setFallingFoliageVisibility(petals, style !== "off");
-  for (let index = 0; index < petals.origins.length; index += 1) {
-    petals.mesh.setColorAt(index, new THREE.Color(sakura[index % sakura.length]));
-    petals.leafMesh.setColorAt(index, new THREE.Color(leaves[index % leaves.length]));
-  }
-  if (petals.mesh.instanceColor) petals.mesh.instanceColor.needsUpdate = true;
-  if (petals.leafMesh.instanceColor) petals.leafMesh.instanceColor.needsUpdate = true;
+  petals.mesh.material.color.set("#edabb7");
+  petals.leafMesh.material.color.set(leaves[1]);
 }
 
 export function setFallingFoliageVisibility(petals: SakuraPetal, visible: boolean): void {

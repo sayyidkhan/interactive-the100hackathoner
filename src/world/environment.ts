@@ -397,7 +397,7 @@ export function createEnvironmentController(options: EnvironmentControllerOption
     const foliageOpacity = weather === "rain" ? 0.76 : 0.84;
     options.petals.mesh.material.opacity = THREE.MathUtils.damp(
       options.petals.mesh.material.opacity,
-      foliageOpacity,
+      weather === "rain" ? 0.8 : 0.9,
       3.2,
       delta
     );
