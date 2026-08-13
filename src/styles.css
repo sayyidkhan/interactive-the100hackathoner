@@ -4548,7 +4548,7 @@ dd {
 .coastal-root:not(.coastal-established) .coastal-plaque strong {
   width: max-content;
   color: #fff8e9;
-  font-size: clamp(72px, 9vw, 126px);
+  font-size: clamp(46px, 5.76vw, 81px);
   letter-spacing: -0.075em;
   text-shadow: 0 8px 42px rgba(0, 0, 0, 0.28);
 }
@@ -4639,7 +4639,7 @@ dd {
   }
 
   .coastal-root:not(.coastal-established) .coastal-plaque strong {
-    font-size: clamp(62px, 22vw, 92px);
+    font-size: clamp(40px, 14.08vw, 59px);
   }
 
   .coastal-root:not(.coastal-established) .coastal-plaque em {
