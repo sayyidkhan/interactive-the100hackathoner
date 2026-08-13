@@ -139,9 +139,10 @@ export function applySceneShadows(scene: THREE.Object3D): void {
     worldNormal.set(0, 0, 1).applyQuaternion(worldQuaternion);
     const isHorizontalReceiver = isFlatGeometry && Math.abs(worldNormal.y) > 0.72;
     const isSoftShadow = Boolean(object.userData.softShadow);
+    const isReceiveOnly = Boolean(object.userData.receiveOnly);
 
     object.castShadow =
-      !isSpriteLike && !isEmissiveGlow && !isTransparent && !isHorizontalReceiver && !isSoftShadow;
+      !isSpriteLike && !isEmissiveGlow && !isTransparent && !isHorizontalReceiver && !isSoftShadow && !isReceiveOnly;
     object.receiveShadow = !isSpriteLike && !isEmissiveGlow && !isSoftShadow;
 
     for (const candidate of materials) {

@@ -38,36 +38,35 @@ export function mountKairuiKingdom(root: HTMLElement): void {
 
   const runtime = createWorldRuntime(root, {
     background: "#f3deb7",
-    fog: { color: "#e8d5b6", near: 54, far: 124 },
-    camera: { fov: 42, far: 190 },
-    exposure: 0.9,
-    environmentIntensity: 0.18
+    fog: { color: "#e8d5b6", near: 118, far: 520 },
+    camera: { fov: 48, far: 1400 },
+    exposure: 0.84,
+    environmentIntensity: 0.12
   });
   const { scene, camera, renderer } = runtime;
 
   const hemisphere = new THREE.HemisphereLight("#fff1d7", "#517a6a", 1.15);
   scene.add(hemisphere);
   const sun = new THREE.DirectionalLight("#ffe0ad", 2.15);
-  sun.position.set(-28, 38, 22);
+  sun.position.set(-80, 120, 72);
   sun.castShadow = true;
   sun.shadow.mapSize.set(3072, 3072);
-  sun.shadow.camera.left = -34;
-  sun.shadow.camera.right = 34;
-  sun.shadow.camera.top = 34;
-  sun.shadow.camera.bottom = -34;
+  sun.shadow.camera.left = -92;
+  sun.shadow.camera.right = 92;
+  sun.shadow.camera.top = 92;
+  sun.shadow.camera.bottom = -92;
   sun.shadow.camera.near = 2;
-  sun.shadow.camera.far = 100;
+  sun.shadow.camera.far = 260;
   sun.shadow.bias = -0.0002;
   sun.shadow.normalBias = 0.025;
   sun.shadow.radius = 3;
   scene.add(sun);
 
   const coast = createCoastalScene(scene);
-  coast.colliders.unshift({ kind: "boundary-circle", x: 0, z: 0, radius: 18.2 });
   const townSchema = loadTownSchemaDraft();
   const player = createPlayer();
   applyCharacterAppearance(player, townSchema.player.appearance, townSchema.player.movement);
-  player.position.set(0, 0.76, 12.4);
+  player.position.set(24, coast.getGroundHeight(24, -124), -124);
   player.rotation.y = Math.PI;
   scene.add(player);
   applySceneShadows(player);
@@ -96,6 +95,19 @@ export function mountKairuiKingdom(root: HTMLElement): void {
   let environmentStamp = "";
   let transitMode: "none" | "boat" | "balloon" = "none";
   let transitStartedAt = 0;
+  let establishing = true;
+  const establishingStartedAt = performance.now();
+  const vistaStart = new THREE.Vector3(96, 46, -144);
+  const vistaEnd = camera.position.clone();
+  const vistaTarget = new THREE.Vector3(27, 3.4, -38);
+  camera.position.copy(vistaStart);
+  camera.lookAt(vistaTarget);
+  const dismissEstablishing = () => {
+    establishing = false;
+    initializeGameplayCamera(camera, player.position);
+  };
+  window.addEventListener("keydown", dismissEstablishing, { once: true, passive: true });
+  renderer.domElement.addEventListener("pointerdown", dismissEstablishing, { once: true, passive: true });
 
   const applyEnvironment = () => {
     const palette = resolveCoastalPalette(environment);
@@ -157,8 +169,19 @@ export function mountKairuiKingdom(root: HTMLElement): void {
   applyEnvironment();
 
   runtime.start(({ delta, elapsed }) => {
-    if (!hud.isModalOpen() && transitMode === "none") {
-      updatePlayerMovement(player, motion, input, delta, coast.colliders, camera, updatePlayerRig);
+    if (!hud.isModalOpen() && transitMode === "none" && !establishing) {
+      updatePlayerMovement(
+        player,
+        motion,
+        input,
+        delta,
+        coast.colliders,
+        camera,
+        updatePlayerRig,
+        coast.getGroundHeight,
+        145,
+        coast.isWalkable
+      );
     } else {
       input.jumpRequested = false;
       input.inspectRequested = false;
@@ -196,16 +219,24 @@ export function mountKairuiKingdom(root: HTMLElement): void {
     } else {
       coast.setTourRoute(player.position, null);
     }
-    if (transitMode === "boat") {
+    const establishingProgress = THREE.MathUtils.clamp((performance.now() - establishingStartedAt) / 4800, 0, 1);
+    if (establishing && establishingProgress < 1) {
+      const eased = THREE.MathUtils.smoothstep(establishingProgress, 0, 1);
+      camera.position.lerpVectors(vistaStart, vistaEnd, eased);
+      camera.lookAt(vistaTarget.clone().lerp(player.position, eased * 0.58));
+    } else if (establishing) {
+      establishing = false;
+      initializeGameplayCamera(camera, player.position);
+    } else if (transitMode === "boat") {
       const phase = (elapsed - transitStartedAt) * 0.24;
-      const target = new THREE.Vector3(Math.cos(phase) * 24, 0.55, Math.sin(phase) * 19);
-      camera.position.lerp(new THREE.Vector3(target.x - 8, 5.5, target.z + 9), 1 - Math.exp(-3 * delta));
-      camera.lookAt(0, 1.4, 0);
+      const target = new THREE.Vector3(-18 + Math.cos(phase) * 32, 0.55, -24 + Math.sin(phase) * 76);
+      camera.position.lerp(new THREE.Vector3(target.x - 12, 8.5, target.z + 16), 1 - Math.exp(-3 * delta));
+      camera.lookAt(26, 3.4, -18);
       player.visible = false;
     } else if (transitMode === "balloon") {
       const phase = (elapsed - transitStartedAt) * 0.13;
-      camera.position.lerp(new THREE.Vector3(Math.cos(phase) * 31, 24, Math.sin(phase) * 27), 1 - Math.exp(-2.5 * delta));
-      camera.lookAt(0, 0.8, 0);
+      camera.position.lerp(new THREE.Vector3(18 + Math.cos(phase) * 72, 52, -30 + Math.sin(phase) * 112), 1 - Math.exp(-2.5 * delta));
+      camera.lookAt(28, 2.8, -24);
       player.visible = false;
     } else {
       player.visible = true;
@@ -216,6 +247,8 @@ export function mountKairuiKingdom(root: HTMLElement): void {
   root.addEventListener("kingdom:dispose", () => {
     hud.dispose();
     inputBinding.dispose();
+    window.removeEventListener("keydown", dismissEstablishing);
+    renderer.domElement.removeEventListener("pointerdown", dismissEstablishing);
     runtime.dispose();
   }, { once: true });
 }

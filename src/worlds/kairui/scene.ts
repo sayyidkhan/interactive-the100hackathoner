@@ -15,6 +15,8 @@ export type CoastalScene = {
   colliders: CollisionShape[];
   landmarks: LandmarkAnchor[];
   transit: { boat: THREE.Group; balloon: THREE.Group };
+  getGroundHeight(x: number, z: number): number;
+  isWalkable(x: number, z: number): boolean;
   applyEnvironment(state: CoastalEnvironmentState, palette: CoastalPalette): void;
   setTourRoute(from: THREE.Vector3, target: THREE.Vector3 | null): void;
   update(time: number, delta: number): void;
@@ -30,23 +32,85 @@ const colors = {
   ink: "#273941"
 };
 
+const COASTAL_TRAIL_POINTS = [
+  new THREE.Vector3(24, 0, -126),
+  new THREE.Vector3(24, 0, -112),
+  new THREE.Vector3(26, 0, -88),
+  new THREE.Vector3(31, 0, -60),
+  new THREE.Vector3(28, 0, -31),
+  new THREE.Vector3(35, 0, 2),
+  new THREE.Vector3(34, 0, 32),
+  new THREE.Vector3(25, 0, 62)
+];
+
+const smooth01 = (value: number): number => {
+  const clamped = THREE.MathUtils.clamp(value, 0, 1);
+  return clamped * clamped * (3 - 2 * clamped);
+};
+
+const smoothRange = (from: number, to: number, value: number): number => {
+  if (Math.abs(to - from) < 0.0001) return value >= to ? 1 : 0;
+  return smooth01((value - from) / (to - from));
+};
+
+const hash2 = (x: number, z: number): number => {
+  const value = Math.sin(x * 127.1 + z * 311.7) * 43758.5453;
+  return value - Math.floor(value);
+};
+
+export function coastalShoreX(z: number): number {
+  return 12 * Math.sin(z * 0.021) + 5 * Math.sin(z * 0.051);
+}
+
+function coastalTerrainBaseHeight(x: number, z: number): number {
+  const coastDistance = x - coastalShoreX(z);
+  const land = smoothRange(-6, 22, coastDistance);
+  const northernRise = Math.pow(smoothRange(48, -132, z), 1.7);
+  const inland = smoothRange(7, 72, coastDistance);
+  let height = land * (0.35 + northernRise * 12.5);
+  height += land * inland * 3.1 * Math.sin(x * 0.052 + 1.3) * Math.sin(z * 0.038);
+  height += land * 5.8 * smoothRange(14, 48, coastDistance) * Math.exp(-(((z - 4) / 64) ** 2));
+  height -= height * 0.24 * Math.exp(-(((z + 72) / 34) ** 2));
+  height += land * Math.sin(x * 0.105) * Math.cos(z * 0.082) * 0.72 * (0.3 + inland);
+  height = Math.max(height, 0.22 * land);
+  height -= (1 - land) * 4.2;
+  return height;
+}
+
+const LANDMARK_PADS = new Map(COASTAL_LANDMARKS.map((landmark) => [
+  `${landmark.position[0]}:${landmark.position[2]}`,
+  coastalTerrainBaseHeight(landmark.position[0], landmark.position[2])
+]));
+
+export function coastalTerrainHeight(x: number, z: number): number {
+  let height = coastalTerrainBaseHeight(x, z);
+  for (const landmark of COASTAL_LANDMARKS) {
+    const padHeight = LANDMARK_PADS.get(`${landmark.position[0]}:${landmark.position[2]}`) ?? height;
+    const distance = Math.hypot(x - landmark.position[0], z - landmark.position[2]);
+    const blend = 1 - smoothRange(4.8, 8.2, distance);
+    height = THREE.MathUtils.lerp(height, padHeight, blend);
+  }
+  return height;
+}
+
 export function createCoastalScene(scene: THREE.Scene): CoastalScene {
   const world = new THREE.Group();
   world.name = "kairui-coastal-world";
   scene.add(world);
 
   const skyMaterial = makeSkyMaterial();
-  const sky = new THREE.Mesh(new THREE.SphereGeometry(88, 32, 18), skyMaterial);
-  sky.position.y = 8;
+  const sky = new THREE.Mesh(new THREE.SphereGeometry(760, 32, 18), skyMaterial);
+  sky.position.y = 36;
   world.add(sky);
 
   const waterMaterial = makeWaterMaterial();
-  const water = new THREE.Mesh(new THREE.PlaneGeometry(110, 110, 60, 60), waterMaterial);
+  const water = new THREE.Mesh(new THREE.PlaneGeometry(1400, 1400, 120, 120), waterMaterial);
   water.rotation.x = -Math.PI / 2;
-  water.position.y = -0.58;
+  water.position.set(-260, -0.5, -10);
   world.add(water);
 
-  const island = createIsland(world);
+  const terrain = createCoastalTerrain(world);
+  createCoastalRoad(world);
   createPier(world);
   createDistantIslands(world);
 
@@ -57,10 +121,13 @@ export function createCoastalScene(scene: THREE.Scene): CoastalScene {
   });
 
   const palms = [
-    [-8, -11, 0.2], [-3, -13, -0.35], [7, -12, 0.5], [15, 3, -0.25],
-    [-16, 3, 0.3], [-7, 12, -0.4], [7, 12, 0.15], [16, -1, 0.5]
+    [18, -110, 0.2], [35, -105, -0.35], [48, -94, 0.5], [17, -76, -0.25],
+    [46, -69, 0.3], [16, -52, -0.4], [52, -41, 0.15], [15, -25, 0.5],
+    [51, -12, -0.2], [18, 4, 0.15], [54, 17, 0.35], [16, 34, -0.3],
+    [46, 48, 0.15], [22, 61, -0.28]
   ] as const;
   const palmCrowns = palms.map(([x, z, rotation], index) => createPalm(world, x, z, rotation, index));
+  createCoastalForest(world);
   const clouds = createClouds(world);
   const boat = createBoat(world);
   const balloon = createBalloon(world);
@@ -75,13 +142,16 @@ export function createCoastalScene(scene: THREE.Scene): CoastalScene {
     colliders,
     landmarks,
     transit: { boat, balloon },
+    getGroundHeight: coastalTerrainHeight,
+    isWalkable: (x, z) => z >= -130 && z <= 72 && x >= coastalShoreX(z) - 1 && x <= 92,
     applyEnvironment(state, palette) {
       skyMaterial.uniforms.uHorizon.value.set(palette.skyHorizon);
       skyMaterial.uniforms.uZenith.value.set(palette.skyZenith);
+      skyMaterial.uniforms.uSunColor.value.set(palette.sunlight);
+      skyMaterial.uniforms.uGlow.value = state.weather === "storm" ? 0.08 : palette.isNight ? 0.16 : 0.42;
       waterMaterial.uniforms.uDeep.value.set(palette.waterDeep);
       waterMaterial.uniforms.uShallow.value.set(palette.waterShallow);
-      island.grass.color.set(palette.grass);
-      island.sand.color.set(palette.sand);
+      terrain.setPalette(palette.grass, palette.sand);
       seasonal.setSeason(state.season);
       weather.setWeather(state.weather);
       celestial.setNight(palette.isNight && state.weather !== "storm");
@@ -107,12 +177,12 @@ export function createCoastalScene(scene: THREE.Scene): CoastalScene {
         );
       });
       clouds.forEach((cloud, index) => {
-        cloud.position.x = THREE.MathUtils.euclideanModulo(time * (0.22 + index * 0.035) + index * 24, 94) - 47;
+        cloud.position.x = THREE.MathUtils.euclideanModulo(time * (0.42 + index * 0.055) + index * 58, 250) - 110;
       });
-      boat.position.x = -23 + THREE.MathUtils.euclideanModulo(time * 0.62, 46);
-      boat.position.z = 21 + Math.sin(time * 0.2) * 1.4;
+      boat.position.x = -42 + THREE.MathUtils.euclideanModulo(time * 0.72, 84);
+      boat.position.z = -30 + Math.sin(time * 0.2) * 42;
       boat.rotation.z = Math.sin(time * 1.1) * 0.025;
-      balloon.position.y = 10.5 + Math.sin(time * 0.4) * 0.42;
+      balloon.position.y = 28 + Math.sin(time * 0.4) * 0.72;
       balloon.rotation.y = time * 0.055;
       landmarks.forEach(({ marker }, index) => {
         const pulse = 1 + Math.sin(time * 1.6 + index) * 0.09;
@@ -126,58 +196,170 @@ export function createCoastalScene(scene: THREE.Scene): CoastalScene {
   };
 }
 
-function createIsland(world: THREE.Group): { grass: THREE.MeshStandardMaterial; sand: THREE.MeshStandardMaterial } {
-  const lower = new THREE.Mesh(new THREE.CylinderGeometry(19.8, 21, 1, 64), matte(colors.sandEdge));
-  lower.position.y = -0.34;
-  lower.scale.z = 0.82;
-  lower.receiveShadow = true;
-  world.add(lower);
+function createCoastalTerrain(world: THREE.Group): { setPalette(grass: string, sand: string): void } {
+  const geometry = new THREE.PlaneGeometry(230, 300, 116, 150);
+  geometry.rotateX(-Math.PI / 2);
+  geometry.translate(30, 0, -12);
+  const positions = geometry.getAttribute("position") as THREE.BufferAttribute;
+  const vertexColors = new Float32Array(positions.count * 3);
+  const sand = new THREE.Color(colors.sand);
+  const wetSand = new THREE.Color("#b8a27f");
+  const grass = new THREE.Color(colors.grass);
+  const meadow = new THREE.Color("#aabd78");
+  const rock = new THREE.Color("#8f806f");
+  const working = new THREE.Color();
+  const terrainBands = new Uint8Array(positions.count);
+  const terrainVariation = new Float32Array(positions.count);
 
-  const sandMaterial = matte(colors.sand);
-  const sand = new THREE.Mesh(new THREE.CylinderGeometry(18.8, 19.6, 0.72, 64), sandMaterial);
-  sand.position.y = 0.05;
-  sand.scale.z = 0.82;
-  sand.receiveShadow = true;
-  world.add(sand);
+  for (let index = 0; index < positions.count; index += 1) {
+    let x = positions.getX(index);
+    let z = positions.getZ(index);
+    x += (hash2(x, z) - 0.5) * 1.2;
+    z += (hash2(z, x) - 0.5) * 1.2;
+    const height = coastalTerrainHeight(x, z);
+    positions.setXYZ(index, x, height, z);
+    const shoreDistance = x - coastalShoreX(z);
+    const slope = Math.hypot(
+      coastalTerrainHeight(x + 1, z) - coastalTerrainHeight(x - 1, z),
+      coastalTerrainHeight(x, z + 1) - coastalTerrainHeight(x, z - 1)
+    ) * 0.5;
+    if (shoreDistance < 4.4) {
+      terrainBands[index] = shoreDistance < -1 ? 0 : 1;
+      working.copy(shoreDistance < -1 ? wetSand : sand);
+    } else if (slope > 1.05) {
+      terrainBands[index] = 2;
+      working.copy(rock);
+    }
+    else {
+      terrainBands[index] = 3;
+      working.copy(grass);
+      const meadowMix = smooth01((Math.sin(x * 0.04 + z * 0.026) + Math.sin(x * 0.018 - z * 0.034)) * 0.25 + 0.46);
+      terrainVariation[index] = meadowMix;
+      working.lerp(meadow, meadowMix * 0.34);
+    }
+    vertexColors[index * 3] = working.r;
+    vertexColors[index * 3 + 1] = working.g;
+    vertexColors[index * 3 + 2] = working.b;
+  }
+  geometry.setAttribute("color", new THREE.BufferAttribute(vertexColors, 3));
+  geometry.computeVertexNormals();
+  const material = new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    flatShading: true,
+    roughness: 1,
+    metalness: 0,
+    envMapIntensity: 0.24,
+    dithering: true
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.receiveShadow = true;
+  mesh.userData.receiveOnly = true;
+  world.add(mesh);
+  return {
+    setPalette(grassColor, sandColor) {
+      const nextGrass = new THREE.Color(grassColor);
+      const nextSand = new THREE.Color(sandColor);
+      const colorAttribute = geometry.getAttribute("color") as THREE.BufferAttribute;
+      for (let index = 0; index < colorAttribute.count; index += 1) {
+        if (terrainBands[index] === 0) working.copy(nextSand).lerp(new THREE.Color("#81786b"), 0.22);
+        else if (terrainBands[index] === 1) working.copy(nextSand);
+        else if (terrainBands[index] === 2) working.copy(nextGrass).lerp(new THREE.Color("#756f67"), 0.54);
+        else working.copy(nextGrass).lerp(meadow, terrainVariation[index] * 0.3);
+        colorAttribute.setXYZ(index, working.r, working.g, working.b);
+      }
+      colorAttribute.needsUpdate = true;
+    }
+  };
+}
 
-  const grassMaterial = matte(colors.grass);
-  const grass = new THREE.Mesh(new THREE.CylinderGeometry(15.8, 16.35, 0.34, 64), grassMaterial);
-  grass.position.y = 0.49;
-  grass.scale.z = 0.76;
-  grass.receiveShadow = true;
-  world.add(grass);
+function createCoastalRoad(world: THREE.Group): void {
+  const material = matte("#cfb789");
+  const curve = new THREE.CatmullRomCurve3(COASTAL_TRAIL_POINTS, false, "centripetal", 0.35);
+  const samples = 240;
+  const positions = new Float32Array((samples + 1) * 2 * 3);
+  const uvs = new Float32Array((samples + 1) * 2 * 2);
+  const indices: number[] = [];
+  for (let index = 0; index <= samples; index += 1) {
+    const progress = index / samples;
+    const center = curve.getPointAt(progress);
+    const tangent = curve.getTangentAt(progress).setY(0).normalize();
+    const side = new THREE.Vector3(-tangent.z, 0, tangent.x).multiplyScalar(2.8);
+    for (let edge = 0; edge < 2; edge += 1) {
+      const point = center.clone().addScaledVector(side, edge === 0 ? -1 : 1);
+      point.y = coastalTerrainHeight(point.x, point.z) + 0.1;
+      const vertex = (index * 2 + edge) * 3;
+      positions[vertex] = point.x;
+      positions[vertex + 1] = point.y;
+      positions[vertex + 2] = point.z;
+      const uv = (index * 2 + edge) * 2;
+      uvs[uv] = edge;
+      uvs[uv + 1] = progress * 24;
+    }
+    if (index < samples) {
+      const offset = index * 2;
+      indices.push(offset, offset + 2, offset + 1, offset + 1, offset + 2, offset + 3);
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  const road = new THREE.Mesh(geometry, material);
+  road.receiveShadow = true;
+  road.userData.receiveOnly = true;
+  world.add(road);
 
-  const pathMaterial = matte("#d9c59d");
-  const avenue = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.08, 25), pathMaterial);
-  avenue.position.set(0, 0.71, 0);
-  avenue.receiveShadow = true;
-  world.add(avenue);
-  const crossPath = avenue.clone();
-  crossPath.geometry = new THREE.BoxGeometry(28, 0.08, 3.4);
-  crossPath.position.z = 2.8;
-  world.add(crossPath);
+  for (const point of COASTAL_TRAIL_POINTS.slice(2, -1)) {
+    const plaza = new THREE.Mesh(new THREE.CylinderGeometry(5.4, 5.4, 0.12, 30), matte("#dfcaa0"));
+    plaza.position.copy(point);
+    plaza.position.y = coastalTerrainHeight(point.x, point.z) + 0.08;
+    plaza.receiveShadow = true;
+    world.add(plaza);
+  }
+}
 
-  const plaza = new THREE.Mesh(new THREE.CylinderGeometry(5.4, 5.4, 0.1, 48), matte("#ead6ad"));
-  plaza.position.set(0, 0.74, 3);
-  plaza.receiveShadow = true;
-  world.add(plaza);
-  return { grass: grassMaterial, sand: sandMaterial };
+function createCoastalForest(world: THREE.Group): void {
+  const trunkMaterial = matte("#725238");
+  const crownMaterials = [matte("#426c4d"), matte("#557f55"), matte("#668e5e")];
+  for (let index = 0; index < 105; index += 1) {
+    const z = -126 + (index * 17.3) % 196;
+    const shoreline = coastalShoreX(z);
+    const x = shoreline + 18 + (index * 29.7) % 62;
+    if (COASTAL_LANDMARKS.some((landmark) => Math.hypot(x - landmark.position[0], z - landmark.position[2]) < 8)) continue;
+    if (COASTAL_TRAIL_POINTS.some((point) => Math.hypot(x - point.x, z - point.z) < 7)) continue;
+    const ground = coastalTerrainHeight(x, z);
+    if (ground < 0.2) continue;
+    const scale = 0.72 + (index % 5) * 0.11;
+    const tree = new THREE.Group();
+    tree.position.set(x, ground, z);
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.22, 2.2 * scale, 6), trunkMaterial);
+    trunk.position.y = 1.1 * scale;
+    tree.add(trunk);
+    const crown = new THREE.Mesh(new THREE.ConeGeometry(1.05 * scale, 3.2 * scale, 7), crownMaterials[index % crownMaterials.length]);
+    crown.position.y = 3.1 * scale;
+    crown.rotation.y = index * 0.71;
+    tree.add(crown);
+    world.add(tree);
+  }
 }
 
 function createPier(world: THREE.Group): void {
   const deckMaterial = matte("#9a704d");
-  const deck = new THREE.Mesh(new THREE.BoxGeometry(4.3, 0.28, 10), deckMaterial);
-  deck.position.set(0, 0.28, 19.2);
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(4.3, 0.28, 17), deckMaterial);
+  deck.position.set(6, -0.05, 57);
+  deck.rotation.y = Math.PI / 2;
   world.add(deck);
-  for (const x of [-1.65, 1.65]) {
-    for (const z of [15.2, 18, 21.2, 23.2]) {
+  for (const x of [0, 4, 8, 12]) {
+    for (const z of [55.35, 58.65]) {
       const post = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.18, 2.1, 10), matte("#614937"));
-      post.position.set(x, -0.15, z);
+      post.position.set(x, -0.7, z);
       world.add(post);
     }
   }
   const arch = new THREE.Group();
-  arch.position.set(0, 0.6, 15.2);
+  arch.position.set(13.5, -0.15, 57);
+  arch.rotation.y = Math.PI / 2;
   for (const x of [-1.7, 1.7]) {
     const upright = new THREE.Mesh(new THREE.BoxGeometry(0.22, 2.8, 0.22), deckMaterial);
     upright.position.set(x, 1.4, 0);
@@ -192,7 +374,7 @@ function createPier(world: THREE.Group): void {
 function createLandmark(world: THREE.Group, landmark: CoastalLandmark, colliders: CollisionShape[]): LandmarkAnchor {
   const group = new THREE.Group();
   group.name = `coastal-landmark:${landmark.id}`;
-  group.position.set(...landmark.position);
+  group.position.set(landmark.position[0], coastalTerrainHeight(landmark.position[0], landmark.position[2]), landmark.position[2]);
   world.add(group);
 
   if (landmark.kind === "lighthouse") createLighthouse(group, landmark.color);
@@ -287,7 +469,7 @@ function createReefLab(group: THREE.Group, accent: string): void {
 
 function createPalm(world: THREE.Group, x: number, z: number, rotation: number, phase: number): THREE.Group {
   const palm = new THREE.Group();
-  palm.position.set(x, 0.72, z);
+  palm.position.set(x, coastalTerrainHeight(x, z), z);
   palm.rotation.y = rotation;
   const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.38, 4.6, 9), matte("#855f3f"));
   trunk.position.y = 2.25;
@@ -311,7 +493,7 @@ function createPalm(world: THREE.Group, x: number, z: number, rotation: number, 
 function createClouds(world: THREE.Group): THREE.Group[] {
   return [0, 1, 2, 3].map((index) => {
     const cloud = new THREE.Group();
-    cloud.position.set(-32 + index * 20, 11 + index % 2 * 3, -25 - index * 3);
+    cloud.position.set(-86 + index * 58, 30 + index % 2 * 9, -112 + index * 47);
     const material = new THREE.MeshBasicMaterial({ color: "#fff6e7", transparent: true, opacity: 0.72, depthWrite: false, toneMapped: false });
     for (const [x, y, scale] of [[-1.2, 0, 1], [0, 0.35, 1.4], [1.25, 0, 0.9]] as const) {
       const puff = new THREE.Mesh(new THREE.SphereGeometry(1.15, 14, 10), material);
@@ -327,7 +509,7 @@ function createClouds(world: THREE.Group): THREE.Group[] {
 
 function createBoat(world: THREE.Group): THREE.Group {
   const boat = new THREE.Group();
-  boat.position.set(-20, -0.25, 21);
+  boat.position.set(-34, -0.18, 8);
   const hull = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 1.15, 4.2, 5), matte("#bb6248"));
   hull.rotation.z = Math.PI / 2;
   hull.rotation.y = Math.PI / 2;
@@ -345,7 +527,7 @@ function createBoat(world: THREE.Group): THREE.Group {
 
 function createBalloon(world: THREE.Group): THREE.Group {
   const balloon = new THREE.Group();
-  balloon.position.set(25, 11, -25);
+  balloon.position.set(34, 28, -84);
   const envelope = new THREE.Mesh(new THREE.SphereGeometry(2.2, 20, 16), matte("#ef835f"));
   envelope.scale.y = 1.28;
   balloon.add(envelope);
@@ -365,7 +547,7 @@ function createSeaBirds(world: THREE.Group): void {
   const material = new THREE.MeshBasicMaterial({ color: "#f8efe0", side: THREE.DoubleSide, toneMapped: false });
   for (let index = 0; index < 12; index += 1) {
     const bird = new THREE.Group();
-    bird.position.set(-28 + (index * 11) % 56, 7 + index % 4, -20 + (index * 7) % 18);
+    bird.position.set(-52 + (index * 17) % 112, 18 + index % 5, -108 + (index * 29) % 174);
     for (const side of [-1, 1]) {
       const wing = new THREE.Mesh(new THREE.PlaneGeometry(0.85, 0.22), material);
       wing.position.x = side * 0.38;
@@ -377,7 +559,7 @@ function createSeaBirds(world: THREE.Group): void {
 }
 
 function createDistantIslands(world: THREE.Group): void {
-  for (const [x, z, scale] of [[-33, -26, 1.2], [32, -20, 0.9], [-37, 18, 0.65], [38, 22, 0.75]] as const) {
+  for (const [x, z, scale] of [[-88, -98, 2.8], [-74, -10, 2.1], [-98, 62, 3.2], [-52, 126, 2.4]] as const) {
     const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(4.3 * scale, 0), matte(colors.grassDark));
     rock.position.set(x, -1.1, z);
     rock.scale.y = 0.42;
@@ -443,7 +625,7 @@ function createCelestial(world: THREE.Group): { setNight(active: boolean): void 
     new THREE.SphereGeometry(2.4, 24, 18),
     new THREE.MeshStandardMaterial({ color: "#fff3cf", emissive: "#dce9ff", emissiveIntensity: 1.25, roughness: 0.9 })
   );
-  moon.position.set(-28, 27, -44);
+  moon.position.set(-155, 145, -220);
   moon.userData.softShadow = true;
   group.add(moon);
   const glow = new THREE.PointLight("#c9dcff", 1.8, 70, 2);
@@ -455,7 +637,7 @@ function createCelestial(world: THREE.Group): { setNight(active: boolean): void 
   for (let index = 0; index < 270; index += 1) {
     const angle = Math.random() * Math.PI * 2;
     const elevation = 0.18 + Math.random() * 0.82;
-    const radius = 68;
+    const radius = 480;
     positions[index * 3] = Math.cos(angle) * radius * Math.cos(elevation);
     positions[index * 3 + 1] = Math.sin(elevation) * radius;
     positions[index * 3 + 2] = Math.sin(angle) * radius * Math.cos(elevation);
@@ -463,7 +645,7 @@ function createCelestial(world: THREE.Group): { setNight(active: boolean): void 
   starGeometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
   const stars = new THREE.Points(
     starGeometry,
-    new THREE.PointsMaterial({ color: "#fff1cf", size: 0.22, transparent: true, opacity: 0.82, depthWrite: false, toneMapped: false })
+    new THREE.PointsMaterial({ color: "#fff1cf", size: 0.72, transparent: true, opacity: 0.82, depthWrite: false, toneMapped: false })
   );
   group.add(stars);
   return { setNight(active) { group.visible = active; } };
@@ -488,11 +670,11 @@ function createSeasonalLayer(world: THREE.Group): {
   });
 
   const flowerColors = ["#f19ab1", "#f6cf66", "#efe6df", "#8c87cd"];
-  for (let index = 0; index < 48; index += 1) {
-    const angle = index * 2.399;
-    const radius = 6.2 + (index % 9) * 1.05;
+  for (let index = 0; index < 150; index += 1) {
+    const z = -122 + (index * 19.7) % 188;
+    const x = coastalShoreX(z) + 8 + (index * 13.3) % 63;
     const flower = new THREE.Group();
-    flower.position.set(Math.cos(angle) * radius, 0.83, Math.sin(angle) * radius * 0.75);
+    flower.position.set(x, coastalTerrainHeight(x, z) + 0.05, z);
     const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.025, 0.32, 6), matte("#4c7952"));
     stem.position.y = 0.16;
     flower.add(stem);
@@ -502,39 +684,40 @@ function createSeasonalLayer(world: THREE.Group): {
     groups.spring.add(flower);
   }
 
-  for (let index = 0; index < 24; index += 1) {
-    const angle = index * 2.1;
-    const radius = 7 + (index % 6) * 1.25;
+  for (let index = 0; index < 82; index += 1) {
+    const z = -122 + (index * 23.9) % 188;
+    const x = coastalShoreX(z) + 11 + (index * 17.1) % 61;
     const tuft = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.75, 5), matte(index % 2 ? "#6e9c65" : "#88b875"));
-    tuft.position.set(Math.cos(angle) * radius, 1.08, Math.sin(angle) * radius * 0.75);
+    tuft.position.set(x, coastalTerrainHeight(x, z) + 0.4, z);
     groups.summer.add(tuft);
   }
 
   const autumnLeaves: THREE.Mesh[] = [];
-  for (let index = 0; index < 96; index += 1) {
-    const angle = index * 1.72;
-    const radius = 4.8 + (index % 13) * 0.82;
+  for (let index = 0; index < 220; index += 1) {
+    const z = -125 + (index * 11.9) % 194;
+    const x = coastalShoreX(z) + 9 + (index * 7.7) % 66;
     const leaf = new THREE.Mesh(new THREE.CircleGeometry(0.12 + index % 3 * 0.035, 7), matte(index % 3 === 0 ? "#d66d43" : index % 3 === 1 ? "#e4a34f" : "#9f6d3f"));
     leaf.rotation.x = -Math.PI / 2;
-    leaf.rotation.z = angle;
-    leaf.position.set(Math.cos(angle) * radius, 0.85, Math.sin(angle) * radius * 0.72);
+    leaf.rotation.z = index * 1.72;
+    leaf.position.set(x, coastalTerrainHeight(x, z) + 0.06, z);
     leaf.userData.baseY = leaf.position.y;
     groups.autumn.add(leaf);
     autumnLeaves.push(leaf);
   }
 
-  for (let index = 0; index < 16; index += 1) {
-    const angle = index / 16 * Math.PI * 2;
+  for (let index = 0; index < 74; index += 1) {
+    const z = -122 + (index * 17.2) % 188;
+    const x = coastalShoreX(z) + 7 + (index * 21.3) % 65;
     const patch = new THREE.Mesh(
       new THREE.CircleGeometry(0.75 + index % 4 * 0.24, 16),
       new THREE.MeshStandardMaterial({ color: "#f1f3ea", roughness: 0.98, transparent: true, opacity: 0.82 })
     );
     patch.rotation.x = -Math.PI / 2;
-    patch.position.set(Math.cos(angle) * (6 + index % 5 * 2.2), 0.86, Math.sin(angle) * (5 + index % 4 * 1.9));
+    patch.position.set(x, coastalTerrainHeight(x, z) + 0.07, z);
     groups.winter.add(patch);
   }
   const snowman = new THREE.Group();
-  snowman.position.set(6, 0.85, 5.5);
+  snowman.position.set(25, coastalTerrainHeight(25, -72), -72);
   for (const [radius, y] of [[0.7, 0.7], [0.52, 1.62], [0.36, 2.28]] as const) {
     const snow = new THREE.Mesh(new THREE.SphereGeometry(radius, 18, 14), matte("#f8f5ec"));
     snow.position.y = y;
@@ -564,13 +747,13 @@ function createWeatherLayer(world: THREE.Group): {
   setWeather(weather: CoastalEnvironmentState["weather"]): void;
   update(time: number, delta: number): void;
 } {
-  const count = 1800;
+  const count = 3200;
   const positions = new Float32Array(count * 3);
   const seeds = new Float32Array(count);
   for (let index = 0; index < count; index += 1) {
-    positions[index * 3] = (Math.random() - 0.5) * 54;
-    positions[index * 3 + 1] = Math.random() * 19 + 1;
-    positions[index * 3 + 2] = (Math.random() - 0.5) * 48;
+    positions[index * 3] = -24 + Math.random() * 132;
+    positions[index * 3 + 1] = Math.random() * 38 + 1;
+    positions[index * 3 + 2] = -135 + Math.random() * 218;
     seeds[index] = Math.random();
   }
   const geometry = new THREE.BufferGeometry();
@@ -611,7 +794,7 @@ function createWeatherLayer(world: THREE.Group): {
           const y = position.getY(index) - delta * (weather === "storm" ? 24 : 14) * (0.75 + seeds[index] * 0.6);
           position.setY(index, y < 0.8 ? 19 + seeds[index] * 4 : y);
           position.setX(index, position.getX(index) + delta * (weather === "storm" ? 2.8 : 0.9));
-          if (position.getX(index) > 27) position.setX(index, -27);
+          if (position.getX(index) > 108) position.setX(index, -24);
         }
         position.needsUpdate = true;
       }

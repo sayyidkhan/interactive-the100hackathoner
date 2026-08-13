@@ -24,6 +24,7 @@ export function createCoastalHud(root: HTMLElement, options: CoastalHudOptions):
   const hud = document.createElement("div");
   hud.className = "coastal-hud";
   hud.innerHTML = `
+    <div class="coastal-vignette" aria-hidden="true"></div>
     <header class="coastal-plaque">
       <span>The 100th</span>
       <strong>Hackathon Archipelago</strong>
@@ -86,7 +87,7 @@ export function createCoastalHud(root: HTMLElement, options: CoastalHudOptions):
       <kbd>E</kbd>
       <span>Inspect landmark</span>
     </button>
-    <div class="coastal-controls">WASD walk · Shift jog · drag to look · E inspect</div>
+    <div class="coastal-controls">WASD walk · Shift jog · drag to look · scroll to frame · E inspect</div>
     <section class="coastal-story-card" data-coastal-card hidden role="dialog" aria-modal="true" aria-labelledby="coastal-story-title">
       <button type="button" class="coastal-card-close" aria-label="Close story">×</button>
       <span data-coastal-kicker></span>

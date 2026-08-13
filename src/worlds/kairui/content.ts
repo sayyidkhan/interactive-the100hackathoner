@@ -16,7 +16,7 @@ export const COASTAL_LANDMARKS: readonly CoastalLandmark[] = [
     kicker: "19 of 100 shipped",
     summary: "The starting point: hackathons used as a repeatable system for testing ideas, building proof and collecting stories.",
     lesson: "Ship before certainty. A small live experiment compounds faster than a perfect private plan.",
-    position: [0, 0, 3],
+    position: [24, 0, -86],
     color: "#ef835f",
     kind: "harbour"
   },
@@ -26,7 +26,7 @@ export const COASTAL_LANDMARKS: readonly CoastalLandmark[] = [
     kicker: "AI agents",
     summary: "A working lab for agentic systems, developer tools and practical automation—not demos detached from real operations.",
     lesson: "The durable advantage is the workflow around the model: context, tools, evaluation and ownership.",
-    position: [-12, 0, -7],
+    position: [31, 0, -60],
     color: "#ffd66b",
     kind: "lighthouse"
   },
@@ -36,7 +36,7 @@ export const COASTAL_LANDMARKS: readonly CoastalLandmark[] = [
     kicker: "Builder → operator",
     summary: "A space for turning engineering velocity into positioning, distribution, monetisation and repeatable execution.",
     lesson: "Code is leverage only after it reaches a market, changes behaviour and produces a measurable outcome.",
-    position: [11, 0, -6],
+    position: [28, 0, -31],
     color: "#6fc0b5",
     kind: "studio"
   },
@@ -46,7 +46,7 @@ export const COASTAL_LANDMARKS: readonly CoastalLandmark[] = [
     kicker: "Systems with consequence",
     summary: "Experiments at the intersection of software, sustainability and real-world infrastructure.",
     lesson: "The best technical systems make constraints visible and give operators a better decision loop.",
-    position: [-13, 0, 10],
+    position: [35, 0, 2],
     color: "#73aa74",
     kind: "reef"
   },
@@ -56,7 +56,7 @@ export const COASTAL_LANDMARKS: readonly CoastalLandmark[] = [
     kicker: "Toward the book",
     summary: "A growing field journal of shipped projects, failed assumptions, team dynamics and lessons worth carrying forward.",
     lesson: "A portfolio shows outputs. An archive of decisions shows how the operator thinks.",
-    position: [13, 0, 10],
+    position: [34, 0, 32],
     color: "#9c86c8",
     kind: "archive"
   }

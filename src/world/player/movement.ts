@@ -34,7 +34,10 @@ export function updatePlayerMovement(
   delta: number,
   colliders: CollisionShape[],
   camera: THREE.PerspectiveCamera,
-  animateRig: PlayerRigAnimator
+  animateRig: PlayerRigAnimator,
+  getGroundHeight: (x: number, z: number) => number = () => 0,
+  worldLimit = WALKABLE_WORLD_LIMIT,
+  isWalkable: (x: number, z: number) => boolean = () => true
 ): void {
   const forwardInput = THREE.MathUtils.clamp(Number(input.forward) - Number(input.backward) + input.moveY, -1, 1);
   const rightInput = THREE.MathUtils.clamp(Number(input.right) - Number(input.left) + input.moveX, -1, 1);
@@ -75,9 +78,18 @@ export function updatePlayerMovement(
   motion.speed = Math.hypot(motion.velocity.x, motion.velocity.z);
   if (motion.speed > 0.025) {
     const nextPosition = player.position.clone().addScaledVector(motion.velocity, delta);
-    const stepSurface = getWalkableSurfaceHeight(nextPosition, colliders, player.position.y + PLAYER_STEP_HEIGHT);
+    const stepSurface = getWalkableSurfaceHeight(
+      nextPosition,
+      colliders,
+      player.position.y + PLAYER_STEP_HEIGHT,
+      getGroundHeight
+    );
     if (motion.grounded && stepSurface > player.position.y + SURFACE_CLEARANCE) nextPosition.y = stepSurface;
-    resolvePlayerCollisions(nextPosition, colliders);
+    resolvePlayerCollisions(nextPosition, colliders, worldLimit);
+    if (!isWalkable(nextPosition.x, nextPosition.z)) {
+      nextPosition.copy(player.position);
+      motion.velocity.multiplyScalar(0.25);
+    }
     player.position.copy(nextPosition);
     const angle = Math.atan2(-motion.velocity.x, -motion.velocity.z);
     motion.facingAngle = turnToward(motion.facingAngle, angle, 12 * delta);
@@ -92,7 +104,7 @@ export function updatePlayerMovement(
 
   motion.verticalVelocity -= GRAVITY * delta;
   player.position.y += motion.verticalVelocity * delta;
-  const floorHeight = getWalkableSurfaceHeight(player.position, colliders, Infinity);
+  const floorHeight = getWalkableSurfaceHeight(player.position, colliders, Infinity, getGroundHeight);
   if (motion.verticalVelocity <= 0 && player.position.y <= floorHeight) {
     player.position.y = floorHeight;
     motion.verticalVelocity = 0;
@@ -101,11 +113,11 @@ export function updatePlayerMovement(
     motion.grounded = false;
   }
 
-  clampToWalkableWorld(player.position);
+  clampToWalkableWorld(player.position, worldLimit);
 }
 
-function resolvePlayerCollisions(position: THREE.Vector3, colliders: CollisionShape[]): void {
-  clampToWalkableWorld(position);
+function resolvePlayerCollisions(position: THREE.Vector3, colliders: CollisionShape[], worldLimit: number): void {
+  clampToWalkableWorld(position, worldLimit);
 
   for (const collider of colliders) {
     if (collider.top !== undefined && position.y >= collider.top - SURFACE_CLEARANCE) continue;
@@ -114,17 +126,22 @@ function resolvePlayerCollisions(position: THREE.Vector3, colliders: CollisionSh
     else resolveBoxCollision(position, collider);
   }
 
-  clampToWalkableWorld(position);
+  clampToWalkableWorld(position, worldLimit);
 }
 
-function clampToWalkableWorld(position: THREE.Vector3): void {
-  const playerCenterLimit = WALKABLE_WORLD_LIMIT - PLAYER_RADIUS;
+function clampToWalkableWorld(position: THREE.Vector3, worldLimit = WALKABLE_WORLD_LIMIT): void {
+  const playerCenterLimit = worldLimit - PLAYER_RADIUS;
   position.x = THREE.MathUtils.clamp(position.x, -playerCenterLimit, playerCenterLimit);
   position.z = THREE.MathUtils.clamp(position.z, -playerCenterLimit, playerCenterLimit);
 }
 
-function getWalkableSurfaceHeight(position: THREE.Vector3, colliders: CollisionShape[], maxHeight: number): number {
-  let surfaceHeight = 0;
+function getWalkableSurfaceHeight(
+  position: THREE.Vector3,
+  colliders: CollisionShape[],
+  maxHeight: number,
+  getGroundHeight: (x: number, z: number) => number
+): number {
+  let surfaceHeight = getGroundHeight(position.x, position.z);
   for (const collider of colliders) {
     if (collider.top === undefined || collider.top > maxHeight) continue;
     if (isOnColliderSurface(position, collider)) surfaceHeight = Math.max(surfaceHeight, collider.top);

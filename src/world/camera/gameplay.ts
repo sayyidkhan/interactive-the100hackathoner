@@ -1,13 +1,13 @@
 import * as THREE from "three";
 import type { WaterTowerAnchor } from "../interactions/waterTower";
 
-const CAMERA_OFFSET = new THREE.Vector3(-5.8, 5.05, 8.75);
+const CAMERA_OFFSET = new THREE.Vector3(-7.6, 7.4, 11.8);
 const CAMERA_DEFAULT_DISTANCE = CAMERA_OFFSET.length();
 const CAMERA_DEFAULT_PITCH = Math.atan2(CAMERA_OFFSET.y, Math.hypot(CAMERA_OFFSET.x, CAMERA_OFFSET.z));
 const CAMERA_MIN_PITCH = 0.12;
 const CAMERA_MAX_PITCH = 1.15;
-const CAMERA_MIN_DISTANCE = 9.5;
-const CAMERA_MAX_DISTANCE = 20;
+const CAMERA_MIN_DISTANCE = 12;
+const CAMERA_MAX_DISTANCE = 30;
 const CAMERA_HORIZONTAL_DIRECTION = new THREE.Vector3(CAMERA_OFFSET.x, 0, CAMERA_OFFSET.z).normalize();
 const CAMERA_UP_AXIS = new THREE.Vector3(0, 1, 0);
 const CINEMATIC_IDLE_MS = 60_000;
@@ -42,7 +42,7 @@ export type CinematicState = {
 
 export function initializeGameplayCamera(camera: THREE.PerspectiveCamera, playerPosition: THREE.Vector3): void {
   camera.position.copy(playerPosition).add(CAMERA_OFFSET);
-  camera.lookAt(playerPosition.x, 0.82, playerPosition.z);
+  camera.lookAt(playerPosition.x, playerPosition.y + 0.82, playerPosition.z);
 }
 
 export function bindLookControls(element: HTMLCanvasElement): CameraLookState {
@@ -215,7 +215,7 @@ export function updateGameplayCamera(
 ): void {
   camera.up.set(0, 1, 0);
   updateLookState(look, delta);
-  const desiredFocus = new THREE.Vector3(target.x, 0.82, target.z);
+  const desiredFocus = new THREE.Vector3(target.x, target.y + 0.82, target.z);
   if (!look.focusInitialized) {
     look.focus.copy(desiredFocus);
     look.focusInitialized = true;
