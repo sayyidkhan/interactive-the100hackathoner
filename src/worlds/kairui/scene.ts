@@ -17,6 +17,7 @@ export type CoastalScene = {
   transit: { boat: THREE.Group; balloon: THREE.Group };
   getGroundHeight(x: number, z: number): number;
   isWalkable(x: number, z: number): boolean;
+  setSunDirection(direction: THREE.Vector3): void;
   applyEnvironment(state: CoastalEnvironmentState, palette: CoastalPalette): void;
   setTourRoute(from: THREE.Vector3, target: THREE.Vector3 | null): void;
   update(time: number, delta: number): void;
@@ -33,13 +34,13 @@ const colors = {
 };
 
 const COASTAL_TRAIL_POINTS = [
-  new THREE.Vector3(24, 0, -126),
-  new THREE.Vector3(24, 0, -112),
-  new THREE.Vector3(26, 0, -88),
-  new THREE.Vector3(31, 0, -60),
-  new THREE.Vector3(28, 0, -31),
-  new THREE.Vector3(35, 0, 2),
-  new THREE.Vector3(34, 0, 32),
+  new THREE.Vector3(24, 0, -142),
+  new THREE.Vector3(24, 0, -120),
+  new THREE.Vector3(24, 0, -96),
+  new THREE.Vector3(31, 0, -68),
+  new THREE.Vector3(28, 0, -38),
+  new THREE.Vector3(35, 0, -4),
+  new THREE.Vector3(34, 0, 29),
   new THREE.Vector3(25, 0, 62)
 ];
 
@@ -59,19 +60,28 @@ const hash2 = (x: number, z: number): number => {
 };
 
 export function coastalShoreX(z: number): number {
-  return 12 * Math.sin(z * 0.021) + 5 * Math.sin(z * 0.051);
+  const inlet = 13 * Math.exp(-(((z + 16) / 54) ** 2));
+  const northernCove = -7 * Math.exp(-(((z + 104) / 31) ** 2));
+  return 18 * Math.sin(z * 0.016 + 0.35) + 7 * Math.sin(z * 0.043) + inlet + northernCove;
 }
 
 function coastalTerrainBaseHeight(x: number, z: number): number {
   const coastDistance = x - coastalShoreX(z);
-  const land = smoothRange(-6, 22, coastDistance);
-  const northernRise = Math.pow(smoothRange(48, -132, z), 1.7);
-  const inland = smoothRange(7, 72, coastDistance);
-  let height = land * (0.35 + northernRise * 12.5);
-  height += land * inland * 3.1 * Math.sin(x * 0.052 + 1.3) * Math.sin(z * 0.038);
-  height += land * 5.8 * smoothRange(14, 48, coastDistance) * Math.exp(-(((z - 4) / 64) ** 2));
-  height -= height * 0.24 * Math.exp(-(((z + 72) / 34) ** 2));
-  height += land * Math.sin(x * 0.105) * Math.cos(z * 0.082) * 0.72 * (0.3 + inland);
+  const land = smoothRange(-8, 22, coastDistance);
+  const northernRise = Math.pow(smoothRange(64, -152, z), 1.56);
+  const inland = smoothRange(4, 86, coastDistance);
+  const bluff = Math.pow(smoothRange(35, 98, coastDistance), 1.42);
+  let height = land * (0.35 + northernRise * 23 + bluff * (3.5 + northernRise * 10));
+  height += land * inland * 4.8 * Math.sin(x * 0.043 + 1.3) * Math.sin(z * 0.031);
+  height += land * 7.6 * smoothRange(14, 55, coastDistance) * Math.exp(-(((z - 2) / 78) ** 2));
+  height += land * Math.pow(smoothRange(118, 185, coastDistance), 1.4) * 24;
+  height -= height * 0.2 * Math.exp(-(((z + 72) / 37) ** 2));
+  height += land * Math.sin(x * 0.088) * Math.cos(z * 0.068) * 1.12 * (0.3 + inland);
+  // A shallow creek cuts diagonally through the interior bluff and makes the
+  // main road read as a route through geography rather than a line on a plane.
+  const creekX = 55 + Math.sin(z * 0.024) * 11;
+  const creek = Math.exp(-(((x - creekX) / 7.2) ** 2));
+  height -= land * creek * (2.8 + northernRise * 5.5);
   height = Math.max(height, 0.22 * land);
   height -= (1 - land) * 4.2;
   return height;
@@ -104,21 +114,27 @@ export function createCoastalScene(scene: THREE.Scene): CoastalScene {
   world.add(sky);
 
   const waterMaterial = makeWaterMaterial();
-  const water = new THREE.Mesh(new THREE.PlaneGeometry(1400, 1400, 120, 120), waterMaterial);
+  const water = new THREE.Mesh(new THREE.PlaneGeometry(1600, 1600, 96, 96), waterMaterial);
   water.rotation.x = -Math.PI / 2;
-  water.position.set(-260, -0.5, -10);
+  water.position.set(-160, -0.55, -20);
   world.add(water);
 
   const terrain = createCoastalTerrain(world);
+  createCoastalCliffs(world);
   createCoastalRoad(world);
+  createCreekAndBridges(world);
   createPier(world);
   createDistantIslands(world);
+  createShoreline(world);
+  createHeadlandDetails(world);
+  createHundredLanternWalk(world);
 
   const colliders: CollisionShape[] = [];
   const landmarks = COASTAL_LANDMARKS.map((landmark) => {
     const anchor = createLandmark(world, landmark, colliders);
     return anchor;
   });
+  createDistrictSetDressing(world);
 
   const palms = [
     [18, -110, 0.2], [35, -105, -0.35], [48, -94, 0.5], [17, -76, -0.25],
@@ -143,12 +159,16 @@ export function createCoastalScene(scene: THREE.Scene): CoastalScene {
     landmarks,
     transit: { boat, balloon },
     getGroundHeight: coastalTerrainHeight,
-    isWalkable: (x, z) => z >= -130 && z <= 72 && x >= coastalShoreX(z) - 1 && x <= 92,
+    isWalkable: (x, z) => z >= -148 && z <= 76 && x >= coastalShoreX(z) - 1 && x <= 112,
+    setSunDirection(direction) {
+      skyMaterial.uniforms.uSunDirection.value.copy(direction);
+      waterMaterial.uniforms.uSunDirection.value.copy(direction);
+    },
     applyEnvironment(state, palette) {
       skyMaterial.uniforms.uHorizon.value.set(palette.skyHorizon);
       skyMaterial.uniforms.uZenith.value.set(palette.skyZenith);
       skyMaterial.uniforms.uSunColor.value.set(palette.sunlight);
-      skyMaterial.uniforms.uGlow.value = state.weather === "storm" ? 0.08 : palette.isNight ? 0.16 : 0.42;
+      skyMaterial.uniforms.uGlow.value = state.weather === "storm" ? 0.08 : palette.isNight ? 0.16 : state.time === "sunset" ? 0.6 : 0.42;
       waterMaterial.uniforms.uDeep.value.set(palette.waterDeep);
       waterMaterial.uniforms.uShallow.value.set(palette.waterShallow);
       terrain.setPalette(palette.grass, palette.sand);
@@ -182,7 +202,7 @@ export function createCoastalScene(scene: THREE.Scene): CoastalScene {
       boat.position.x = -42 + THREE.MathUtils.euclideanModulo(time * 0.72, 84);
       boat.position.z = -30 + Math.sin(time * 0.2) * 42;
       boat.rotation.z = Math.sin(time * 1.1) * 0.025;
-      balloon.position.y = 28 + Math.sin(time * 0.4) * 0.72;
+      balloon.position.y = 42 + Math.sin(time * 0.4) * 0.72;
       balloon.rotation.y = time * 0.055;
       landmarks.forEach(({ marker }, index) => {
         const pulse = 1 + Math.sin(time * 1.6 + index) * 0.09;
@@ -197,9 +217,9 @@ export function createCoastalScene(scene: THREE.Scene): CoastalScene {
 }
 
 function createCoastalTerrain(world: THREE.Group): { setPalette(grass: string, sand: string): void } {
-  const geometry = new THREE.PlaneGeometry(230, 300, 116, 150);
+  const geometry = new THREE.PlaneGeometry(340, 430, 136, 172);
   geometry.rotateX(-Math.PI / 2);
-  geometry.translate(30, 0, -12);
+  geometry.translate(28, 0, -32);
   const positions = geometry.getAttribute("position") as THREE.BufferAttribute;
   const vertexColors = new Float32Array(positions.count * 3);
   const sand = new THREE.Color(colors.sand);
@@ -272,6 +292,56 @@ function createCoastalTerrain(world: THREE.Group): { setPalette(grass: string, s
   };
 }
 
+function createCoastalCliffs(world: THREE.Group): void {
+  const samples = 140;
+  const positions: number[] = [];
+  const colors: number[] = [];
+  const indices: number[] = [];
+  const topColor = new THREE.Color("#a08b6d");
+  const lowerColor = new THREE.Color("#7c6f5d");
+  const color = new THREE.Color();
+
+  for (let index = 0; index < samples; index += 1) {
+    const progress = index / (samples - 1);
+    const z = -154 + progress * 340;
+    const x = coastalShoreX(z) + 1.5;
+    const topY = Math.max(-0.18, coastalTerrainHeight(x, z) - 0.05);
+    const bottomY = -7;
+    positions.push(x, topY, z, x - 2.5, bottomY, z);
+    color.copy(topColor).lerp(lowerColor, 0.12);
+    colors.push(color.r, color.g, color.b);
+    color.copy(lowerColor).lerp(topColor, 0.08 + (index % 5) * 0.018);
+    colors.push(color.r, color.g, color.b);
+    if (index < samples - 1) {
+      const offset = index * 2;
+      indices.push(offset, offset + 2, offset + 1, offset + 1, offset + 2, offset + 3);
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  const cliffs = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    flatShading: true,
+    roughness: 1,
+    metalness: 0,
+    side: THREE.DoubleSide
+  }));
+  cliffs.castShadow = true;
+  cliffs.receiveShadow = true;
+  world.add(cliffs);
+
+  // A warm seabed catches any grazing camera ray without presenting a dark
+  // geometric slab. Its top remains just below the animated water surface.
+  const seabed = new THREE.Mesh(new THREE.BoxGeometry(360, 6, 460), matte("#b8a27f"));
+  seabed.position.set(28, -3.9, -32);
+  seabed.receiveShadow = true;
+  seabed.userData.receiveOnly = true;
+  world.add(seabed);
+}
+
 function createCoastalRoad(world: THREE.Group): void {
   const material = matte("#cfb789");
   const curve = new THREE.CatmullRomCurve3(COASTAL_TRAIL_POINTS, false, "centripetal", 0.35);
@@ -319,25 +389,80 @@ function createCoastalRoad(world: THREE.Group): void {
   }
 }
 
+function createCreekAndBridges(world: THREE.Group): void {
+  const creekPoints = Array.from({ length: 92 }, (_, index) => {
+    const z = -144 + index * 2.42;
+    const x = 55 + Math.sin(z * 0.024) * 11;
+    return new THREE.Vector3(x, coastalTerrainHeight(x, z) + 0.18, z);
+  });
+  const creek = new THREE.Mesh(
+    new THREE.TubeGeometry(new THREE.CatmullRomCurve3(creekPoints), 260, 0.48, 8, false),
+    new THREE.MeshStandardMaterial({
+      color: "#79aaa4",
+      roughness: 0.62,
+      metalness: 0.02,
+      envMapIntensity: 0.4,
+      transparent: true,
+      opacity: 0.88
+    })
+  );
+  creek.scale.y = 0.14;
+  creek.receiveShadow = true;
+  creek.userData.receiveOnly = true;
+  world.add(creek);
+
+  for (const [index, z] of [-82, -18, 43].entries()) {
+    const x = 55 + Math.sin(z * 0.024) * 11;
+    const bridge = new THREE.Group();
+    bridge.position.set(x, coastalTerrainHeight(x, z) + 0.5, z);
+    bridge.rotation.y = Math.sin(z * 0.024) * -0.22;
+    for (let plankIndex = 0; plankIndex < 7; plankIndex += 1) {
+      const plank = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.18, 1.65), matte(plankIndex % 2 ? "#a5744d" : "#91633f"));
+      plank.position.x = -2.38 + plankIndex * 0.79;
+      plank.position.y = Math.sin(plankIndex * 0.7) * 0.035;
+      bridge.add(plank);
+    }
+    for (const side of [-1, 1]) {
+      const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.08, 5.8, 7), matte("#72513a"));
+      rail.rotation.z = Math.PI / 2;
+      rail.position.set(0, 0.62, side * 0.74);
+      bridge.add(rail);
+    }
+    bridge.userData.bridgeIndex = index;
+    addSoftShadow(bridge, 0.3, 0.3, 6.4, 2.1, 0, 0.12);
+    world.add(bridge);
+  }
+}
+
 function createCoastalForest(world: THREE.Group): void {
   const trunkMaterial = matte("#725238");
   const crownMaterials = [matte("#426c4d"), matte("#557f55"), matte("#668e5e")];
-  for (let index = 0; index < 105; index += 1) {
-    const z = -126 + (index * 17.3) % 196;
+  const groves = [
+    [82, -132, 16, 22], [71, -96, 12, 19], [80, -55, 17, 24],
+    [68, -10, 13, 18], [79, 31, 18, 22], [70, 65, 15, 18],
+    [49, -120, 10, 13], [52, 43, 9, 12]
+  ] as const;
+  for (let index = 0; index < 148; index += 1) {
+    const grove = groves[index % groves.length];
+    const angle = index * 2.39996;
+    const radius = Math.sqrt((index % 19) / 18);
+    const z = grove[1] + Math.sin(angle) * grove[3] * radius;
     const shoreline = coastalShoreX(z);
-    const x = shoreline + 18 + (index * 29.7) % 62;
+    const x = Math.max(shoreline + 11, grove[0] + Math.cos(angle) * grove[2] * radius);
     if (COASTAL_LANDMARKS.some((landmark) => Math.hypot(x - landmark.position[0], z - landmark.position[2]) < 8)) continue;
     if (COASTAL_TRAIL_POINTS.some((point) => Math.hypot(x - point.x, z - point.z) < 7)) continue;
+    if (Math.hypot(x - 68, z + 18) < 13) continue;
     const ground = coastalTerrainHeight(x, z);
     if (ground < 0.2) continue;
-    const scale = 0.72 + (index % 5) * 0.11;
+    const scale = 0.68 + (index % 7) * 0.12;
     const tree = new THREE.Group();
     tree.position.set(x, ground, z);
     const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.22, 2.2 * scale, 6), trunkMaterial);
     trunk.position.y = 1.1 * scale;
     tree.add(trunk);
-    const crown = new THREE.Mesh(new THREE.ConeGeometry(1.05 * scale, 3.2 * scale, 7), crownMaterials[index % crownMaterials.length]);
-    crown.position.y = 3.1 * scale;
+    const crown = new THREE.Mesh(new THREE.DodecahedronGeometry(1.32 * scale, 1), crownMaterials[index % crownMaterials.length]);
+    crown.position.y = 3.18 * scale;
+    crown.scale.y = 1.18;
     crown.rotation.y = index * 0.71;
     tree.add(crown);
     world.add(tree);
@@ -377,10 +502,12 @@ function createLandmark(world: THREE.Group, landmark: CoastalLandmark, colliders
   group.position.set(landmark.position[0], coastalTerrainHeight(landmark.position[0], landmark.position[2]), landmark.position[2]);
   world.add(group);
 
-  if (landmark.kind === "lighthouse") createLighthouse(group, landmark.color);
-  else if (landmark.kind === "harbour") createHarbourMonument(group, landmark.color);
-  else if (landmark.kind === "reef") createReefLab(group, landmark.color);
-  else createCoastalStudio(group, landmark.color, landmark.kind === "archive");
+  if (landmark.kind === "camp") createOperatorCamp(group, landmark.color);
+  else if (landmark.kind === "workshop") createExecutionWorkshop(group, landmark.color);
+  else if (landmark.kind === "career") createCareerRidge(group, landmark.color);
+  else if (landmark.kind === "harbour") createVentureHarbour(group, landmark.color);
+  else if (landmark.kind === "archive") createSignalArchive(group, landmark.color);
+  else createLighthouse(group, landmark.color);
 
   const markerMaterial = new THREE.MeshBasicMaterial({
     color: landmark.color,
@@ -396,75 +523,325 @@ function createLandmark(world: THREE.Group, landmark: CoastalLandmark, colliders
   group.add(marker);
   addSoftShadow(group, 0, 0.35, 4.4, 3.2, 0, 0.16);
 
-  if (landmark.kind !== "harbour") {
-    colliders.push({ kind: "box", x: landmark.position[0], z: landmark.position[2], width: 3.6, depth: 3.1 });
+  if (landmark.kind !== "harbour" && landmark.kind !== "camp") {
+    const size = landmark.kind === "career" ? 8.5 : landmark.kind === "workshop" ? 5.8 : 4.6;
+    colliders.push({ kind: "box", x: landmark.position[0], z: landmark.position[2], width: size, depth: size * 0.82 });
   }
   return { landmark, object: group, marker };
 }
 
 function createLighthouse(group: THREE.Group, accent: string): void {
-  const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.3, 5.4, 18), matte("#f2e5cc"));
-  tower.position.y = 3.35;
+  const knoll = new THREE.Mesh(new THREE.DodecahedronGeometry(2.6, 1), matte("#8f806f"));
+  knoll.position.y = 0.72;
+  knoll.scale.y = 0.58;
+  group.add(knoll);
+  const tower = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.9, 12.5, 18), matte("#f2e5cc"));
+  tower.position.y = 7.05;
   group.add(tower);
-  const band = new THREE.Mesh(new THREE.CylinderGeometry(0.98, 1.02, 0.72, 18), matte(accent));
-  band.position.y = 4.15;
-  group.add(band);
+  for (const y of [4.5, 9.5]) {
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(1.48 - y * 0.025, 1.52 - y * 0.025, 0.58, 18), matte(accent));
+    band.position.y = y;
+    group.add(band);
+  }
+  const gallery = new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.14, 8, 32), matte(colors.ink));
+  gallery.rotation.x = Math.PI / 2;
+  gallery.position.y = 13.2;
+  group.add(gallery);
   const lantern = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.68, 0.68, 0.85, 14),
-    new THREE.MeshStandardMaterial({ color: "#ffeab0", emissive: accent, emissiveIntensity: 1.8, roughness: 0.45 })
+    new THREE.CylinderGeometry(0.78, 0.78, 1.05, 14),
+    new THREE.MeshStandardMaterial({ color: "#fff0bd", emissive: accent, emissiveIntensity: 2.2, roughness: 0.42 })
   );
-  lantern.position.y = 6.45;
+  lantern.position.y = 13.75;
   group.add(lantern);
-  const roof = new THREE.Mesh(new THREE.ConeGeometry(1.1, 0.72, 14), matte(colors.ink));
-  roof.position.y = 7.25;
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(1.6, 1.1, 14), matte(colors.ink));
+  roof.position.y = 14.75;
   group.add(roof);
 }
 
-function createHarbourMonument(group: THREE.Group, accent: string): void {
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(1.75, 2.15, 0.55, 28), matte(colors.cream));
-  base.position.y = 1.02;
-  group.add(base);
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(1.06, 0.23, 10, 44), matte(accent));
-  ring.position.y = 2.45;
-  ring.rotation.y = Math.PI / 2;
-  group.add(ring);
-  const core = new THREE.Mesh(new THREE.SphereGeometry(0.46, 18, 14), matte("#ffd66b"));
-  core.position.y = 2.45;
-  group.add(core);
+function createDistrictSetDressing(world: THREE.Group): void {
+  const hutPlacements = [
+    [38, -106, 0.82, "#d48662", 0.18], [42, -90, 0.7, "#73958d", -0.2],
+    [47, -76, 0.92, "#d6a05f", 0.12], [50, -60, 0.72, "#7c909b", -0.18],
+    [49, -47, 0.78, "#a87259", 0.1], [53, -31, 0.9, "#73958d", -0.12],
+    [50, -14, 0.75, "#d48662", 0.24], [56, 2, 0.9, "#d6a05f", -0.18],
+    [48, 16, 0.72, "#73958d", 0.15], [53, 32, 0.9, "#8d79a6", -0.14],
+    [45, 45, 0.72, "#a87259", 0.18], [47, 62, 0.82, "#73958d", -0.18]
+  ] as const;
+  const cream = matte("#eadabb");
+  const roofMaterials = [matte("#bd694e"), matte("#4f6668"), matte("#8c704c")];
+  const glowMaterial = new THREE.MeshStandardMaterial({
+    color: "#ffe7a3",
+    emissive: "#e8a84c",
+    emissiveIntensity: 0.86,
+    roughness: 0.72
+  });
+  hutPlacements.forEach(([x, z, scale, color, rotation], index) => {
+    const hut = new THREE.Group();
+    hut.position.set(x, coastalTerrainHeight(x, z), z);
+    hut.rotation.y = rotation;
+    hut.scale.setScalar(scale);
+    const terrace = new THREE.Mesh(new THREE.BoxGeometry(5.1, 0.42, 4.7), matte("#b7a47d"));
+    terrace.position.y = 0.06;
+    hut.add(terrace);
+    const body = new THREE.Mesh(new THREE.BoxGeometry(3.7, 2.8, 3.25), matte(color));
+    body.position.y = 1.66;
+    hut.add(body);
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(3.15, 1.45, 4), roofMaterials[index % roofMaterials.length]);
+    roof.position.y = 3.72;
+    roof.rotation.y = Math.PI / 4;
+    roof.scale.z = 0.82;
+    hut.add(roof);
+    const door = new THREE.Mesh(new THREE.BoxGeometry(0.82, 1.72, 0.12), matte("#604433"));
+    door.position.set(0, 1.02, -1.69);
+    hut.add(door);
+    for (const side of [-1, 1]) {
+      const window = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.66, 0.13), glowMaterial);
+      window.position.set(side * 1.08, 1.82, -1.7);
+      hut.add(window);
+    }
+    const awning = new THREE.Mesh(new THREE.BoxGeometry(2.25, 0.13, 0.82), cream);
+    awning.position.set(0, 2.1, -2.02);
+    awning.rotation.x = -0.16;
+    hut.add(awning);
+    addSoftShadow(hut, 0.4, 0.4, 5.5, 4.6, rotation, 0.15);
+    world.add(hut);
+  });
+
+  const lampMaterial = matte("#3b4645");
+  const bulbMaterial = new THREE.MeshStandardMaterial({
+    color: "#fff0bd",
+    emissive: "#efad4b",
+    emissiveIntensity: 1.35,
+    roughness: 0.66
+  });
+  COASTAL_LANDMARKS.forEach((landmark, districtIndex) => {
+    for (const side of [-1, 1]) {
+      const z = landmark.position[2] + side * 7.5;
+      const x = landmark.position[0] + 7 + (districtIndex % 2) * 2;
+      const lamp = new THREE.Group();
+      lamp.position.set(x, coastalTerrainHeight(x, z), z);
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, 3.7, 8), lampMaterial);
+      post.position.y = 1.85;
+      lamp.add(post);
+      const bulb = new THREE.Mesh(new THREE.DodecahedronGeometry(0.38, 1), bulbMaterial);
+      bulb.position.y = 3.85;
+      lamp.add(bulb);
+      world.add(lamp);
+    }
+  });
 }
 
-function createCoastalStudio(group: THREE.Group, accent: string, archive: boolean): void {
-  const body = new THREE.Mesh(new THREE.BoxGeometry(3.7, 2.4, 3), matte(archive ? "#d6c8df" : "#d8dfd1"));
-  body.position.y = 1.9;
+function createOperatorCamp(group: THREE.Group, accent: string): void {
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(5.4, 28), matte("#cfb58b"));
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = 0.05;
+  ground.receiveShadow = true;
+  group.add(ground);
+
+  const tent = new THREE.Group();
+  tent.position.set(-2.4, 0, 0.7);
+  const tentBody = new THREE.Mesh(new THREE.ConeGeometry(2.1, 3, 4), matte("#d98962"));
+  tentBody.position.y = 1.45;
+  tentBody.rotation.y = Math.PI / 4;
+  tentBody.scale.z = 0.7;
+  tent.add(tentBody);
+  const opening = new THREE.Mesh(new THREE.ConeGeometry(0.7, 1.8, 3), matte("#4d3b32"));
+  opening.position.set(0, 0.88, -1.42);
+  opening.rotation.x = Math.PI / 2;
+  tent.add(opening);
+  group.add(tent);
+
+  const fire = new THREE.Group();
+  fire.position.set(1.2, 0, 0.35);
+  for (const rotation of [-0.55, 0.55]) {
+    const log = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.15, 1.7, 8), matte("#6c4934"));
+    log.rotation.z = Math.PI / 2;
+    log.rotation.y = rotation;
+    log.position.y = 0.22;
+    fire.add(log);
+  }
+  for (const [scale, color, y] of [[1, "#ef6e48", 0.72], [0.72, accent, 0.94], [0.42, "#fff1b6", 1.12]] as const) {
+    const flame = new THREE.Mesh(new THREE.ConeGeometry(0.42 * scale, 1.05 * scale, 9), new THREE.MeshStandardMaterial({
+      color,
+      emissive: color,
+      emissiveIntensity: 1.2,
+      roughness: 0.7
+    }));
+    flame.position.y = y;
+    fire.add(flame);
+  }
+  const fireLight = new THREE.PointLight("#ffb35e", 1.35, 14, 2);
+  fireLight.position.y = 1.15;
+  fire.add(fireLight);
+  group.add(fire);
+
+  const props = [
+    [-4.1, -2.1, "#6b8f8a"], [-3.2, -2.55, "#d1a15e"],
+    [2.8, 1.5, "#866a55"], [3.75, 1.1, "#8f775e"], [3.3, -1.4, "#668c82"]
+  ] as const;
+  props.forEach(([x, z, color], index) => {
+    const pack = new THREE.Mesh(new THREE.BoxGeometry(0.75 + index % 2 * 0.3, 0.7, 0.5), matte(color));
+    pack.position.set(x, 0.4, z);
+    pack.rotation.y = index * 0.7;
+    group.add(pack);
+  });
+  createJournalSign(group, "WHY 100?", 3.8, -2.6, -0.4, accent);
+}
+
+function createExecutionWorkshop(group: THREE.Group, accent: string): void {
+  const body = new THREE.Mesh(new THREE.BoxGeometry(7.2, 3.6, 5.2), matte("#547b78"));
+  body.position.y = 2.2;
   group.add(body);
-  const roof = new THREE.Mesh(new THREE.ConeGeometry(3.15, 1.15, 4), matte(accent));
-  roof.position.y = 3.65;
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(5.6, 2.05, 4), matte("#49525b"));
+  roof.position.y = 4.78;
   roof.rotation.y = Math.PI / 4;
-  roof.scale.z = 0.82;
+  roof.scale.z = 0.72;
   group.add(roof);
-  const door = new THREE.Mesh(new THREE.BoxGeometry(0.78, 1.55, 0.12), matte(colors.timber));
-  door.position.set(0, 1.35, -1.56);
+  const door = new THREE.Mesh(new THREE.BoxGeometry(1.45, 2.6, 0.18), matte("#5c3d2e"));
+  door.position.set(0, 1.52, -2.68);
   group.add(door);
-  for (const x of [-1.15, 1.15]) {
-    const window = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.72, 0.1), matte("#8fc4c5", 0.5));
-    window.position.set(x, 2.12, -1.57);
+  for (const x of [-2.35, 2.35]) {
+    const window = new THREE.Mesh(
+      new THREE.BoxGeometry(1.35, 1.25, 0.16),
+      new THREE.MeshStandardMaterial({ color: "#ffd67d", emissive: "#e9a84f", emissiveIntensity: 0.68, roughness: 0.72 })
+    );
+    window.position.set(x, 2.35, -2.69);
     group.add(window);
   }
+  const workbench = new THREE.Mesh(new THREE.BoxGeometry(5.7, 0.32, 1.25), matte("#a9784e"));
+  workbench.position.set(0, 1.25, 3.15);
+  group.add(workbench);
+  for (let index = 0; index < 4; index += 1) {
+    const tool = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.22 + index * 0.12, 0.44), matte(index % 2 ? accent : "#ef835f"));
+    tool.position.set(-2.05 + index * 1.35, 1.56, 3.12);
+    group.add(tool);
+  }
+  createJournalSign(group, "BUILD · SHIP · SCALE", 0, -3.05, 0, accent);
 }
 
-function createReefLab(group: THREE.Group, accent: string): void {
-  const dome = new THREE.Mesh(new THREE.SphereGeometry(2.15, 28, 18, 0, Math.PI * 2, 0, Math.PI / 2), matte("#bdd6c7", 0.56));
-  dome.position.y = 0.72;
-  group.add(dome);
-  const frame = new THREE.Mesh(new THREE.TorusGeometry(2.14, 0.09, 8, 48), matte(accent));
-  frame.rotation.x = Math.PI / 2;
-  frame.position.y = 0.72;
-  group.add(frame);
-  for (let index = 0; index < 7; index += 1) {
-    const coral = new THREE.Mesh(new THREE.ConeGeometry(0.22 + index % 2 * 0.1, 0.8 + index % 3 * 0.2, 7), matte(index % 2 ? "#f18d79" : "#e5bd68"));
-    coral.position.set(-1.35 + index * 0.42, 1.05, -0.8 + (index % 3) * 0.45);
-    group.add(coral);
+function createCareerRidge(group: THREE.Group, accent: string): void {
+  const labels = ["NCS", "FREELANCE", "UBS", "DBS", "SEMBCORP"];
+  const colors = ["#a87057", "#c58d65", "#617a8e", "#667f75", "#6f8e7f"];
+  labels.forEach((label, index) => {
+    const building = new THREE.Group();
+    const row = index < 3 ? 0 : 1;
+    const column = row === 0 ? index : index - 3;
+    building.position.set((column - (row === 0 ? 1 : 0.5)) * 4.6, row * 2.5, row * 4.1);
+    const width = index === 4 ? 4.3 : 3.7;
+    const height = 3.5 + index * 1.6;
+    const body = new THREE.Mesh(new THREE.BoxGeometry(width, height, 3.6), matte(colors[index]));
+    body.position.y = height / 2 + 0.18;
+    building.add(body);
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(width * 0.74, 1.25, 4), matte(index === 4 ? accent : "#4f4b4b"));
+    roof.position.y = height + 0.82;
+    roof.rotation.y = Math.PI / 4;
+    roof.scale.z = 0.82;
+    building.add(roof);
+    const light = new THREE.Mesh(
+      new THREE.BoxGeometry(width * 0.54, 0.75, 0.12),
+      new THREE.MeshStandardMaterial({ color: "#ffe3a3", emissive: "#e9b85e", emissiveIntensity: 0.64, roughness: 0.75 })
+    );
+    light.position.set(0, height * 0.58, -1.86);
+    building.add(light);
+    createJournalSign(building, label, 0, -2.02, 0, index === 4 ? accent : "#e9d8b8", 1.36);
+    group.add(building);
+  });
+  const terrace = new THREE.Mesh(new THREE.BoxGeometry(12, 0.45, 5.4), matte("#b7a47d"));
+  terrace.position.set(0, 2.3, 4.3);
+  group.add(terrace);
+}
+
+function createVentureHarbour(group: THREE.Group, accent: string): void {
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(11, 0.38, 5.3), matte("#9b6c46"));
+  deck.position.y = 0.28;
+  group.add(deck);
+  for (const x of [-4.6, -1.55, 1.55, 4.6]) {
+    const bollard = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 1.2, 8), matte("#4b453f"));
+    bollard.position.set(x, 0.72, -2.15);
+    group.add(bollard);
   }
+  const boatColors = ["#df6e52", "#5c8e88", "#e0ab4f", "#8d79a6"];
+  boatColors.forEach((color, index) => {
+    const boat = new THREE.Group();
+    boat.position.set(-6.2 + index * 4.15, -0.55 - (index % 2) * 0.08, -5.2 - (index % 2) * 2.5);
+    boat.rotation.y = -0.12 + index * 0.08;
+    const hull = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 1.15, 4.2, 5), matte(color));
+    hull.rotation.z = Math.PI / 2;
+    hull.rotation.y = Math.PI / 2;
+    hull.scale.z = 0.72;
+    boat.add(hull);
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.08, 3.4, 8), matte(colors.timber));
+    mast.position.y = 1.78;
+    boat.add(mast);
+    const sail = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 2.4), matte(index % 2 ? "#f4e7cc" : accent, 0.82));
+    sail.position.set(0.88, 1.95, 0);
+    boat.add(sail);
+    group.add(boat);
+  });
+  createJournalSign(group, "IDEAS LEAVE THE DOCK", 0, 0.1, 0, accent);
+}
+
+function createSignalArchive(group: THREE.Group, accent: string): void {
+  const floor = new THREE.Mesh(new THREE.CylinderGeometry(5.6, 6.1, 0.7, 30), matte("#d0bea0"));
+  floor.position.y = 0.35;
+  group.add(floor);
+  for (let index = 0; index < 9; index += 1) {
+    const angle = -Math.PI * 0.76 + index / 8 * Math.PI * 1.52;
+    const shelf = new THREE.Group();
+    shelf.position.set(Math.cos(angle) * 4.65, 0.7, Math.sin(angle) * 4.65);
+    shelf.rotation.y = -angle + Math.PI / 2;
+    const back = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.85, 0.28), matte(index % 2 ? "#6c5c78" : "#776b82"));
+    back.position.y = 1.45;
+    shelf.add(back);
+    for (let row = 0; row < 3; row += 1) {
+      for (let book = 0; book < 4; book += 1) {
+        const volume = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.56, 0.24), matte((book + row) % 3 === 0 ? accent : (book + row) % 3 === 1 ? "#ef835f" : "#e5c078"));
+        volume.position.set(-0.66 + book * 0.43, 0.62 + row * 0.82, -0.2);
+        shelf.add(volume);
+      }
+    }
+    group.add(shelf);
+  }
+  const table = new THREE.Mesh(new THREE.CylinderGeometry(1.65, 1.35, 0.75, 22), matte("#8e684d"));
+  table.position.y = 1.05;
+  group.add(table);
+  const journal = new THREE.Mesh(new THREE.BoxGeometry(1.45, 0.12, 1.05), matte("#f0dfbd"));
+  journal.position.set(0, 1.48, 0);
+  journal.rotation.y = -0.35;
+  group.add(journal);
+  createJournalSign(group, "FIELD NOTES", 0, -5.7, 0, accent);
+}
+
+function createJournalSign(
+  group: THREE.Group,
+  label: string,
+  x: number,
+  z: number,
+  rotation: number,
+  accent: string,
+  scale = 1
+): void {
+  const sign = new THREE.Group();
+  sign.position.set(x, 0, z);
+  sign.rotation.y = rotation;
+  sign.scale.setScalar(scale);
+  const post = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1.9, 0.16), matte("#6e4e38"));
+  post.position.y = 0.95;
+  sign.add(post);
+  const board = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.02, 0.18), matte("#f0e1c3"));
+  board.position.y = 1.85;
+  sign.add(board);
+  const stripe = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.13, 0.04), matte(accent));
+  stripe.position.set(0, 2.12, -0.12);
+  sign.add(stripe);
+  const markerCount = Math.min(9, Math.max(3, Math.round(label.length / 2.8)));
+  for (let index = 0; index < markerCount; index += 1) {
+    const glyph = new THREE.Mesh(new THREE.BoxGeometry(0.19 + index % 2 * 0.05, 0.08, 0.035), matte("#4e453d"));
+    glyph.position.set((index - (markerCount - 1) / 2) * 0.3, 1.72 + (index % 3) * 0.12, -0.12);
+    sign.add(glyph);
+  }
+  sign.userData.label = label;
+  group.add(sign);
 }
 
 function createPalm(world: THREE.Group, x: number, z: number, rotation: number, phase: number): THREE.Group {
@@ -527,7 +904,7 @@ function createBoat(world: THREE.Group): THREE.Group {
 
 function createBalloon(world: THREE.Group): THREE.Group {
   const balloon = new THREE.Group();
-  balloon.position.set(34, 28, -84);
+  balloon.position.set(-72, 42, -18);
   const envelope = new THREE.Mesh(new THREE.SphereGeometry(2.2, 20, 16), matte("#ef835f"));
   envelope.scale.y = 1.28;
   balloon.add(envelope);
@@ -559,12 +936,163 @@ function createSeaBirds(world: THREE.Group): void {
 }
 
 function createDistantIslands(world: THREE.Group): void {
-  for (const [x, z, scale] of [[-88, -98, 2.8], [-74, -10, 2.1], [-98, 62, 3.2], [-52, 126, 2.4]] as const) {
-    const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(4.3 * scale, 0), matte(colors.grassDark));
-    rock.position.set(x, -1.1, z);
-    rock.scale.y = 0.42;
+  const islands = [
+    [-94, -106, 3.8, 0.58], [-55, -58, 2.6, 0.5], [-112, 6, 4.8, 0.7],
+    [-70, 72, 3.3, 0.56], [-52, 126, 2.7, 0.5], [-142, 106, 5.2, 0.66]
+  ] as const;
+  for (const [x, z, scale, height] of islands) {
+    const island = new THREE.Group();
+    island.position.set(x, -0.6, z);
+    const stone = new THREE.Mesh(new THREE.DodecahedronGeometry(4.3 * scale, 1), matte("#55654f"));
+    stone.scale.y = height;
+    island.add(stone);
+    const meadow = new THREE.Mesh(new THREE.DodecahedronGeometry(3.9 * scale, 1), matte("#4f6e4c"));
+    meadow.position.y = 0.45;
+    meadow.scale.y = height * 0.62;
+    island.add(meadow);
+    const treeCount = Math.max(2, Math.floor(scale * 2));
+    for (let index = 0; index < treeCount; index += 1) {
+      const tree = new THREE.Mesh(new THREE.ConeGeometry(0.55, 2.1, 6), matte(index % 2 ? "#3f6548" : "#547b50"));
+      tree.position.set((index - treeCount / 2) * 1.6, 1.4, Math.sin(index * 2.1) * 2.2);
+      island.add(tree);
+    }
+    world.add(island);
+  }
+}
+
+function createShoreline(world: THREE.Group): void {
+  const foamMaterial = new THREE.MeshBasicMaterial({
+    color: "#f8f0df",
+    transparent: true,
+    opacity: 0.72,
+    depthWrite: false,
+    toneMapped: false
+  });
+  const wetMaterial = new THREE.MeshStandardMaterial({
+    color: "#9db9a8",
+    transparent: true,
+    opacity: 0.3,
+    roughness: 0.9,
+    depthWrite: false
+  });
+  const points = Array.from({ length: 100 }, (_, index) => {
+    const z = -136 + index * 2.18;
+    return new THREE.Vector3(coastalShoreX(z) - 0.9, -0.06, z);
+  });
+  const foam = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 260, 0.11, 6, false), foamMaterial);
+  world.add(foam);
+  const wetPoints = points.map((point) => point.clone().add(new THREE.Vector3(1.45, 0.01, 0)));
+  const wetLine = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(wetPoints), 260, 0.62, 8, false), wetMaterial);
+  wetLine.scale.y = 0.08;
+  world.add(wetLine);
+
+  for (let index = 0; index < 22; index += 1) {
+    const z = -126 + index * 9.2;
+    const x = coastalShoreX(z) + 3.2 + (index % 3) * 0.9;
+    const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.32 + (index % 4) * 0.12, 0), matte(index % 2 ? "#8d8272" : "#a39782"));
+    rock.position.set(x, coastalTerrainHeight(x, z) + 0.18, z);
+    rock.scale.y = 0.62;
     world.add(rock);
   }
+}
+
+function createHeadlandDetails(world: THREE.Group): void {
+  const flowerColors = ["#f09a91", "#f3cc70", "#eee4cf", "#89b7ac"];
+  const stemGeometry = new THREE.CylinderGeometry(0.025, 0.035, 0.34, 5);
+  const bloomGeometry = new THREE.DodecahedronGeometry(0.1, 0);
+  const stemMaterial = matte("#527451");
+  const bloomMaterials = flowerColors.map((color) => matte(color));
+  for (let index = 0; index < 90; index += 1) {
+    const z = -124 + (index * 13.73) % 190;
+    const x = coastalShoreX(z) + 8 + (index * 23.17) % 75;
+    if (COASTAL_LANDMARKS.some((landmark) => Math.hypot(x - landmark.position[0], z - landmark.position[2]) < 5.8)) continue;
+    const ground = coastalTerrainHeight(x, z);
+    if (ground < 0.35) continue;
+    const flower = new THREE.Group();
+    flower.position.set(x, ground, z);
+    const stem = new THREE.Mesh(stemGeometry, stemMaterial);
+    stem.position.y = 0.17;
+    flower.add(stem);
+    const bloom = new THREE.Mesh(bloomGeometry, bloomMaterials[index % bloomMaterials.length]);
+    bloom.position.y = 0.38;
+    bloom.scale.setScalar(0.82 + (index % 3) * 0.16);
+    flower.add(bloom);
+    world.add(flower);
+  }
+
+  const overlooks = [[73, -46, 0.28], [70, 22, -0.2], [62, 51, 0.5]] as const;
+  overlooks.forEach(([x, z, rotation], index) => {
+    const group = new THREE.Group();
+    group.position.set(x, coastalTerrainHeight(x, z), z);
+    group.rotation.y = rotation;
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(3, 0.25, 0.62), matte(index === 1 ? "#a66f4d" : "#896044"));
+    seat.position.y = 0.85;
+    group.add(seat);
+    for (const legX of [-1.1, 1.1]) {
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.9, 0.42), matte("#4d4740"));
+      leg.position.set(legX, 0.42, 0);
+      group.add(leg);
+    }
+    const back = new THREE.Mesh(new THREE.BoxGeometry(3, 0.85, 0.18), matte(index === 1 ? "#a66f4d" : "#896044"));
+    back.position.set(0, 1.35, 0.22);
+    back.rotation.x = -0.1;
+    group.add(back);
+    addSoftShadow(group, 0.4, 0.35, 3.8, 1.4, rotation, 0.12);
+    world.add(group);
+  });
+}
+
+function createHundredLanternWalk(world: THREE.Group): void {
+  const group = new THREE.Group();
+  group.name = "the-100-lantern-walk";
+  world.add(group);
+
+  const postGeometry = new THREE.CylinderGeometry(0.055, 0.075, 1.08, 7);
+  const bulbGeometry = new THREE.DodecahedronGeometry(0.145, 0);
+  const posts = new THREE.InstancedMesh(postGeometry, matte("#5e5144"), 100);
+  const lit = new THREE.InstancedMesh(
+    bulbGeometry,
+    new THREE.MeshStandardMaterial({ color: "#ffd674", emissive: "#f0a83f", emissiveIntensity: 1.35, roughness: 0.78 }),
+    19
+  );
+  const waiting = new THREE.InstancedMesh(bulbGeometry, matte("#786f60"), 81);
+  const matrix = new THREE.Matrix4();
+  const position = new THREE.Vector3();
+  const quaternion = new THREE.Quaternion();
+  const scale = new THREE.Vector3(1, 1, 1);
+
+  for (let index = 0; index < 100; index += 1) {
+    const z = -141 + index * 2.08;
+    const x = 91 + Math.sin(index * 0.21) * 5.5 + Math.sin(z * 0.032) * 4;
+    const ground = coastalTerrainHeight(x, z);
+    position.set(x, ground + 0.54, z);
+    matrix.compose(position, quaternion, scale);
+    posts.setMatrixAt(index, matrix);
+    position.y = ground + 1.18;
+    matrix.compose(position, quaternion, scale);
+    if (index < 19) lit.setMatrixAt(index, matrix);
+    else waiting.setMatrixAt(index - 19, matrix);
+
+    if (index === 0 || index === 9 || index === 18) {
+      const glow = new THREE.PointLight("#ffc95f", 0.48, 9, 2);
+      glow.position.copy(position);
+      group.add(glow);
+    }
+  }
+  posts.instanceMatrix.needsUpdate = true;
+  lit.instanceMatrix.needsUpdate = true;
+  waiting.instanceMatrix.needsUpdate = true;
+  posts.castShadow = true;
+  lit.castShadow = false;
+  waiting.castShadow = false;
+  group.add(posts, lit, waiting);
+
+  const startZ = -141;
+  const startX = 91 + Math.sin(startZ * 0.032) * 4;
+  const sign = new THREE.Group();
+  sign.position.set(startX - 4.8, coastalTerrainHeight(startX - 4.8, startZ + 2), startZ + 2);
+  createJournalSign(sign, "19 SHIPPED · 81 AHEAD", 0, 0, 0.28, "#f3bd52", 0.9);
+  group.add(sign);
 }
 
 function createTourRoute(world: THREE.Group): {

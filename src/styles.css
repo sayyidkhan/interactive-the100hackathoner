@@ -4319,6 +4319,389 @@ dd {
   }
 }
 
+/* Kairui compact HUD: preserve the world as the primary interface. */
+.coastal-menu-toggle {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  color: var(--coastal-ink);
+  background: rgba(255, 249, 235, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.84);
+  border-radius: 999px;
+  box-shadow: 0 14px 38px rgba(30, 48, 47, 0.14);
+  cursor: pointer;
+  pointer-events: auto;
+  backdrop-filter: blur(14px);
+}
+
+.coastal-menu-toggle span {
+  font-size: 13px;
+}
+
+.coastal-menu-toggle strong {
+  font-size: 11px;
+}
+
+.coastal-menu-panel {
+  position: absolute;
+  top: 76px;
+  right: 24px;
+  display: grid;
+  width: min(300px, calc(100vw - 48px));
+  gap: 11px;
+  padding: 16px;
+  color: var(--coastal-ink);
+  background: rgba(255, 250, 239, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.88);
+  border-radius: 22px;
+  box-shadow: 0 26px 72px rgba(28, 49, 48, 0.22);
+  pointer-events: auto;
+  backdrop-filter: blur(22px) saturate(0.88);
+  animation: coastal-environment-arrive 180ms ease-out;
+}
+
+.coastal-menu-panel[hidden] {
+  display: none;
+}
+
+.coastal-menu-panel > small {
+  color: #8b8175;
+  font-size: 9px;
+  text-align: center;
+}
+
+.coastal-menu-panel .coastal-progress,
+.coastal-menu-panel .coastal-world-switcher,
+.coastal-menu-panel .coastal-transit,
+.coastal-menu-panel .coastal-environment-toggle {
+  position: static;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  transform: none;
+}
+
+.coastal-menu-panel .coastal-progress {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 3px 8px;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--coastal-line);
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.coastal-menu-panel .coastal-progress strong {
+  font-size: 20px;
+}
+
+.coastal-menu-panel .coastal-world-switcher,
+.coastal-menu-panel .coastal-transit {
+  justify-content: stretch;
+  background: #efe6d5;
+  border: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.coastal-menu-panel .coastal-world-switcher a,
+.coastal-menu-panel .coastal-transit button {
+  flex: 1;
+  justify-content: center;
+  text-align: center;
+}
+
+.coastal-menu-panel .coastal-environment-toggle {
+  padding: 10px 12px;
+  background: #fffaf0;
+  border-color: var(--coastal-line);
+  border-radius: 13px;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.coastal-established .coastal-plaque {
+  width: auto;
+  min-width: 0;
+  padding: 10px 13px 11px;
+  border-radius: 15px 15px 15px 6px;
+}
+
+.coastal-established .coastal-plaque span {
+  display: none;
+}
+
+.coastal-established .coastal-plaque strong {
+  font-size: 29px;
+}
+
+.coastal-controls {
+  display: none;
+}
+
+.coastal-chapter-rail {
+  visibility: hidden;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.coastal-root[data-coastal-tour="active"] .coastal-chapter-rail {
+  visibility: visible;
+  pointer-events: auto;
+  opacity: 1;
+}
+
+.coastal-root[data-coastal-establishing="true"] .coastal-menu-toggle,
+.coastal-root[data-coastal-establishing="true"] .coastal-menu-panel,
+.coastal-root[data-coastal-establishing="true"] .coastal-tour-button {
+  visibility: hidden;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.coastal-tour-button {
+  min-width: 0;
+  padding: 10px 14px;
+  border-radius: 999px;
+}
+
+.coastal-tour-button span {
+  display: none;
+}
+
+.coastal-tour-button strong {
+  font-size: 11px;
+}
+
+.coastal-environment-panel {
+  right: 24px;
+  bottom: 82px;
+}
+
+@media (max-width: 760px) {
+  .coastal-menu-toggle {
+    top: 12px;
+    right: 12px;
+  }
+
+  .coastal-menu-panel {
+    top: 64px;
+    right: 12px;
+    width: min(300px, calc(100vw - 24px));
+  }
+
+  .coastal-established .coastal-plaque {
+    top: 12px;
+    left: 12px;
+    max-width: none;
+    padding: 10px 13px;
+  }
+
+  .coastal-tour-button {
+    right: 12px;
+    bottom: 12px;
+  }
+}
+
+/* Kairui entry — restrained editorial atmosphere ----------------------- */
+
+.coastal-root:not(.coastal-established) .coastal-vignette {
+  background:
+    radial-gradient(circle at 14% 14%, rgba(255, 192, 112, 0.13), transparent 23%),
+    radial-gradient(ellipse 72% 28% at 52% 48%, rgba(238, 160, 81, 0.11), transparent 72%),
+    linear-gradient(90deg, rgba(4, 13, 21, 0.66) 0%, rgba(4, 13, 21, 0.2) 42%, transparent 68%),
+    linear-gradient(180deg, rgba(3, 10, 18, 0.18), transparent 38%, rgba(3, 12, 18, 0.36));
+  mix-blend-mode: normal;
+}
+
+.coastal-root:not(.coastal-established) .coastal-plaque {
+  top: clamp(54px, 8.5vh, 94px);
+  gap: 10px;
+  width: min(590px, calc(100vw - 60px));
+}
+
+.coastal-root:not(.coastal-established) .coastal-plaque::before {
+  width: 42px;
+  height: 3px;
+  margin-bottom: 5px;
+  content: "";
+  background: linear-gradient(90deg, #f0a455, #f2d58a);
+  border-radius: 999px;
+  box-shadow: 0 0 24px rgba(240, 164, 85, 0.5);
+}
+
+.coastal-root:not(.coastal-established) .coastal-plaque span {
+  color: #f4cf91;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+}
+
+.coastal-root:not(.coastal-established) .coastal-plaque strong {
+  width: max-content;
+  color: #fff8e9;
+  font-size: clamp(72px, 9vw, 126px);
+  letter-spacing: -0.075em;
+  text-shadow: 0 8px 42px rgba(0, 0, 0, 0.28);
+}
+
+.coastal-root:not(.coastal-established) .coastal-plaque small {
+  max-width: 420px;
+  margin-top: 7px;
+  color: rgba(255, 248, 233, 0.94);
+  font-size: clamp(15px, 1.45vw, 20px);
+  letter-spacing: -0.02em;
+}
+
+.coastal-root:not(.coastal-established) .coastal-plaque em {
+  display: block;
+  margin-top: 1px;
+  color: rgba(239, 221, 190, 0.62);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.coastal-root:not(.coastal-established) .coastal-enter-world {
+  top: clamp(340px, 49vh, 490px);
+  gap: 18px;
+  min-height: 54px;
+  padding: 6px 8px 6px 20px;
+  background: rgba(6, 22, 28, 0.52);
+  border: 1px solid rgba(255, 241, 213, 0.26);
+  border-radius: 999px;
+  box-shadow: 0 16px 44px rgba(2, 10, 16, 0.22), inset 0 1px rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(14px) saturate(0.82);
+}
+
+.coastal-root:not(.coastal-established) .coastal-enter-world::before {
+  width: 7px;
+  height: 7px;
+  content: "";
+  background: #f0aa58;
+  border-radius: 50%;
+  box-shadow: 0 0 0 5px rgba(240, 170, 88, 0.12), 0 0 18px rgba(240, 170, 88, 0.6);
+}
+
+.coastal-root:not(.coastal-established) .coastal-enter-world span {
+  color: rgba(255, 240, 211, 0.64);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+}
+
+.coastal-root:not(.coastal-established) .coastal-enter-world strong {
+  color: #fff8e9;
+  font-size: 14px;
+}
+
+.coastal-enter-world i {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  color: #263935;
+  background: #f3d38d;
+  border-radius: 50%;
+  font-size: 17px;
+  font-style: normal;
+  transition: transform 180ms ease, background 180ms ease;
+}
+
+.coastal-root:not(.coastal-established) .coastal-enter-world:hover,
+.coastal-root:not(.coastal-established) .coastal-enter-world:focus-visible {
+  background: rgba(12, 34, 38, 0.72);
+  border-color: rgba(243, 211, 141, 0.72);
+  box-shadow: 0 20px 54px rgba(2, 10, 16, 0.3), 0 0 0 3px rgba(243, 211, 141, 0.12);
+  transform: translateY(-2px);
+}
+
+.coastal-root:not(.coastal-established) .coastal-enter-world:hover i,
+.coastal-root:not(.coastal-established) .coastal-enter-world:focus-visible i {
+  background: #ffe0a0;
+  transform: rotate(8deg) scale(1.05);
+}
+
+@media (max-width: 760px) {
+  .coastal-root:not(.coastal-established) .coastal-plaque {
+    top: 46px;
+    left: 24px;
+    width: calc(100vw - 48px);
+  }
+
+  .coastal-root:not(.coastal-established) .coastal-plaque strong {
+    font-size: clamp(62px, 22vw, 92px);
+  }
+
+  .coastal-root:not(.coastal-established) .coastal-plaque em {
+    max-width: 300px;
+    line-height: 1.5;
+  }
+
+  .coastal-root:not(.coastal-established) .coastal-enter-world {
+    top: auto;
+    right: 20px;
+    bottom: 28px;
+    left: 20px;
+    justify-content: space-between;
+    width: auto;
+  }
+
+  .coastal-root:not(.coastal-established) .coastal-enter-world span {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .coastal-enter-world,
+  .coastal-enter-world i {
+    transition: none;
+  }
+}
+
+.coastal-root.coastal-established .coastal-plaque {
+  top: 20px;
+  left: 20px;
+  width: auto;
+  min-width: 214px;
+  gap: 2px;
+  padding: 13px 16px 14px;
+  border-radius: 17px 17px 17px 6px;
+}
+
+.coastal-root.coastal-established .coastal-plaque span {
+  display: block;
+  color: var(--coastal-coral);
+  font-size: 8px;
+  letter-spacing: 0.16em;
+}
+
+.coastal-root.coastal-established .coastal-plaque strong {
+  font-size: 31px;
+  line-height: 0.98;
+}
+
+@media (max-width: 760px) {
+  .coastal-root.coastal-established .coastal-plaque {
+    top: 12px;
+    left: 12px;
+    min-width: 190px;
+  }
+
+  .coastal-root.coastal-established .coastal-plaque strong {
+    font-size: 27px;
+  }
+}
+
 /* Unified kingdom hub ---------------------------------------------------- */
 
 .kingdom-hub-root {
@@ -4654,6 +5037,7 @@ dd {
 }
 
 .coastal-plaque,
+.coastal-enter-world,
 .coastal-progress,
 .coastal-world-switcher,
 .coastal-tour-button,
@@ -4662,6 +5046,7 @@ dd {
 .coastal-transit,
 .coastal-prompt,
 .coastal-controls,
+.coastal-chapter-rail,
 .coastal-story-card {
   position: absolute;
   pointer-events: auto;
@@ -4803,18 +5188,77 @@ dd {
 }
 
 .coastal-plaque {
-  top: 24px;
-  left: 24px;
+  top: clamp(42px, 10vh, 108px);
+  left: clamp(30px, 6vw, 96px);
   display: grid;
-  min-width: min(365px, calc(100vw - 48px));
-  gap: 2px;
-  padding: 20px 23px 18px;
-  color: var(--coastal-ink);
-  background: var(--coastal-paper);
-  border: 1px solid rgba(255, 255, 255, 0.82);
-  border-radius: 29px 29px 29px 12px;
-  box-shadow: 0 22px 58px rgba(36, 55, 52, 0.16);
-  backdrop-filter: blur(18px) saturate(0.82);
+  width: min(520px, calc(100vw - 60px));
+  gap: 8px;
+  padding: 0;
+  color: #fffaf0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  text-shadow: 0 3px 18px rgba(28, 43, 42, 0.32);
+  backdrop-filter: none;
+  transition: width 500ms ease, padding 500ms ease, background 500ms ease, border-radius 500ms ease;
+}
+
+.coastal-enter-world {
+  top: clamp(250px, 40vh, 390px);
+  left: clamp(30px, 6vw, 96px);
+  display: inline-flex;
+  width: max-content;
+  min-width: 0;
+  align-items: center;
+  gap: 15px;
+  padding: 11px 0 10px;
+  color: #fff9ed;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 249, 237, 0.68);
+  border-radius: 0;
+  box-shadow: none;
+  cursor: pointer;
+  backdrop-filter: none;
+  transition: border-color 180ms ease, transform 180ms ease;
+}
+
+.coastal-enter-world:hover,
+.coastal-enter-world:focus-visible {
+  background: transparent;
+  border-color: var(--coastal-gold);
+  outline: 0;
+  transform: translateX(4px);
+}
+
+.coastal-enter-world[hidden] {
+  display: none;
+}
+
+.coastal-enter-world span {
+  color: rgba(255, 249, 237, 0.66);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.coastal-enter-world strong {
+  font-size: 13px;
+}
+
+.coastal-root[data-coastal-establishing="true"] .coastal-controls,
+.coastal-root[data-coastal-establishing="true"] .coastal-environment-toggle,
+.coastal-root[data-coastal-establishing="true"] .coastal-transit,
+.coastal-root[data-coastal-establishing="true"] .coastal-world-switcher,
+.coastal-root[data-coastal-establishing="true"] .coastal-progress,
+.coastal-root[data-coastal-establishing="true"] .coastal-tour-button,
+.coastal-root[data-coastal-establishing="true"] .coastal-chapter-rail {
+  visibility: hidden;
+  pointer-events: none;
+  opacity: 0;
 }
 
 .coastal-plaque span,
@@ -4827,18 +5271,62 @@ dd {
   text-transform: uppercase;
 }
 
+.coastal-plaque span {
+  color: rgba(255, 240, 204, 0.76);
+  font-size: 9px;
+}
+
 .coastal-plaque strong {
-  max-width: 320px;
-  font-family: "Bebas Neue", "Arial Narrow", sans-serif;
-  font-size: clamp(31px, 3.1vw, 45px);
-  font-weight: 400;
-  line-height: 0.86;
+  max-width: none;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: clamp(66px, 8vw, 110px);
+  font-weight: 800;
+  letter-spacing: -0.065em;
+  line-height: 0.84;
+  text-transform: uppercase;
 }
 
 .coastal-plaque small {
-  color: #6f776e;
-  font-size: 12px;
-  font-weight: 700;
+  max-width: 360px;
+  margin-top: 4px;
+  color: rgba(255, 250, 240, 0.82);
+  font-size: clamp(13px, 1.25vw, 16px);
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.coastal-plaque em {
+  display: none;
+}
+
+.coastal-established .coastal-plaque {
+  width: min(330px, calc(100vw - 48px));
+  padding: 15px 18px 16px;
+  background: rgba(255, 249, 235, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-radius: 22px 22px 22px 9px;
+  box-shadow: 0 18px 48px rgba(36, 55, 52, 0.13);
+  color: var(--coastal-ink);
+  text-shadow: none;
+  backdrop-filter: blur(14px) saturate(0.85);
+}
+
+.coastal-established .coastal-plaque span {
+  color: var(--coastal-coral);
+  font-size: 8px;
+}
+
+.coastal-established .coastal-plaque strong {
+  font-family: "Bebas Neue", "Arial Narrow", sans-serif;
+  font-size: 38px;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 0.9;
+}
+
+.coastal-established .coastal-plaque small,
+.coastal-established .coastal-plaque em {
+  display: none;
 }
 
 .coastal-progress {
@@ -4862,6 +5350,85 @@ dd {
   font-weight: 400;
 }
 
+.coastal-chapter-rail {
+  top: 50%;
+  left: 24px;
+  display: grid;
+  gap: 6px;
+  transform: translateY(-42%);
+}
+
+.coastal-chapter-rail::before {
+  position: absolute;
+  top: 16px;
+  bottom: 16px;
+  left: 15px;
+  z-index: -1;
+  width: 1px;
+  background: rgba(255, 249, 235, 0.5);
+  box-shadow: 0 0 18px rgba(31, 54, 53, 0.2);
+  content: "";
+}
+
+.coastal-chapter-rail button {
+  display: grid;
+  grid-template-columns: 31px auto;
+  min-height: 31px;
+  align-items: center;
+  padding: 0;
+  color: rgba(255, 250, 240, 0.82);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  filter: drop-shadow(0 2px 7px rgba(30, 44, 43, 0.28));
+  text-align: left;
+}
+
+.coastal-chapter-rail i {
+  display: grid;
+  width: 31px;
+  height: 31px;
+  place-items: center;
+  color: #fff9ed;
+  background: rgba(35, 54, 60, 0.46);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 50%;
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 900;
+  transition: background 180ms ease, transform 180ms ease;
+  backdrop-filter: blur(8px);
+}
+
+.coastal-chapter-rail span {
+  max-width: 0;
+  overflow: hidden;
+  padding-left: 0;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  opacity: 0;
+  text-transform: uppercase;
+  transition: max-width 220ms ease, opacity 180ms ease, padding 180ms ease;
+  white-space: nowrap;
+}
+
+.coastal-chapter-rail:hover span,
+.coastal-chapter-rail button:focus-visible span,
+.coastal-chapter-rail button.active span {
+  max-width: 90px;
+  padding-left: 9px;
+  opacity: 1;
+}
+
+.coastal-chapter-rail button.active i {
+  color: #493929;
+  background: var(--coastal-gold);
+  border-color: #ffe8a8;
+  box-shadow: 0 0 0 5px rgba(243, 189, 82, 0.2);
+  transform: scale(1.08);
+}
+
 .coastal-world-switcher {
   top: 107px;
   right: 24px;
@@ -4873,6 +5440,28 @@ dd {
   border-radius: 999px;
   box-shadow: 0 16px 42px rgba(36, 55, 52, 0.12);
   backdrop-filter: blur(15px);
+}
+
+.coastal-progress,
+.coastal-world-switcher,
+.coastal-transit,
+.coastal-environment-toggle,
+.coastal-controls,
+.coastal-tour-button,
+.coastal-chapter-rail {
+  transition: opacity 320ms ease, visibility 320ms ease, transform 320ms ease;
+}
+
+.coastal-root[data-coastal-establishing="true"] .coastal-progress,
+.coastal-root[data-coastal-establishing="true"] .coastal-world-switcher,
+.coastal-root[data-coastal-establishing="true"] .coastal-transit {
+  transform: translateY(-8px);
+}
+
+.coastal-root[data-coastal-establishing="true"] .coastal-tour-button,
+.coastal-root[data-coastal-establishing="true"] .coastal-environment-toggle,
+.coastal-root[data-coastal-establishing="true"] .coastal-controls {
+  transform: translateY(8px);
 }
 
 .coastal-world-switcher a {
@@ -4995,9 +5584,11 @@ dd {
 
 .coastal-story-card {
   top: 50%;
-  right: clamp(20px, 6vw, 92px);
-  width: min(430px, calc(100vw - 40px));
-  padding: 27px;
+  right: clamp(18px, 3vw, 48px);
+  width: min(472px, calc(100vw - 40px));
+  max-height: min(82vh, 780px);
+  overflow: auto;
+  padding: 28px;
   color: var(--coastal-ink);
   background: rgba(255, 250, 239, 0.96);
   border: 1px solid rgba(255, 255, 255, 0.92);
@@ -5008,12 +5599,45 @@ dd {
   animation: coastal-card-arrive 320ms cubic-bezier(0.2, 0.72, 0.2, 1);
 }
 
+@media (min-width: 1100px) {
+  .coastal-story-card {
+    width: min(420px, 35vw);
+    padding: 24px;
+  }
+
+  .coastal-story-card h1 {
+    font-size: clamp(37px, 3.4vw, 50px);
+  }
+}
+
 .coastal-story-card h1 {
   margin: 6px 38px 12px 0;
   font-family: "Bebas Neue", "Arial Narrow", sans-serif;
   font-size: clamp(39px, 5vw, 60px);
   font-weight: 400;
   line-height: 0.88;
+}
+
+.coastal-story-eyebrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-right: 42px;
+}
+
+.coastal-story-eyebrow > span {
+  color: var(--landmark-accent, var(--coastal-coral));
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.coastal-story-eyebrow b {
+  color: #938573;
+  font: 850 9px/1 Inter, system-ui, sans-serif;
+  letter-spacing: 0.08em;
 }
 
 .coastal-story-card p {
@@ -5023,17 +5647,61 @@ dd {
   line-height: 1.6;
 }
 
-.coastal-story-card blockquote {
+.coastal-story-metric {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: end;
+  gap: 12px;
+  margin: 3px 0 18px;
+  padding: 13px 15px;
+  background: color-mix(in srgb, var(--landmark-accent, var(--coastal-coral)) 11%, #fffaf0);
+  border: 1px solid color-mix(in srgb, var(--landmark-accent, var(--coastal-coral)) 25%, transparent);
+  border-radius: 15px;
+}
+
+.coastal-story-metric strong {
+  color: color-mix(in srgb, var(--landmark-accent, var(--coastal-coral)) 74%, #283c3d);
+  font-family: "Bebas Neue", "Arial Narrow", sans-serif;
+  font-size: 29px;
+  font-weight: 400;
+  line-height: 0.86;
+}
+
+.coastal-story-metric span {
+  color: #756f64;
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.coastal-story-log {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 18px;
   margin: 0 0 22px;
-  padding: 14px 16px;
-  color: #405a56;
-  background: rgba(102, 154, 145, 0.1);
-  border-left: 3px solid var(--landmark-accent, var(--coastal-coral));
-  border-radius: 0 13px 13px 0;
-  font-family: Georgia, serif;
-  font-size: 14px;
-  font-style: italic;
-  line-height: 1.55;
+}
+
+.coastal-story-log div {
+  min-width: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--coastal-line);
+}
+
+.coastal-story-log dt {
+  margin: 0 0 5px;
+  color: color-mix(in srgb, var(--landmark-accent, var(--coastal-coral)) 76%, #4a514a);
+  font-size: 8px;
+  font-weight: 950;
+  letter-spacing: 0.085em;
+  text-transform: uppercase;
+}
+
+.coastal-story-log dd {
+  margin: 0;
+  color: #596864;
+  font-size: 11px;
+  line-height: 1.45;
 }
 
 .coastal-card-close {
@@ -5053,7 +5721,8 @@ dd {
 }
 
 .coastal-card-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 9px;
 }
 
@@ -5069,9 +5738,32 @@ dd {
   cursor: pointer;
 }
 
+.coastal-card-actions button:first-child,
 .coastal-card-actions button:last-child {
   color: #4f574e;
   background: #efe5d2;
+}
+
+.coastal-card-actions button[hidden] {
+  display: none;
+}
+
+.coastal-autopilot .coastal-controls {
+  color: #fff9ed;
+  background: rgba(35, 54, 60, 0.76);
+}
+
+.coastal-autopilot .coastal-controls::after {
+  content: " · cinematic autopilot · choose Previous or Next";
+}
+
+.coastal-autopilot .coastal-world-switcher,
+.coastal-autopilot .coastal-transit,
+.coastal-autopilot .coastal-environment-toggle,
+.coastal-autopilot .coastal-progress {
+  opacity: 0.18;
+  pointer-events: none;
+  transition: opacity 280ms ease;
 }
 
 .coastal-card-open canvas {
@@ -5103,12 +5795,18 @@ dd {
   }
 
   .coastal-plaque strong {
-    font-size: 29px;
+    font-size: 52px;
   }
 
-  .coastal-plaque small,
+  .coastal-enter-world {
+    top: 118px;
+    left: 18px;
+  }
+
+  .coastal-plaque em,
   .coastal-world-switcher,
   .coastal-controls,
+  .coastal-chapter-rail span,
   .coastal-transit span {
     display: none;
   }
@@ -5167,6 +5865,22 @@ dd {
 
   .coastal-story-card h1 {
     font-size: 42px;
+  }
+
+  .coastal-chapter-rail {
+    top: auto;
+    bottom: 84px;
+    left: 12px;
+    display: flex;
+    transform: none;
+  }
+
+  .coastal-chapter-rail::before {
+    display: none;
+  }
+
+  .coastal-story-log {
+    grid-template-columns: 1fr;
   }
 }
 

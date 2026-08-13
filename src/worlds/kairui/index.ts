@@ -8,7 +8,7 @@ import { bindLookControls, initializeGameplayCamera, updateGameplayCamera } from
 import { updatePlayerMovement, type PlayerMotion } from "../../world/player/movement";
 import { applySceneShadows } from "../../world/rendering/shadows";
 import { COASTAL_LANDMARKS, type CoastalLandmark } from "./content";
-import { createCoastalScene } from "./scene";
+import { coastalShoreX, createCoastalScene } from "./scene";
 import { createCoastalHud } from "./ui";
 import {
   DEFAULT_COASTAL_ENVIRONMENT,
@@ -38,36 +38,44 @@ export function mountKairuiKingdom(root: HTMLElement): void {
 
   const runtime = createWorldRuntime(root, {
     background: "#f3deb7",
-    fog: { color: "#e8d5b6", near: 118, far: 520 },
-    camera: { fov: 48, far: 1400 },
-    exposure: 0.84,
-    environmentIntensity: 0.12
+    fog: { color: "#e8d5b6", near: 95, far: 540 },
+    camera: { fov: 48, far: 1600 },
+    exposure: 0.88,
+    environmentIntensity: 0.28
   });
   const { scene, camera, renderer } = runtime;
 
-  const hemisphere = new THREE.HemisphereLight("#fff1d7", "#517a6a", 1.15);
+  const hemisphere = new THREE.HemisphereLight("#fff1d7", "#517a6a", 0.78);
   scene.add(hemisphere);
-  const sun = new THREE.DirectionalLight("#ffe0ad", 2.15);
-  sun.position.set(-80, 120, 72);
+  const sunDirection = new THREE.Vector3(-0.55, 0.6, 0.38).normalize();
+  const sun = new THREE.DirectionalLight("#ffe0ad", 1.16);
+  sun.position.copy(sunDirection).multiplyScalar(190);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(3072, 3072);
-  sun.shadow.camera.left = -92;
-  sun.shadow.camera.right = 92;
-  sun.shadow.camera.top = 92;
-  sun.shadow.camera.bottom = -92;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.camera.left = -108;
+  sun.shadow.camera.right = 108;
+  sun.shadow.camera.top = 108;
+  sun.shadow.camera.bottom = -108;
   sun.shadow.camera.near = 2;
   sun.shadow.camera.far = 260;
   sun.shadow.bias = -0.0002;
   sun.shadow.normalBias = 0.025;
-  sun.shadow.radius = 3;
+  sun.shadow.radius = 4;
   scene.add(sun);
+  scene.add(sun.target);
+  const coolFill = new THREE.DirectionalLight("#cfe0e8", 0.22);
+  coolFill.position.set(140, 60, -80);
+  scene.add(coolFill);
 
   const coast = createCoastalScene(scene);
+  coast.setSunDirection(sunDirection);
   const townSchema = loadTownSchemaDraft();
   const player = createPlayer();
   applyCharacterAppearance(player, townSchema.player.appearance, townSchema.player.movement);
-  player.position.set(24, coast.getGroundHeight(24, -124), -124);
-  player.rotation.y = Math.PI;
+  // Begin on the upper headland so the coast, landmarks and ocean read as one
+  // authored vista instead of dropping the visitor behind the first building.
+  player.position.set(68, coast.getGroundHeight(68, -18), -18);
+  player.rotation.y = -Math.PI / 2;
   scene.add(player);
   applySceneShadows(player);
 
@@ -83,31 +91,49 @@ export function mountKairuiKingdom(root: HTMLElement): void {
   };
   initializeGameplayCamera(camera, player.position);
   const look = bindLookControls(renderer.domElement);
+  look.yaw = Math.PI;
+  look.targetYaw = Math.PI;
+  look.pitch = 0.34;
+  look.targetPitch = 0.34;
+  look.distance = 18;
+  look.targetDistance = 18;
 
   const saved = loadKingdomProgress();
   saved.lastWorld = "kairui";
   saveKingdomProgress(saved);
-  const discovered = new Set(saved.discoveries.filter((id) => id.startsWith("kairui:")));
+  const validDiscoveryKeys = new Set(COASTAL_LANDMARKS.map((landmark) => `kairui:${landmark.id}`));
+  const discovered = new Set(saved.discoveries.filter((id) => validDiscoveryKeys.has(id)));
   let nearby: CoastalLandmark | null = null;
   let tourActive = false;
   let tourIndex = 0;
+  let tourTravelling = false;
+  const tourCameraFrom = new THREE.Vector3();
+  const tourCameraTo = new THREE.Vector3();
+  const tourLookFrom = new THREE.Vector3();
+  const tourLookTo = new THREE.Vector3();
+  const tourLookCurrent = new THREE.Vector3();
+  let tourTransitionStartedAt = 0;
+  const tourTransitionDuration = 1850;
+  let tourEnvironmentBefore: CoastalEnvironmentState | null = null;
   let environment: CoastalEnvironmentState = coastalEnvironmentFromTown(townSchema.environment);
   let environmentStamp = "";
   let transitMode: "none" | "boat" | "balloon" = "none";
   let transitStartedAt = 0;
   let establishing = true;
   const establishingStartedAt = performance.now();
-  const vistaStart = new THREE.Vector3(96, 46, -144);
-  const vistaEnd = camera.position.clone();
-  const vistaTarget = new THREE.Vector3(27, 3.4, -38);
+  const vistaStart = new THREE.Vector3(-62, 24, 92);
+  const vistaEnd = new THREE.Vector3(-34, 13, 60);
+  const vistaTarget = new THREE.Vector3(27, 5, 6);
   camera.position.copy(vistaStart);
   camera.lookAt(vistaTarget);
+  let hud: ReturnType<typeof createCoastalHud>;
   const dismissEstablishing = () => {
     establishing = false;
-    initializeGameplayCamera(camera, player.position);
+    root.classList.add("coastal-established");
+    camera.position.copy(vistaEnd);
+    camera.lookAt(player.position.x, player.position.y + 0.82, player.position.z);
+    hud.setEstablishing(false);
   };
-  window.addEventListener("keydown", dismissEstablishing, { once: true, passive: true });
-  renderer.domElement.addEventListener("pointerdown", dismissEstablishing, { once: true, passive: true });
 
   const applyEnvironment = () => {
     const palette = resolveCoastalPalette(environment);
@@ -123,8 +149,8 @@ export function mountKairuiKingdom(root: HTMLElement): void {
     hud.setEnvironment(environment, formatSingaporeTime(), palette.isNight);
   };
 
-  const inspectNearby = () => {
-    const target = nearby ?? (tourActive ? COASTAL_LANDMARKS[tourIndex] : null);
+  const inspectNearby = (forcedTarget?: CoastalLandmark) => {
+    const target = forcedTarget ?? nearby ?? (tourActive ? COASTAL_LANDMARKS[tourIndex] : null);
     if (!target) return;
     const key = `kairui:${target.id}`;
     const isNew = !discovered.has(key);
@@ -133,23 +159,68 @@ export function mountKairuiKingdom(root: HTMLElement): void {
     hud.setProgress(discovered, COASTAL_LANDMARKS.length);
     hud.openLandmark(target, isNew);
   };
+  const beginTourLeg = (index: number) => {
+    tourIndex = (index + COASTAL_LANDMARKS.length) % COASTAL_LANDMARKS.length;
+    const anchor = coast.landmarks[tourIndex];
+    const landmark = anchor.landmark;
+    tourCameraFrom.copy(camera.position);
+    if (tourLookCurrent.lengthSq() > 0) tourLookFrom.copy(tourLookCurrent);
+    else tourLookFrom.copy(player.position).add(new THREE.Vector3(0, 1.2, 0));
+    tourCameraTo.copy(safeCameraPosition(
+      anchor.object.position.clone().add(new THREE.Vector3(...landmark.shotOffset)),
+      coast.getGroundHeight,
+      4.8
+    ));
+    tourLookTo.copy(anchor.object.position).add(new THREE.Vector3(...landmark.lookOffset));
+    tourTransitionStartedAt = performance.now();
+    tourTravelling = true;
+    hud.closeLandmark();
+    hud.setTour(true, anchor.landmark);
+    environment = { ...environment, time: landmark.tourTime };
+    applyEnvironment();
+  };
   const setTour = (active: boolean) => {
     tourActive = active;
     if (active) {
+      establishing = false;
+      root.classList.add("coastal-established", "coastal-autopilot");
+      transitMode = "none";
+      hud.setTransit("none");
+      tourEnvironmentBefore = { ...environment };
+      player.visible = false;
       const firstUndiscovered = COASTAL_LANDMARKS.findIndex((item) => !discovered.has(`kairui:${item.id}`));
-      tourIndex = firstUndiscovered >= 0 ? firstUndiscovered : 0;
+      beginTourLeg(firstUndiscovered >= 0 ? firstUndiscovered : 0);
+    } else {
+      tourTravelling = false;
+      root.classList.remove("coastal-autopilot");
+      player.visible = true;
+      updatePlayerRig(player, motion.walkTime, false);
+      hud.setTour(false, null);
+      if (tourEnvironmentBefore) {
+        environment = tourEnvironmentBefore;
+        tourEnvironmentBefore = null;
+        applyEnvironment();
+      }
     }
-    hud.setTour(tourActive, tourActive ? COASTAL_LANDMARKS[tourIndex] : null);
   };
-  const advanceTour = () => {
+  const moveTour = (step: number) => {
     if (!tourActive) return;
-    tourIndex = (tourIndex + 1) % COASTAL_LANDMARKS.length;
-    hud.setTour(true, COASTAL_LANDMARKS[tourIndex]);
+    beginTourLeg(tourIndex + step);
   };
-  const hud = createCoastalHud(root, {
+  hud = createCoastalHud(root, {
+    onEnterWorld: dismissEstablishing,
     onInspect: inspectNearby,
     onTourToggle: () => setTour(!tourActive),
-    onTourNext: advanceTour,
+    onTourPrevious: () => moveTour(-1),
+    onTourNext: () => moveTour(1),
+    onTourSelect: (index) => {
+      if (!tourActive) {
+        setTour(true);
+        if (tourIndex !== index) beginTourLeg(index);
+      } else {
+        beginTourLeg(index);
+      }
+    },
     onEnvironmentChange: (next) => {
       environment = next;
       const latestTown = loadTownSchemaDraft();
@@ -166,10 +237,11 @@ export function mountKairuiKingdom(root: HTMLElement): void {
   hud.setProgress(discovered, COASTAL_LANDMARKS.length);
   hud.setTour(false, null);
   hud.setTransit("none");
+  hud.setEstablishing(true);
   applyEnvironment();
 
   runtime.start(({ delta, elapsed }) => {
-    if (!hud.isModalOpen() && transitMode === "none" && !establishing) {
+    if (!hud.isModalOpen() && transitMode === "none" && !establishing && !tourActive) {
       updatePlayerMovement(
         player,
         motion,
@@ -212,10 +284,21 @@ export function mountKairuiKingdom(root: HTMLElement): void {
       environmentStamp = minuteStamp;
       applyEnvironment();
     }
-    if (tourActive && !hud.isModalOpen()) {
-      const target = coast.landmarks[tourIndex].object.position;
-      look.targetYaw = Math.atan2(target.x - player.position.x, target.z - player.position.z) + 0.55;
-      coast.setTourRoute(player.position, target);
+    if (tourActive && tourTravelling && !hud.isModalOpen()) {
+      const targetAnchor = coast.landmarks[tourIndex];
+      const transition = THREE.MathUtils.clamp((performance.now() - tourTransitionStartedAt) / tourTransitionDuration, 0, 1);
+      const eased = transition < 0.5
+        ? 4 * transition * transition * transition
+        : 1 - Math.pow(-2 * transition + 2, 3) / 2;
+      camera.position.lerpVectors(tourCameraFrom, tourCameraTo, eased);
+      keepCameraClear(camera.position, coast.getGroundHeight, 4.8);
+      tourLookCurrent.lerpVectors(tourLookFrom, tourLookTo, THREE.MathUtils.smoothstep(transition, 0, 1));
+      camera.lookAt(tourLookCurrent);
+      if (transition >= 1) {
+        tourTravelling = false;
+        inspectNearby(targetAnchor.landmark);
+      }
+      coast.setTourRoute(targetAnchor.object.position, null);
     } else {
       coast.setTourRoute(player.position, null);
     }
@@ -223,34 +306,69 @@ export function mountKairuiKingdom(root: HTMLElement): void {
     if (establishing && establishingProgress < 1) {
       const eased = THREE.MathUtils.smoothstep(establishingProgress, 0, 1);
       camera.position.lerpVectors(vistaStart, vistaEnd, eased);
+      keepCameraClear(camera.position, coast.getGroundHeight, 6);
       camera.lookAt(vistaTarget.clone().lerp(player.position, eased * 0.58));
     } else if (establishing) {
-      establishing = false;
-      initializeGameplayCamera(camera, player.position);
+      camera.position.lerp(vistaEnd, 1 - Math.exp(-2.4 * delta));
+      keepCameraClear(camera.position, coast.getGroundHeight, 6);
+      camera.lookAt(vistaTarget);
+    } else if (tourActive) {
+      const targetAnchor = coast.landmarks[tourIndex];
+      const drift = Math.sin(elapsed * 0.22 + tourIndex) * 0.22;
+      camera.position.lerp(
+        tourCameraTo.clone().add(new THREE.Vector3(drift, Math.cos(elapsed * 0.18) * 0.09, -drift * 0.32)),
+        1 - Math.exp(-2.5 * delta)
+      );
+      keepCameraClear(camera.position, coast.getGroundHeight, 4.8);
+      tourLookCurrent.lerp(tourLookTo, 1 - Math.exp(-2.5 * delta));
+      camera.lookAt(tourLookCurrent);
+      player.visible = false;
     } else if (transitMode === "boat") {
       const phase = (elapsed - transitStartedAt) * 0.24;
       const target = new THREE.Vector3(-18 + Math.cos(phase) * 32, 0.55, -24 + Math.sin(phase) * 76);
-      camera.position.lerp(new THREE.Vector3(target.x - 12, 8.5, target.z + 16), 1 - Math.exp(-3 * delta));
-      camera.lookAt(26, 3.4, -18);
+      camera.position.lerp(new THREE.Vector3(target.x - 12, 11, target.z + 16), 1 - Math.exp(-3 * delta));
+      camera.lookAt(26, 3.8, -30 + Math.sin(phase) * 55);
       player.visible = false;
     } else if (transitMode === "balloon") {
       const phase = (elapsed - transitStartedAt) * 0.13;
-      camera.position.lerp(new THREE.Vector3(18 + Math.cos(phase) * 72, 52, -30 + Math.sin(phase) * 112), 1 - Math.exp(-2.5 * delta));
-      camera.lookAt(28, 2.8, -24);
+      camera.position.lerp(new THREE.Vector3(18 + Math.cos(phase) * 128, 66, -30 + Math.sin(phase) * 128), 1 - Math.exp(-2.5 * delta));
+      keepCameraClear(camera.position, coast.getGroundHeight, 12);
+      camera.lookAt(28, 0, -18);
       player.visible = false;
     } else {
       player.visible = true;
       updateGameplayCamera(camera, player.position, look, delta);
+      keepCameraClear(camera.position, coast.getGroundHeight, 1.8);
     }
+    sun.target.position.lerp(tourActive ? tourLookCurrent : player.position, 1 - Math.exp(-3 * delta));
+    sun.target.updateMatrixWorld();
   });
 
   root.addEventListener("kingdom:dispose", () => {
     hud.dispose();
     inputBinding.dispose();
-    window.removeEventListener("keydown", dismissEstablishing);
-    renderer.domElement.removeEventListener("pointerdown", dismissEstablishing);
     runtime.dispose();
   }, { once: true });
+}
+
+function safeCameraPosition(
+  desired: THREE.Vector3,
+  getGroundHeight: (x: number, z: number) => number,
+  clearance: number
+): THREE.Vector3 {
+  const ground = getGroundHeight(desired.x, desired.z);
+  desired.y = Math.max(desired.y, ground + clearance);
+  return desired;
+}
+
+function keepCameraClear(
+  position: THREE.Vector3,
+  getGroundHeight: (x: number, z: number) => number,
+  clearance: number
+): void {
+  const shoreDistance = position.x - coastalShoreX(position.z);
+  if (shoreDistance < -6) return;
+  position.y = Math.max(position.y, getGroundHeight(position.x, position.z) + clearance);
 }
 
 function coastalEnvironmentFromTown(environment: EnvironmentSettings): CoastalEnvironmentState {

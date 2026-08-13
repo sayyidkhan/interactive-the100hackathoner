@@ -50,7 +50,7 @@ export function resolveCoastalPalette(state: CoastalEnvironmentState, date = new
     spring: { grass: "#82a978", grassDark: "#537c61", sand: "#e4cea2", water: "#8cc8bd" },
     summer: { grass: "#789d71", grassDark: "#4d7658", sand: "#dfc99c", water: "#78bbb3" },
     autumn: { grass: "#9a9561", grassDark: "#766942", sand: "#d8bd8c", water: "#729f9c" },
-    winter: { grass: "#9cad9b", grassDark: "#71867d", sand: "#d8d4c4", water: "#83a9ad" }
+    winter: { grass: "#8aa37c", grassDark: "#637d69", sand: "#e0d6bd", water: "#83a9ad" }
   }[state.season];
 
   let palette: CoastalPalette = isNight
@@ -81,12 +81,12 @@ export function resolveCoastalPalette(state: CoastalEnvironmentState, date = new
           grassDark: season.grassDark,
           sand: season.sand,
           fog: "#cda98f",
-          sunlight: "#ffbd78",
+          sunlight: "#ff9e5e",
           hemisphereSky: "#ffd0a0",
           hemisphereGround: "#596c5c",
           sunIntensity: 1.35,
-          hemisphereIntensity: 0.82,
-          exposure: 0.82,
+          hemisphereIntensity: 0.72,
+          exposure: 1,
           isNight: false
         }
       : {
@@ -101,9 +101,9 @@ export function resolveCoastalPalette(state: CoastalEnvironmentState, date = new
           sunlight: "#ffe0ad",
           hemisphereSky: "#fff1d7",
           hemisphereGround: "#517a6a",
-          sunIntensity: 2.15,
-          hemisphereIntensity: 1.15,
-          exposure: 0.9,
+          sunIntensity: 1.16,
+          hemisphereIntensity: 0.78,
+          exposure: 1.06,
           isNight: false
         };
 

@@ -1,4 +1,5 @@
 import type { CoastalLandmark } from "./content";
+import { COASTAL_LANDMARKS } from "./content";
 import type { CoastalEnvironmentState } from "./environment";
 
 export type CoastalHud = {
@@ -6,16 +7,21 @@ export type CoastalHud = {
   setNearby(landmark: CoastalLandmark | null): void;
   setProgress(discovered: ReadonlySet<string>, total: number): void;
   openLandmark(landmark: CoastalLandmark, isNew: boolean): void;
+  closeLandmark(): void;
   setTour(active: boolean, landmark: CoastalLandmark | null): void;
   setEnvironment(state: CoastalEnvironmentState, localTime: string, isNight: boolean): void;
   setTransit(mode: "none" | "boat" | "balloon"): void;
+  setEstablishing(active: boolean): void;
   dispose(): void;
 };
 
 type CoastalHudOptions = {
+  onEnterWorld(): void;
   onInspect(): void;
   onTourToggle(): void;
+  onTourPrevious(): void;
   onTourNext(): void;
+  onTourSelect(index: number): void;
   onEnvironmentChange(state: CoastalEnvironmentState): void;
   onTransit(mode: "boat" | "balloon"): void;
 };
@@ -27,26 +33,46 @@ export function createCoastalHud(root: HTMLElement, options: CoastalHudOptions):
     <div class="coastal-vignette" aria-hidden="true"></div>
     <header class="coastal-plaque">
       <span>The 100th</span>
-      <strong>Hackathon Archipelago</strong>
-      <small>an explorable operator journal</small>
+      <strong>Hackathoner</strong>
+      <small>A walkable operator journal.</small>
     </header>
-    <div class="coastal-progress" aria-live="polite">
-      <span>FIELD NOTES</span>
-      <strong data-coastal-progress>0 / 5</strong>
-    </div>
-    <nav class="coastal-world-switcher" aria-label="Kingdom travel">
-      <a href="/worlds/shawn">Village</a>
-      <a href="/worlds/kairui" aria-current="page">Coast</a>
-      <a href="/kingdoms">Kingdoms</a>
-    </nav>
+    <button class="coastal-enter-world" type="button" data-coastal-enter>
+      <span>19 expeditions · one coast</span>
+      <strong>Enter the coast</strong><i aria-hidden="true">↗</i>
+    </button>
+    <button class="coastal-menu-toggle" type="button" data-coastal-menu-toggle aria-expanded="false" aria-controls="coastal-menu-panel">
+      <span aria-hidden="true">☰</span><strong>Menu</strong>
+    </button>
+    <section class="coastal-menu-panel" id="coastal-menu-panel" data-coastal-menu-panel hidden aria-label="Coastal menu">
+      <div class="coastal-progress" aria-live="polite">
+        <span>Field notes</span>
+        <strong data-coastal-progress>0 / 5</strong>
+      </div>
+      <nav class="coastal-world-switcher" aria-label="Kingdom travel">
+        <a href="/worlds/shawn">Village</a>
+        <a href="/worlds/kairui" aria-current="page">Coast</a>
+        <a href="/kingdoms">All worlds</a>
+      </nav>
+      <div class="coastal-transit" aria-label="Coastal transit">
+        <button type="button" data-coastal-transit="boat" title="Take a harbour cruise">⛵ <span>Cruise</span></button>
+        <button type="button" data-coastal-transit="balloon" title="Take a balloon overview">◉ <span>Overview</span></button>
+      </div>
+      <button class="coastal-environment-toggle" type="button" data-coastal-environment-toggle aria-expanded="false">
+        <span data-coastal-time>GMT+8</span>
+        <strong data-coastal-environment-summary>Summer · Clear</strong>
+      </button>
+      <small>WASD · drag to look · E inspect</small>
+    </section>
     <button class="coastal-tour-button" type="button" data-coastal-tour>
-      <span>Guided journey</span>
-      <strong>Start tour</strong>
+      <span>Six authored chapters · 4 min</span>
+      <strong>Begin operator journal</strong>
     </button>
-    <button class="coastal-environment-toggle" type="button" data-coastal-environment-toggle aria-expanded="false">
-      <span data-coastal-time>GMT+8</span>
-      <strong data-coastal-environment-summary>Summer · Clear</strong>
-    </button>
+    <nav class="coastal-chapter-rail" aria-label="Operator journal chapters">
+      ${COASTAL_LANDMARKS.map((landmark, index) => `
+        <button type="button" data-coastal-chapter="${index}" aria-label="Go to chapter ${index + 1}: ${landmark.chapter}">
+          <i>${String(index + 1).padStart(2, "0")}</i><span>${landmark.chapter}</span>
+        </button>`).join("")}
+    </nav>
     <section class="coastal-environment-panel" data-coastal-environment-panel hidden aria-label="Coastal environment">
       <header>
         <span>World atmosphere</span>
@@ -79,24 +105,27 @@ export function createCoastalHud(root: HTMLElement, options: CoastalHudOptions):
         </div>
       </div>
     </section>
-    <div class="coastal-transit" aria-label="Coastal transit">
-      <button type="button" data-coastal-transit="boat" title="Take a harbour cruise">⛵ <span>Cruise</span></button>
-      <button type="button" data-coastal-transit="balloon" title="Take a balloon overview">◉ <span>Overview</span></button>
-    </div>
     <button class="coastal-prompt" type="button" data-coastal-prompt hidden>
       <kbd>E</kbd>
       <span>Inspect landmark</span>
     </button>
-    <div class="coastal-controls">WASD walk · Shift jog · drag to look · scroll to frame · E inspect</div>
+    <div class="coastal-controls">WASD explore · Shift jog · drag to look · E inspect</div>
     <section class="coastal-story-card" data-coastal-card hidden role="dialog" aria-modal="true" aria-labelledby="coastal-story-title">
       <button type="button" class="coastal-card-close" aria-label="Close story">×</button>
-      <span data-coastal-kicker></span>
+      <div class="coastal-story-eyebrow"><span data-coastal-kicker></span><b data-coastal-chapter-count>01 / 06</b></div>
       <h1 id="coastal-story-title" data-coastal-title></h1>
       <p data-coastal-summary></p>
-      <blockquote data-coastal-lesson></blockquote>
+      <div class="coastal-story-metric"><strong data-coastal-metric></strong><span data-coastal-metric-label></span></div>
+      <dl class="coastal-story-log">
+        <div><dt>Operator decision</dt><dd data-coastal-decision></dd></div>
+        <div><dt>Shipped proof</dt><dd data-coastal-proof></dd></div>
+        <div><dt>Playbook change</dt><dd data-coastal-lesson></dd></div>
+        <div><dt>Next bet</dt><dd data-coastal-next-bet></dd></div>
+      </dl>
       <div class="coastal-card-actions">
-        <button type="button" data-coastal-next>Continue journey</button>
-        <button type="button" data-coastal-free>Explore freely</button>
+        <button type="button" data-coastal-previous>← Previous</button>
+        <button type="button" data-coastal-next>Next stop →</button>
+        <button type="button" data-coastal-free>Exit tour</button>
       </div>
     </section>
   `;
@@ -105,11 +134,16 @@ export function createCoastalHud(root: HTMLElement, options: CoastalHudOptions):
   const prompt = hud.querySelector<HTMLButtonElement>("[data-coastal-prompt]")!;
   const progress = hud.querySelector<HTMLElement>("[data-coastal-progress]")!;
   const tourButton = hud.querySelector<HTMLButtonElement>("[data-coastal-tour]")!;
+  const enterButton = hud.querySelector<HTMLButtonElement>("[data-coastal-enter]")!;
   const card = hud.querySelector<HTMLElement>("[data-coastal-card]")!;
+  const menuToggle = hud.querySelector<HTMLButtonElement>("[data-coastal-menu-toggle]")!;
+  const menuPanel = hud.querySelector<HTMLElement>("[data-coastal-menu-panel]")!;
   const environmentToggle = hud.querySelector<HTMLButtonElement>("[data-coastal-environment-toggle]")!;
   const environmentPanel = hud.querySelector<HTMLElement>("[data-coastal-environment-panel]")!;
   const transitButtons = [...hud.querySelectorAll<HTMLButtonElement>("[data-coastal-transit]")];
+  const chapterButtons = [...hud.querySelectorAll<HTMLButtonElement>("[data-coastal-chapter]")];
   const close = hud.querySelector<HTMLButtonElement>(".coastal-card-close")!;
+  const previous = hud.querySelector<HTMLButtonElement>("[data-coastal-previous]")!;
   const next = hud.querySelector<HTMLButtonElement>("[data-coastal-next]")!;
   const free = hud.querySelector<HTMLButtonElement>("[data-coastal-free]")!;
   let nearby: CoastalLandmark | null = null;
@@ -121,9 +155,23 @@ export function createCoastalHud(root: HTMLElement, options: CoastalHudOptions):
     root.classList.remove("coastal-card-open");
   };
   const inspect = () => options.onInspect();
+  const closeMenu = () => {
+    menuPanel.hidden = true;
+    menuToggle.setAttribute("aria-expanded", "false");
+  };
+  const toggleMenu = () => {
+    menuPanel.hidden = !menuPanel.hidden;
+    menuToggle.setAttribute("aria-expanded", String(!menuPanel.hidden));
+  };
   prompt.addEventListener("click", inspect);
+  menuToggle.addEventListener("click", toggleMenu);
   tourButton.addEventListener("click", options.onTourToggle);
+  enterButton.addEventListener("click", options.onEnterWorld);
   close.addEventListener("click", hideCard);
+  previous.addEventListener("click", () => {
+    hideCard();
+    options.onTourPrevious();
+  });
   next.addEventListener("click", () => {
     hideCard();
     options.onTourNext();
@@ -135,6 +183,7 @@ export function createCoastalHud(root: HTMLElement, options: CoastalHudOptions):
   const toggleEnvironment = () => {
     environmentPanel.hidden = !environmentPanel.hidden;
     environmentToggle.setAttribute("aria-expanded", String(!environmentPanel.hidden));
+    if (!environmentPanel.hidden) closeMenu();
   };
   environmentToggle.addEventListener("click", toggleEnvironment);
   const environmentButtons = [...environmentPanel.querySelectorAll<HTMLButtonElement>("button[data-value]")];
@@ -152,12 +201,20 @@ export function createCoastalHud(root: HTMLElement, options: CoastalHudOptions):
   const handleTransit = (event: Event) => {
     const button = event.currentTarget as HTMLButtonElement;
     const mode = button.dataset.coastalTransit;
-    if (mode === "boat" || mode === "balloon") options.onTransit(mode);
+    if (mode === "boat" || mode === "balloon") {
+      closeMenu();
+      options.onTransit(mode);
+    }
   };
   transitButtons.forEach((button) => button.addEventListener("click", handleTransit));
+  const handleChapter = (event: Event) => {
+    const index = Number((event.currentTarget as HTMLButtonElement).dataset.coastalChapter);
+    if (Number.isFinite(index)) options.onTourSelect(index);
+  };
+  chapterButtons.forEach((button) => button.addEventListener("click", handleChapter));
 
   return {
-    isModalOpen: () => !card.hidden,
+    isModalOpen: () => !card.hidden || !menuPanel.hidden || !environmentPanel.hidden,
     setNearby(landmark) {
       nearby = landmark;
       prompt.hidden = !landmark;
@@ -165,24 +222,49 @@ export function createCoastalHud(root: HTMLElement, options: CoastalHudOptions):
       if (label) label.textContent = landmark ? `Inspect ${landmark.name}` : "Inspect landmark";
     },
     setProgress(discovered, total) {
-      progress.textContent = `${discovered.size} / ${total}`;
+      const currentKeys = new Set(COASTAL_LANDMARKS.map((landmark) => `kairui:${landmark.id}`));
+      const worldDiscoveries = [...discovered].filter((id) => currentKeys.has(id));
+      progress.textContent = `${worldDiscoveries.length} / ${total}`;
     },
     openLandmark(landmark, isNew) {
-      hud.querySelector<HTMLElement>("[data-coastal-kicker]")!.textContent = `${isNew ? "New field note · " : "Field note · "}${landmark.kicker}`;
+      const chapterIndex = COASTAL_LANDMARKS.findIndex((item) => item.id === landmark.id);
+      hud.querySelector<HTMLElement>("[data-coastal-kicker]")!.textContent = `${isNew ? "New · " : ""}${landmark.kicker}`;
+      hud.querySelector<HTMLElement>("[data-coastal-chapter-count]")!.textContent = `${String(chapterIndex + 1).padStart(2, "0")} / 06`;
       hud.querySelector<HTMLElement>("[data-coastal-title]")!.textContent = landmark.name;
       hud.querySelector<HTMLElement>("[data-coastal-summary]")!.textContent = landmark.summary;
+      hud.querySelector<HTMLElement>("[data-coastal-metric]")!.textContent = landmark.metric.value;
+      hud.querySelector<HTMLElement>("[data-coastal-metric-label]")!.textContent = landmark.metric.label;
+      hud.querySelector<HTMLElement>("[data-coastal-decision]")!.textContent = landmark.decision;
+      hud.querySelector<HTMLElement>("[data-coastal-proof]")!.textContent = landmark.proof;
       hud.querySelector<HTMLElement>("[data-coastal-lesson]")!.textContent = landmark.lesson;
+      hud.querySelector<HTMLElement>("[data-coastal-next-bet]")!.textContent = landmark.nextBet;
       card.style.setProperty("--landmark-accent", landmark.color);
+      const finalChapter = COASTAL_LANDMARKS.at(-1)?.id === landmark.id;
+      next.textContent = tourActive ? (finalChapter ? "Return to origin ↺" : "Next stop →") : "Continue journey";
       card.hidden = false;
       root.classList.add("coastal-card-open");
       close.focus();
     },
+    closeLandmark() {
+      hideCard();
+    },
     setTour(active, landmark) {
       tourActive = active;
+      closeMenu();
       tourButton.classList.toggle("active", active);
-      tourButton.querySelector("strong")!.textContent = active ? "Tour active" : "Start tour";
-      tourButton.querySelector("span")!.textContent = active && landmark ? `Next · ${landmark.name}` : "Guided journey";
+      tourButton.querySelector("strong")!.textContent = active ? "Exit tour" : "Guided tour";
+      tourButton.querySelector("span")!.textContent = active && landmark ? `Travelling · ${landmark.name}` : "Guided journey";
       root.dataset.coastalTour = active ? "active" : "free";
+      chapterButtons.forEach((button) => {
+        const selectedIndex = landmark ? COASTAL_LANDMARKS.findIndex((item) => item.id === landmark.id) : -1;
+        const selected = Boolean(active && landmark && Number(button.dataset.coastalChapter) === selectedIndex);
+        button.classList.toggle("active", selected);
+        button.setAttribute("aria-current", selected ? "step" : "false");
+      });
+      previous.hidden = !active;
+      const isFinalChapter = Boolean(active && landmark && COASTAL_LANDMARKS.at(-1)?.id === landmark.id);
+      next.textContent = active ? (isFinalChapter ? "Return to origin ↺" : "Next stop →") : "Continue journey";
+      free.textContent = active ? "Exit tour" : "Explore freely";
     },
     setEnvironment(state, localTime, isNight) {
       environmentState = { ...state };
@@ -206,12 +288,20 @@ export function createCoastalHud(root: HTMLElement, options: CoastalHudOptions):
       });
       root.dataset.coastalTransit = mode;
     },
+    setEstablishing(active) {
+      enterButton.hidden = !active;
+      if (active) closeMenu();
+      root.dataset.coastalEstablishing = active ? "true" : "false";
+    },
     dispose() {
       prompt.removeEventListener("click", inspect);
+      menuToggle.removeEventListener("click", toggleMenu);
       tourButton.removeEventListener("click", options.onTourToggle);
+      enterButton.removeEventListener("click", options.onEnterWorld);
       environmentToggle.removeEventListener("click", toggleEnvironment);
       environmentButtons.forEach((button) => button.removeEventListener("click", handleEnvironmentButton));
       transitButtons.forEach((button) => button.removeEventListener("click", handleTransit));
+      chapterButtons.forEach((button) => button.removeEventListener("click", handleChapter));
       hud.remove();
     }
   };
