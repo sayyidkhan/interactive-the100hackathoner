@@ -61,6 +61,49 @@ button {
   cursor: grabbing;
 }
 
+.kingdom-travel-dock {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  z-index: 7;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: rgba(251, 247, 239, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.76);
+  border-radius: 999px;
+  box-shadow: 0 16px 42px rgba(54, 42, 28, 0.12);
+  backdrop-filter: blur(16px);
+}
+
+.kingdom-travel-dock a {
+  padding: 8px 12px;
+  color: #756d61;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.kingdom-travel-dock a[aria-current="page"] {
+  color: #3d352d;
+  background: #fffaf0;
+  box-shadow: 0 5px 16px rgba(54, 42, 28, 0.09);
+}
+
+.kingdom-travel-dock a:focus-visible {
+  outline: 3px solid #ffc83d;
+  outline-offset: 3px;
+}
+
+@media (max-width: 760px) {
+  .kingdom-travel-dock {
+    top: auto;
+    right: 12px;
+    bottom: 14px;
+  }
+}
+
 .hud {
   position: absolute;
   inset: 0;
@@ -4273,6 +4316,310 @@ dd {
   .builder-confirmation-backdrop,
   .builder-confirmation {
     animation: none;
+  }
+}
+
+/* Unified kingdom hub ---------------------------------------------------- */
+
+.kingdom-hub-root {
+  min-width: 100%;
+  min-height: 100%;
+  overflow: auto;
+  color: #f8f0dd;
+  background:
+    radial-gradient(circle at 18% 18%, rgba(115, 158, 125, 0.35), transparent 31%),
+    radial-gradient(circle at 82% 72%, rgba(80, 145, 158, 0.32), transparent 35%),
+    #173d33;
+}
+
+.kingdom-hub {
+  display: grid;
+  width: min(1180px, calc(100% - 40px));
+  min-height: 100%;
+  box-sizing: border-box;
+  margin: 0 auto;
+  align-content: center;
+  gap: 26px;
+  padding: 42px 0;
+}
+
+.kingdom-hub-header {
+  display: grid;
+  max-width: 760px;
+  gap: 8px;
+}
+
+.kingdom-hub-header > span,
+.kingdom-card > span,
+.kingdom-ledger span {
+  color: #f1b95e;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.kingdom-hub-header h1 {
+  margin: 0;
+  font-family: "Bebas Neue", "Arial Narrow", sans-serif;
+  font-size: clamp(58px, 9vw, 104px);
+  font-weight: 400;
+  line-height: 0.78;
+  letter-spacing: -0.015em;
+}
+
+.kingdom-hub-header p {
+  max-width: 650px;
+  margin: 5px 0 0;
+  color: rgba(242, 237, 219, 0.72);
+  font-size: clamp(14px, 2vw, 17px);
+  line-height: 1.55;
+}
+
+.kingdom-ledger {
+  display: grid;
+  width: min(510px, 100%);
+  gap: 8px;
+  padding: 16px 18px;
+  background: rgba(10, 42, 35, 0.52);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  box-shadow: 0 20px 62px rgba(7, 26, 23, 0.25);
+  backdrop-filter: blur(18px);
+}
+
+.kingdom-ledger > div:first-child {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.kingdom-ledger strong {
+  font-family: "Bebas Neue", "Arial Narrow", sans-serif;
+  font-size: 26px;
+  font-weight: 400;
+}
+
+.kingdom-ledger small {
+  color: rgba(242, 237, 219, 0.5);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.kingdom-ledger-track {
+  height: 8px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.09);
+  border-radius: 99px;
+}
+
+.kingdom-ledger-track span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #e7785e, #f3bf5a, #74b7af);
+  border-radius: inherit;
+}
+
+.kingdom-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.kingdom-card {
+  position: relative;
+  display: grid;
+  min-height: 312px;
+  overflow: hidden;
+  box-sizing: border-box;
+  align-content: end;
+  gap: 8px;
+  padding: 26px;
+  color: #352f27;
+  background: #f7f1e5;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 28px 28px 11px 28px;
+  box-shadow: 0 28px 80px rgba(5, 24, 20, 0.24);
+  text-decoration: none;
+  transform: translateY(0);
+  transition: transform 220ms ease, box-shadow 220ms ease;
+}
+
+.kingdom-card:hover {
+  box-shadow: 0 34px 90px rgba(5, 24, 20, 0.32);
+  transform: translateY(-5px);
+}
+
+.kingdom-card:focus-visible {
+  outline: 4px solid #f2bd58;
+  outline-offset: 5px;
+}
+
+.kingdom-card.coast {
+  color: #273b40;
+  background: #edf1e7;
+  border-radius: 28px 28px 28px 11px;
+}
+
+.kingdom-card > span,
+.kingdom-card h2,
+.kingdom-card p,
+.kingdom-card small,
+.kingdom-card > strong {
+  position: relative;
+  z-index: 2;
+}
+
+.kingdom-card h2 {
+  margin: 0;
+  font-family: "Bebas Neue", "Arial Narrow", sans-serif;
+  font-size: clamp(40px, 5vw, 58px);
+  font-weight: 400;
+  line-height: 0.85;
+}
+
+.kingdom-card p {
+  max-width: 430px;
+  margin: 0;
+  color: rgba(53, 47, 39, 0.7);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.kingdom-card.coast p {
+  color: rgba(39, 59, 64, 0.7);
+}
+
+.kingdom-card small {
+  color: #8a7762;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.kingdom-card > strong {
+  justify-self: start;
+  margin-top: 4px;
+  padding: 9px 13px;
+  color: #fff7e7;
+  background: #2f5d50;
+  border-radius: 99px;
+  font-size: 11px;
+}
+
+.kingdom-card.coast > strong {
+  background: #416b73;
+}
+
+.kingdom-card-art {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.9;
+}
+
+.kingdom-card-art i {
+  position: absolute;
+  display: block;
+}
+
+.kingdom-card.village .kingdom-card-art i:first-child {
+  top: 32px;
+  right: 76px;
+  width: 156px;
+  height: 104px;
+  background: #6d9480;
+  border-radius: 7px;
+  box-shadow: 0 17px 0 rgba(45, 80, 66, 0.22);
+}
+
+.kingdom-card.village .kingdom-card-art i:nth-child(2) {
+  top: 7px;
+  right: 55px;
+  width: 196px;
+  height: 84px;
+  background: #ba6552;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
+.kingdom-card.village .kingdom-card-art i:last-child {
+  top: 54px;
+  right: 280px;
+  width: 64px;
+  height: 64px;
+  background: #749b68;
+  border-radius: 42% 58% 49% 51%;
+  box-shadow: 0 58px 0 -23px #76543a;
+}
+
+.kingdom-card.coast .kingdom-card-art {
+  background: linear-gradient(174deg, transparent 0 25%, rgba(100, 159, 163, 0.28) 26% 47%, transparent 48%);
+}
+
+.kingdom-card.coast .kingdom-card-art i:first-child {
+  top: 22px;
+  right: 70px;
+  width: 170px;
+  height: 92px;
+  background: #d9c392;
+  border-radius: 50%;
+  box-shadow: 0 16px 0 -2px #6d9574;
+}
+
+.kingdom-card.coast .kingdom-card-art i:nth-child(2) {
+  top: 12px;
+  right: 126px;
+  width: 22px;
+  height: 92px;
+  background: #f1e6c9;
+  clip-path: polygon(20% 100%, 0 0, 100% 0, 80% 100%);
+}
+
+.kingdom-card.coast .kingdom-card-art i:last-child {
+  top: 7px;
+  right: 119px;
+  width: 36px;
+  height: 26px;
+  background: #e7a759;
+  border-radius: 50%;
+  box-shadow: 0 0 28px rgba(241, 190, 87, 0.75);
+}
+
+.kingdom-hub-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  color: rgba(242, 237, 219, 0.52);
+  font-size: 10px;
+}
+
+.kingdom-hub-footer a {
+  color: #f1c36c;
+  font-weight: 850;
+}
+
+@media (max-width: 720px) {
+  .kingdom-hub {
+    width: min(100% - 24px, 580px);
+    padding: 24px 0;
+  }
+
+  .kingdom-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .kingdom-card {
+    min-height: 280px;
+  }
+
+  .kingdom-hub-footer {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 

@@ -56,12 +56,17 @@ than adding more branches to the application entry point.
 
 ## Delivery gates
 
+Status: all three milestones below are implemented. This document now doubles
+as the architecture contract for future kingdoms.
+
 ### `codex/kairui-kingdom`
 
 - Existing Shawn explore and builder routes remain behaviourally compatible.
 - World selection is registry-driven.
 - Shared engine boundaries are explicit and typed.
 - A coastal prototype can mount without importing Shawn's town composition.
+
+Implemented in `902fc71` and `0d2ad4d`.
 
 ### `dev-v4`
 
@@ -72,9 +77,15 @@ than adding more branches to the application entry point.
 - Day/night, seasons and weather work in the coastal biome.
 - Performance and cleanup are verified before adding a second live kingdom.
 
+Implemented in `538b231`.
+
 ### `dev-v5`
 
 - Shawn and Kairui kingdoms run from the same engine.
 - Progress and player identity persist while travelling between kingdoms.
 - Cross-kingdom travel is intentional and testable.
 - Both kingdoms retain their defining interaction model.
+
+Implemented on `dev-v5`. The root route is the unified hub; `/worlds/shawn`
+and `/worlds/kairui` remain independently mountable and `/local-builder`
+continues to own the village editing workflow.

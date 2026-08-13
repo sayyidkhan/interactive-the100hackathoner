@@ -3,7 +3,7 @@ import type { WorldDefinition } from "../../engine/world";
 import { discoverKingdomLandmark, loadKingdomProgress, saveKingdomProgress } from "../../engine/progress";
 import { createWorldRuntime } from "../../engine/runtime";
 import { bindInput } from "../../systems/input";
-import { createPlayer, updatePlayerRig } from "../../world/characters";
+import { applyCharacterAppearance, createPlayer, updatePlayerRig } from "../../world/characters";
 import { bindLookControls, initializeGameplayCamera, updateGameplayCamera } from "../../world/camera/gameplay";
 import { updatePlayerMovement, type PlayerMotion } from "../../world/player/movement";
 import { applySceneShadows } from "../../world/rendering/shadows";
@@ -16,6 +16,7 @@ import {
   resolveCoastalPalette,
   type CoastalEnvironmentState
 } from "./environment";
+import { loadTownSchemaDraft, saveTownSchemaDraft, type EnvironmentSettings } from "../../data/townSchema";
 
 export const KAIRUI_WORLD: WorldDefinition = {
   id: "kairui",
@@ -63,7 +64,9 @@ export function mountKairuiKingdom(root: HTMLElement): void {
 
   const coast = createCoastalScene(scene);
   coast.colliders.unshift({ kind: "boundary-circle", x: 0, z: 0, radius: 18.2 });
+  const townSchema = loadTownSchemaDraft();
   const player = createPlayer();
+  applyCharacterAppearance(player, townSchema.player.appearance, townSchema.player.movement);
   player.position.set(0, 0.76, 12.4);
   player.rotation.y = Math.PI;
   scene.add(player);
@@ -89,7 +92,7 @@ export function mountKairuiKingdom(root: HTMLElement): void {
   let nearby: CoastalLandmark | null = null;
   let tourActive = false;
   let tourIndex = 0;
-  let environment: CoastalEnvironmentState = { ...DEFAULT_COASTAL_ENVIRONMENT };
+  let environment: CoastalEnvironmentState = coastalEnvironmentFromTown(townSchema.environment);
   let environmentStamp = "";
   let transitMode: "none" | "boat" | "balloon" = "none";
   let transitStartedAt = 0;
@@ -137,6 +140,9 @@ export function mountKairuiKingdom(root: HTMLElement): void {
     onTourNext: advanceTour,
     onEnvironmentChange: (next) => {
       environment = next;
+      const latestTown = loadTownSchemaDraft();
+      latestTown.environment = townEnvironmentFromCoast(next, latestTown.environment);
+      saveTownSchemaDraft(latestTown);
       applyEnvironment();
     },
     onTransit: (mode) => {
@@ -212,4 +218,40 @@ export function mountKairuiKingdom(root: HTMLElement): void {
     inputBinding.dispose();
     runtime.dispose();
   }, { once: true });
+}
+
+function coastalEnvironmentFromTown(environment: EnvironmentSettings): CoastalEnvironmentState {
+  const season = environment.season === "spring" || environment.season === "summer" || environment.season === "autumn" || environment.season === "winter"
+    ? environment.season
+    : DEFAULT_COASTAL_ENVIRONMENT.season;
+  const weather = environment.weather === "storm"
+    ? "storm"
+    : environment.weather === "rain" || environment.weather === "snow"
+      ? "rain"
+      : "clear";
+  let time: CoastalEnvironmentState["time"] = "live";
+  if (environment.dayNightMode === "manual") {
+    time = environment.manualHour < 6.3 || environment.manualHour >= 19.2
+      ? "night"
+      : environment.manualHour < 7.5 || environment.manualHour >= 17.2
+        ? "sunset"
+        : "day";
+  }
+  return { season, weather, time };
+}
+
+function townEnvironmentFromCoast(
+  environment: CoastalEnvironmentState,
+  current: EnvironmentSettings
+): EnvironmentSettings {
+  return {
+    ...current,
+    weatherMode: environment.weather === "clear" && current.weatherMode === "live" ? "live" : "manual",
+    weather: environment.weather,
+    dayNightMode: environment.time === "live" ? "timezone" : "manual",
+    manualHour: environment.time === "night" ? 22 : environment.time === "sunset" ? 18.3 : 13,
+    seasonCycle: "four",
+    season: environment.season,
+    foliage: environment.season === "spring" ? "sakura" : environment.season === "autumn" ? "leaves" : "off"
+  };
 }

@@ -6,7 +6,6 @@ export const SHAWN_WORLD: WorldDefinition = {
   name: "Shawn Kingdom",
   description: "The editable village, residents and discovery-journal kingdom.",
   routes: [
-    { path: "/", mode: "explore" },
     { path: "/worlds/shawn", mode: "explore" },
     { path: "/local-builder", mode: "build" },
     { path: "/worlds/shawn/build", mode: "build" }

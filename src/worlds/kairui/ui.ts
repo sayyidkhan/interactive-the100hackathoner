@@ -36,6 +36,7 @@ export function createCoastalHud(root: HTMLElement, options: CoastalHudOptions):
     <nav class="coastal-world-switcher" aria-label="Kingdom travel">
       <a href="/worlds/shawn">Village</a>
       <a href="/worlds/kairui" aria-current="page">Coast</a>
+      <a href="/kingdoms">Kingdoms</a>
     </nav>
     <button class="coastal-tour-button" type="button" data-coastal-tour>
       <span>Guided journey</span>

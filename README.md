@@ -1,6 +1,6 @@
 # The 100 Hackathoner
 
-A walkable proof-of-work archive inspired by `interactive.shawnchee.com`, rebuilt around Sayyid's 100-hackathon journey.
+A connected open-world proof-of-work archive for Sayyid's 100-hackathon journey.
 
 The loop engineering model is:
 
@@ -31,12 +31,13 @@ Open the local URL printed by Vite.
 
 Useful routes:
 
-- `/` - Shawn Kingdom exploration
+- `/` - unified kingdom hub
 - `/worlds/shawn` - explicit Shawn Kingdom exploration route
 - `/local-builder` - Shawn Kingdom editor
 - `/worlds/shawn/build` - explicit Shawn Kingdom editor route
 - `/worlds/kairui` - Kairui coastal hackathon kingdom
 - `/coast` - short alias for the coastal kingdom
+- `/kingdoms` - unified kingdom hub and combined discovery ledger
 - `/dev/discoveries` - discovery-card QA view
 
 ## World Roadmap
@@ -78,6 +79,6 @@ Screenshots captured during implementation:
 
 ## Inspiration
 
-- Shawn Chee post: https://www.linkedin.com/posts/shawn-chee_update-on-my-site-bought-a-domain-interactive-share-7480904325112733696-E2bo/
-- Main site: https://www.shawnchee.com/
-- Interactive site: https://interactive.shawnchee.com/
+The early village and coastal study branches are preserved as references. The
+production worlds are original TypeScript/Three.js compositions built around
+Sayyid's own hackathon stories, operator lessons and portfolio identity.

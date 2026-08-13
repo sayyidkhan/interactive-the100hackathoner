@@ -1,3 +1,5 @@
+import { loadKingdomProgress, saveKingdomProgress } from "../engine/progress";
+
 const STORAGE_KEY = "the100hackathoner.discovered.v1";
 
 export function loadDiscovered(): Set<string> {
@@ -20,6 +22,11 @@ export function loadDiscovered(): Set<string> {
 
 export function saveDiscovered(discovered: Set<string>): void {
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify([...discovered]));
+  const progress = loadKingdomProgress();
+  const coastalDiscoveries = progress.discoveries.filter((id) => id.startsWith("kairui:"));
+  progress.discoveries = [...coastalDiscoveries, ...[...discovered].map((id) => `shawn:${id}`)];
+  progress.lastWorld = "shawn";
+  saveKingdomProgress(progress);
 }
 
 export function resetDiscovered(): Set<string> {

@@ -2,10 +2,12 @@ import { WorldRegistry } from "./engine/world";
 import { renderDevDiscoveries } from "./ui/devDiscoveries";
 import { SHAWN_WORLD } from "./worlds/shawn";
 import { KAIRUI_WORLD } from "./worlds/kairui";
+import { UNIFIED_WORLD } from "./worlds/unified";
 
 const worldRegistry = new WorldRegistry()
   .register(SHAWN_WORLD)
-  .register(KAIRUI_WORLD);
+  .register(KAIRUI_WORLD)
+  .register(UNIFIED_WORLD);
 
 export function mountApplication(root: HTMLElement, pathname = window.location.pathname): void {
   if (pathname === "/dev/discoveries") {
@@ -21,6 +23,21 @@ export function mountApplication(root: HTMLElement, pathname = window.location.p
 
   document.title = `${resolved.world.name} · The 100 Hackathoner`;
   resolved.world.mount(root, { route: resolved.route });
+  if (resolved.world.id === "shawn" && resolved.route.mode === "explore") {
+    mountKingdomTravelDock(root);
+  }
+}
+
+function mountKingdomTravelDock(root: HTMLElement): void {
+  const nav = document.createElement("nav");
+  nav.className = "kingdom-travel-dock";
+  nav.setAttribute("aria-label", "Kingdom travel");
+  nav.innerHTML = `
+    <a href="/worlds/shawn" aria-current="page">Village</a>
+    <a href="/worlds/kairui">Coast</a>
+    <a href="/kingdoms">Kingdoms</a>
+  `;
+  root.appendChild(nav);
 }
 
 export function getWorldRegistry(): WorldRegistry {
