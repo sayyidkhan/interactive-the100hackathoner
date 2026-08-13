@@ -31,8 +31,29 @@ Open the local URL printed by Vite.
 
 Useful routes:
 
-- `/` - 3D walkable town
+- `/` - Shawn Kingdom exploration
+- `/worlds/shawn` - explicit Shawn Kingdom exploration route
+- `/local-builder` - Shawn Kingdom editor
+- `/worlds/shawn/build` - explicit Shawn Kingdom editor route
 - `/dev/discoveries` - discovery-card QA view
+
+## World Roadmap
+
+- `dev-v2` — Shawn Kingdom
+- `dev-v3` — Shawn Kingdom with editable world-building tools
+- `codex/decompile-kairui` — Kairui technical study archive
+- `codex/kairui-kingdom` — maintainable multi-world engine and coastal prototype
+- `dev-v4` — Coastal Hackathon Kingdom
+- `dev-v5` — unified Shawn + Kairui open world
+
+The Shawn-inspired kingdom focuses on town building, residents, discoveries and
+environment customization. The Kairui-inspired kingdom focuses on coastal
+terrain, cinematic storytelling, guided exploration, boats, balloon travel and
+atmospheric world design. `dev-v5` connects both through a shared player,
+environment clock and discovery ledger.
+
+See [docs/KINGDOM-ROADMAP.md](docs/KINGDOM-ROADMAP.md) for the architecture and
+delivery gates.
 
 ## Build
 
