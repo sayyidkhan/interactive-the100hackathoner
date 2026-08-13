@@ -3,6 +3,7 @@ import type { CollisionShape } from "../../world/player/movement";
 import { addSoftShadow, applySceneShadows } from "../../world/rendering/shadows";
 import { COASTAL_LANDMARKS, type CoastalLandmark } from "./content";
 import { makeSkyMaterial, makeWaterMaterial, matte } from "./materials";
+import type { CoastalEnvironmentState, CoastalPalette } from "./environment";
 
 export type LandmarkAnchor = {
   landmark: CoastalLandmark;
@@ -13,6 +14,9 @@ export type LandmarkAnchor = {
 export type CoastalScene = {
   colliders: CollisionShape[];
   landmarks: LandmarkAnchor[];
+  transit: { boat: THREE.Group; balloon: THREE.Group };
+  applyEnvironment(state: CoastalEnvironmentState, palette: CoastalPalette): void;
+  setTourRoute(from: THREE.Vector3, target: THREE.Vector3 | null): void;
   update(time: number, delta: number): void;
 };
 
@@ -42,7 +46,7 @@ export function createCoastalScene(scene: THREE.Scene): CoastalScene {
   water.position.y = -0.58;
   world.add(water);
 
-  createIsland(world);
+  const island = createIsland(world);
   createPier(world);
   createDistantIslands(world);
 
@@ -61,11 +65,37 @@ export function createCoastalScene(scene: THREE.Scene): CoastalScene {
   const boat = createBoat(world);
   const balloon = createBalloon(world);
   createSeaBirds(world);
+  const celestial = createCelestial(world);
+  const tourRoute = createTourRoute(world);
+  const seasonal = createSeasonalLayer(world);
+  const weather = createWeatherLayer(world);
   applySceneShadows(world);
 
   return {
     colliders,
     landmarks,
+    transit: { boat, balloon },
+    applyEnvironment(state, palette) {
+      skyMaterial.uniforms.uHorizon.value.set(palette.skyHorizon);
+      skyMaterial.uniforms.uZenith.value.set(palette.skyZenith);
+      waterMaterial.uniforms.uDeep.value.set(palette.waterDeep);
+      waterMaterial.uniforms.uShallow.value.set(palette.waterShallow);
+      island.grass.color.set(palette.grass);
+      island.sand.color.set(palette.sand);
+      seasonal.setSeason(state.season);
+      weather.setWeather(state.weather);
+      celestial.setNight(palette.isNight && state.weather !== "storm");
+      clouds.forEach((cloud) => {
+        cloud.traverse((object) => {
+          if (!(object instanceof THREE.Mesh) || !(object.material instanceof THREE.MeshBasicMaterial)) return;
+          object.material.color.set(state.weather === "storm" ? "#53616a" : state.weather === "rain" ? "#a9b4b0" : "#fff6e7");
+          object.material.opacity = state.weather === "storm" ? 0.84 : state.weather === "rain" ? 0.78 : 0.72;
+        });
+      });
+    },
+    setTourRoute(from, target) {
+      tourRoute.set(from, target);
+    },
     update(time, delta) {
       waterMaterial.uniforms.uTime.value = time;
       palmCrowns.forEach((crown, index) => {
@@ -89,24 +119,29 @@ export function createCoastalScene(scene: THREE.Scene): CoastalScene {
         marker.scale.setScalar(pulse);
         marker.rotation.z = time * 0.22;
       });
+      weather.update(time, delta);
+      seasonal.update(time);
+      tourRoute.update(time);
     }
   };
 }
 
-function createIsland(world: THREE.Group): void {
+function createIsland(world: THREE.Group): { grass: THREE.MeshStandardMaterial; sand: THREE.MeshStandardMaterial } {
   const lower = new THREE.Mesh(new THREE.CylinderGeometry(19.8, 21, 1, 64), matte(colors.sandEdge));
   lower.position.y = -0.34;
   lower.scale.z = 0.82;
   lower.receiveShadow = true;
   world.add(lower);
 
-  const sand = new THREE.Mesh(new THREE.CylinderGeometry(18.8, 19.6, 0.72, 64), matte(colors.sand));
+  const sandMaterial = matte(colors.sand);
+  const sand = new THREE.Mesh(new THREE.CylinderGeometry(18.8, 19.6, 0.72, 64), sandMaterial);
   sand.position.y = 0.05;
   sand.scale.z = 0.82;
   sand.receiveShadow = true;
   world.add(sand);
 
-  const grass = new THREE.Mesh(new THREE.CylinderGeometry(15.8, 16.35, 0.34, 64), matte(colors.grass));
+  const grassMaterial = matte(colors.grass);
+  const grass = new THREE.Mesh(new THREE.CylinderGeometry(15.8, 16.35, 0.34, 64), grassMaterial);
   grass.position.y = 0.49;
   grass.scale.z = 0.76;
   grass.receiveShadow = true;
@@ -126,6 +161,7 @@ function createIsland(world: THREE.Group): void {
   plaza.position.set(0, 0.74, 3);
   plaza.receiveShadow = true;
   world.add(plaza);
+  return { grass: grassMaterial, sand: sandMaterial };
 }
 
 function createPier(world: THREE.Group): void {
@@ -347,4 +383,244 @@ function createDistantIslands(world: THREE.Group): void {
     rock.scale.y = 0.42;
     world.add(rock);
   }
+}
+
+function createTourRoute(world: THREE.Group): {
+  set(from: THREE.Vector3, target: THREE.Vector3 | null): void;
+  update(time: number): void;
+} {
+  const group = new THREE.Group();
+  group.name = "coastal-guided-route";
+  world.add(group);
+  const material = new THREE.MeshBasicMaterial({
+    color: "#ffd46b",
+    transparent: true,
+    opacity: 0.72,
+    depthWrite: false,
+    toneMapped: false
+  });
+  const dots = Array.from({ length: 12 }, (_, index) => {
+    const dot = new THREE.Mesh(new THREE.SphereGeometry(0.09 + index * 0.004, 10, 8), material.clone());
+    dot.position.y = 1.02;
+    dot.visible = false;
+    dot.userData.routeIndex = index;
+    dot.userData.softShadow = true;
+    group.add(dot);
+    return dot;
+  });
+
+  return {
+    set(from, target) {
+      group.visible = Boolean(target);
+      if (!target) return;
+      dots.forEach((dot, index) => {
+        const progress = (index + 1) / (dots.length + 1);
+        dot.position.lerpVectors(from, target, progress);
+        dot.position.y = 1.08;
+        dot.visible = true;
+      });
+    },
+    update(time) {
+      if (!group.visible) return;
+      dots.forEach((dot, index) => {
+        const pulse = 0.78 + Math.max(0, Math.sin(time * 2.4 - index * 0.48)) * 0.7;
+        dot.scale.setScalar(pulse);
+        if (dot.material instanceof THREE.MeshBasicMaterial) {
+          dot.material.opacity = 0.28 + Math.max(0, Math.sin(time * 2.4 - index * 0.48)) * 0.66;
+        }
+      });
+    }
+  };
+}
+
+function createCelestial(world: THREE.Group): { setNight(active: boolean): void } {
+  const group = new THREE.Group();
+  group.name = "coastal-night-sky";
+  group.visible = false;
+  world.add(group);
+
+  const moon = new THREE.Mesh(
+    new THREE.SphereGeometry(2.4, 24, 18),
+    new THREE.MeshStandardMaterial({ color: "#fff3cf", emissive: "#dce9ff", emissiveIntensity: 1.25, roughness: 0.9 })
+  );
+  moon.position.set(-28, 27, -44);
+  moon.userData.softShadow = true;
+  group.add(moon);
+  const glow = new THREE.PointLight("#c9dcff", 1.8, 70, 2);
+  glow.position.copy(moon.position);
+  group.add(glow);
+
+  const starGeometry = new THREE.BufferGeometry();
+  const positions = new Float32Array(270 * 3);
+  for (let index = 0; index < 270; index += 1) {
+    const angle = Math.random() * Math.PI * 2;
+    const elevation = 0.18 + Math.random() * 0.82;
+    const radius = 68;
+    positions[index * 3] = Math.cos(angle) * radius * Math.cos(elevation);
+    positions[index * 3 + 1] = Math.sin(elevation) * radius;
+    positions[index * 3 + 2] = Math.sin(angle) * radius * Math.cos(elevation);
+  }
+  starGeometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  const stars = new THREE.Points(
+    starGeometry,
+    new THREE.PointsMaterial({ color: "#fff1cf", size: 0.22, transparent: true, opacity: 0.82, depthWrite: false, toneMapped: false })
+  );
+  group.add(stars);
+  return { setNight(active) { group.visible = active; } };
+}
+
+function createSeasonalLayer(world: THREE.Group): {
+  setSeason(season: CoastalEnvironmentState["season"]): void;
+  update(time: number): void;
+} {
+  const layer = new THREE.Group();
+  layer.name = "coastal-seasonal-scenery";
+  world.add(layer);
+  const groups = {
+    spring: new THREE.Group(),
+    summer: new THREE.Group(),
+    autumn: new THREE.Group(),
+    winter: new THREE.Group()
+  };
+  Object.entries(groups).forEach(([name, group]) => {
+    group.name = `coastal-season:${name}`;
+    layer.add(group);
+  });
+
+  const flowerColors = ["#f19ab1", "#f6cf66", "#efe6df", "#8c87cd"];
+  for (let index = 0; index < 48; index += 1) {
+    const angle = index * 2.399;
+    const radius = 6.2 + (index % 9) * 1.05;
+    const flower = new THREE.Group();
+    flower.position.set(Math.cos(angle) * radius, 0.83, Math.sin(angle) * radius * 0.75);
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.025, 0.32, 6), matte("#4c7952"));
+    stem.position.y = 0.16;
+    flower.add(stem);
+    const bloom = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), matte(flowerColors[index % flowerColors.length]));
+    bloom.position.y = 0.36;
+    flower.add(bloom);
+    groups.spring.add(flower);
+  }
+
+  for (let index = 0; index < 24; index += 1) {
+    const angle = index * 2.1;
+    const radius = 7 + (index % 6) * 1.25;
+    const tuft = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.75, 5), matte(index % 2 ? "#6e9c65" : "#88b875"));
+    tuft.position.set(Math.cos(angle) * radius, 1.08, Math.sin(angle) * radius * 0.75);
+    groups.summer.add(tuft);
+  }
+
+  const autumnLeaves: THREE.Mesh[] = [];
+  for (let index = 0; index < 96; index += 1) {
+    const angle = index * 1.72;
+    const radius = 4.8 + (index % 13) * 0.82;
+    const leaf = new THREE.Mesh(new THREE.CircleGeometry(0.12 + index % 3 * 0.035, 7), matte(index % 3 === 0 ? "#d66d43" : index % 3 === 1 ? "#e4a34f" : "#9f6d3f"));
+    leaf.rotation.x = -Math.PI / 2;
+    leaf.rotation.z = angle;
+    leaf.position.set(Math.cos(angle) * radius, 0.85, Math.sin(angle) * radius * 0.72);
+    leaf.userData.baseY = leaf.position.y;
+    groups.autumn.add(leaf);
+    autumnLeaves.push(leaf);
+  }
+
+  for (let index = 0; index < 16; index += 1) {
+    const angle = index / 16 * Math.PI * 2;
+    const patch = new THREE.Mesh(
+      new THREE.CircleGeometry(0.75 + index % 4 * 0.24, 16),
+      new THREE.MeshStandardMaterial({ color: "#f1f3ea", roughness: 0.98, transparent: true, opacity: 0.82 })
+    );
+    patch.rotation.x = -Math.PI / 2;
+    patch.position.set(Math.cos(angle) * (6 + index % 5 * 2.2), 0.86, Math.sin(angle) * (5 + index % 4 * 1.9));
+    groups.winter.add(patch);
+  }
+  const snowman = new THREE.Group();
+  snowman.position.set(6, 0.85, 5.5);
+  for (const [radius, y] of [[0.7, 0.7], [0.52, 1.62], [0.36, 2.28]] as const) {
+    const snow = new THREE.Mesh(new THREE.SphereGeometry(radius, 18, 14), matte("#f8f5ec"));
+    snow.position.y = y;
+    snowman.add(snow);
+  }
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.44, 8), matte("#dc7a3d"));
+  nose.rotation.x = -Math.PI / 2;
+  nose.position.set(0, 2.28, -0.38);
+  snowman.add(nose);
+  groups.winter.add(snowman);
+
+  return {
+    setSeason(season) {
+      Object.entries(groups).forEach(([name, group]) => {
+        group.visible = name === season;
+      });
+    },
+    update(time) {
+      autumnLeaves.forEach((leaf, index) => {
+        leaf.position.y = leaf.userData.baseY + Math.sin(time * 0.8 + index) * 0.012;
+      });
+    }
+  };
+}
+
+function createWeatherLayer(world: THREE.Group): {
+  setWeather(weather: CoastalEnvironmentState["weather"]): void;
+  update(time: number, delta: number): void;
+} {
+  const count = 1800;
+  const positions = new Float32Array(count * 3);
+  const seeds = new Float32Array(count);
+  for (let index = 0; index < count; index += 1) {
+    positions[index * 3] = (Math.random() - 0.5) * 54;
+    positions[index * 3 + 1] = Math.random() * 19 + 1;
+    positions[index * 3 + 2] = (Math.random() - 0.5) * 48;
+    seeds[index] = Math.random();
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  const rainMaterial = new THREE.PointsMaterial({
+    color: "#c8e3eb",
+    size: 0.075,
+    transparent: true,
+    opacity: 0.72,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending
+  });
+  const rain = new THREE.Points(geometry, rainMaterial);
+  rain.visible = false;
+  rain.frustumCulled = false;
+  world.add(rain);
+
+  const flashMaterial = new THREE.MeshBasicMaterial({ color: "#e9f1ff", transparent: true, opacity: 0, depthWrite: false, side: THREE.BackSide, toneMapped: false });
+  const flash = new THREE.Mesh(new THREE.SphereGeometry(70, 16, 10), flashMaterial);
+  flash.position.y = 6;
+  flash.userData.softShadow = true;
+  world.add(flash);
+  let weather: CoastalEnvironmentState["weather"] = "clear";
+  let flashEnergy = 0;
+  let nextFlash = 2.2;
+
+  return {
+    setWeather(next) {
+      weather = next;
+      rain.visible = next !== "clear";
+      rainMaterial.opacity = next === "storm" ? 0.88 : 0.58;
+      rainMaterial.size = next === "storm" ? 0.095 : 0.065;
+    },
+    update(time, delta) {
+      if (rain.visible) {
+        const position = geometry.getAttribute("position") as THREE.BufferAttribute;
+        for (let index = 0; index < count; index += 1) {
+          const y = position.getY(index) - delta * (weather === "storm" ? 24 : 14) * (0.75 + seeds[index] * 0.6);
+          position.setY(index, y < 0.8 ? 19 + seeds[index] * 4 : y);
+          position.setX(index, position.getX(index) + delta * (weather === "storm" ? 2.8 : 0.9));
+          if (position.getX(index) > 27) position.setX(index, -27);
+        }
+        position.needsUpdate = true;
+      }
+      if (weather === "storm" && time > nextFlash) {
+        flashEnergy = 0.95;
+        nextFlash = time + 2.8 + Math.random() * 5;
+      }
+      flashEnergy = THREE.MathUtils.damp(flashEnergy, 0, 7, delta);
+      flashMaterial.opacity = flashEnergy;
+    }
+  };
 }

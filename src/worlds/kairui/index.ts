@@ -10,6 +10,12 @@ import { applySceneShadows } from "../../world/rendering/shadows";
 import { COASTAL_LANDMARKS, type CoastalLandmark } from "./content";
 import { createCoastalScene } from "./scene";
 import { createCoastalHud } from "./ui";
+import {
+  DEFAULT_COASTAL_ENVIRONMENT,
+  formatSingaporeTime,
+  resolveCoastalPalette,
+  type CoastalEnvironmentState
+} from "./environment";
 
 export const KAIRUI_WORLD: WorldDefinition = {
   id: "kairui",
@@ -83,6 +89,24 @@ export function mountKairuiKingdom(root: HTMLElement): void {
   let nearby: CoastalLandmark | null = null;
   let tourActive = false;
   let tourIndex = 0;
+  let environment: CoastalEnvironmentState = { ...DEFAULT_COASTAL_ENVIRONMENT };
+  let environmentStamp = "";
+  let transitMode: "none" | "boat" | "balloon" = "none";
+  let transitStartedAt = 0;
+
+  const applyEnvironment = () => {
+    const palette = resolveCoastalPalette(environment);
+    coast.applyEnvironment(environment, palette);
+    hemisphere.color.set(palette.hemisphereSky);
+    hemisphere.groundColor.set(palette.hemisphereGround);
+    hemisphere.intensity = palette.hemisphereIntensity;
+    sun.color.set(palette.sunlight);
+    sun.intensity = palette.sunIntensity;
+    renderer.toneMappingExposure = palette.exposure;
+    if (scene.fog instanceof THREE.Fog) scene.fog.color.set(palette.fog);
+    scene.background = new THREE.Color(palette.skyHorizon);
+    hud.setEnvironment(environment, formatSingaporeTime(), palette.isNight);
+  };
 
   const inspectNearby = () => {
     const target = nearby ?? (tourActive ? COASTAL_LANDMARKS[tourIndex] : null);
@@ -110,13 +134,24 @@ export function mountKairuiKingdom(root: HTMLElement): void {
   const hud = createCoastalHud(root, {
     onInspect: inspectNearby,
     onTourToggle: () => setTour(!tourActive),
-    onTourNext: advanceTour
+    onTourNext: advanceTour,
+    onEnvironmentChange: (next) => {
+      environment = next;
+      applyEnvironment();
+    },
+    onTransit: (mode) => {
+      transitMode = transitMode === mode ? "none" : mode;
+      transitStartedAt = runtime.clock.elapsedTime;
+      hud.setTransit(transitMode);
+    }
   });
   hud.setProgress(discovered, COASTAL_LANDMARKS.length);
   hud.setTour(false, null);
+  hud.setTransit("none");
+  applyEnvironment();
 
   runtime.start(({ delta, elapsed }) => {
-    if (!hud.isModalOpen()) {
+    if (!hud.isModalOpen() && transitMode === "none") {
       updatePlayerMovement(player, motion, input, delta, coast.colliders, camera, updatePlayerRig);
     } else {
       input.jumpRequested = false;
@@ -143,11 +178,33 @@ export function mountKairuiKingdom(root: HTMLElement): void {
     }
 
     coast.update(elapsed, delta);
+    const minuteStamp = new Date().toISOString().slice(0, 16);
+    if (environment.time === "live" && minuteStamp !== environmentStamp) {
+      environmentStamp = minuteStamp;
+      applyEnvironment();
+    }
     if (tourActive && !hud.isModalOpen()) {
       const target = coast.landmarks[tourIndex].object.position;
       look.targetYaw = Math.atan2(target.x - player.position.x, target.z - player.position.z) + 0.55;
+      coast.setTourRoute(player.position, target);
+    } else {
+      coast.setTourRoute(player.position, null);
     }
-    updateGameplayCamera(camera, player.position, look, delta);
+    if (transitMode === "boat") {
+      const phase = (elapsed - transitStartedAt) * 0.24;
+      const target = new THREE.Vector3(Math.cos(phase) * 24, 0.55, Math.sin(phase) * 19);
+      camera.position.lerp(new THREE.Vector3(target.x - 8, 5.5, target.z + 9), 1 - Math.exp(-3 * delta));
+      camera.lookAt(0, 1.4, 0);
+      player.visible = false;
+    } else if (transitMode === "balloon") {
+      const phase = (elapsed - transitStartedAt) * 0.13;
+      camera.position.lerp(new THREE.Vector3(Math.cos(phase) * 31, 24, Math.sin(phase) * 27), 1 - Math.exp(-2.5 * delta));
+      camera.lookAt(0, 0.8, 0);
+      player.visible = false;
+    } else {
+      player.visible = true;
+      updateGameplayCamera(camera, player.position, look, delta);
+    }
   });
 
   root.addEventListener("kingdom:dispose", () => {
