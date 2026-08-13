@@ -35,6 +35,8 @@ Useful routes:
 - `/worlds/shawn` - explicit Shawn Kingdom exploration route
 - `/local-builder` - Shawn Kingdom editor
 - `/worlds/shawn/build` - explicit Shawn Kingdom editor route
+- `/worlds/kairui` - Kairui coastal hackathon kingdom
+- `/coast` - short alias for the coastal kingdom
 - `/dev/discoveries` - discovery-card QA view
 
 ## World Roadmap

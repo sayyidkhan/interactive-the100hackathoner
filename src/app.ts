@@ -1,9 +1,11 @@
 import { WorldRegistry } from "./engine/world";
 import { renderDevDiscoveries } from "./ui/devDiscoveries";
 import { SHAWN_WORLD } from "./worlds/shawn";
+import { KAIRUI_WORLD } from "./worlds/kairui";
 
 const worldRegistry = new WorldRegistry()
-  .register(SHAWN_WORLD);
+  .register(SHAWN_WORLD)
+  .register(KAIRUI_WORLD);
 
 export function mountApplication(root: HTMLElement, pathname = window.location.pathname): void {
   if (pathname === "/dev/discoveries") {

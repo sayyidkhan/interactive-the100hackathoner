@@ -20,7 +20,8 @@ export type PlayerMotion = {
 
 export type CollisionShape =
   | { kind: "box"; x: number; z: number; width: number; depth: number; top?: number }
-  | { kind: "circle"; x: number; z: number; radius: number; top?: number };
+  | { kind: "circle"; x: number; z: number; radius: number; top?: number }
+  | { kind: "boundary-circle"; x: number; z: number; radius: number; top?: number };
 
 export type PlayerRigAnimator = (player: THREE.Group, walkTime: number, moving: boolean, sprinting: boolean) => void;
 
@@ -108,7 +109,8 @@ function resolvePlayerCollisions(position: THREE.Vector3, colliders: CollisionSh
 
   for (const collider of colliders) {
     if (collider.top !== undefined && position.y >= collider.top - SURFACE_CLEARANCE) continue;
-    if (collider.kind === "circle") resolveCircleCollision(position, collider);
+    if (collider.kind === "boundary-circle") resolveBoundaryCircleCollision(position, collider);
+    else if (collider.kind === "circle") resolveCircleCollision(position, collider);
     else resolveBoxCollision(position, collider);
   }
 
@@ -131,7 +133,7 @@ function getWalkableSurfaceHeight(position: THREE.Vector3, colliders: CollisionS
 }
 
 function isOnColliderSurface(position: THREE.Vector3, collider: CollisionShape): boolean {
-  if (collider.kind === "circle") {
+  if (collider.kind === "circle" || collider.kind === "boundary-circle") {
     const dx = position.x - collider.x;
     const dz = position.z - collider.z;
     const usableRadius = Math.max(0, collider.radius - PLAYER_RADIUS * 0.35);
@@ -142,6 +144,26 @@ function isOnColliderSurface(position: THREE.Vector3, collider: CollisionShape):
     Math.abs(position.x - collider.x) <= collider.width / 2 - PLAYER_RADIUS * 0.2 &&
     Math.abs(position.z - collider.z) <= collider.depth / 2 - PLAYER_RADIUS * 0.2
   );
+}
+
+function resolveBoundaryCircleCollision(
+  position: THREE.Vector3,
+  collider: Extract<CollisionShape, { kind: "boundary-circle" }>
+): void {
+  const maximumDistance = Math.max(0, collider.radius - PLAYER_RADIUS);
+  const dx = position.x - collider.x;
+  const dz = position.z - collider.z;
+  const distanceSq = dx * dx + dz * dz;
+  if (distanceSq <= maximumDistance * maximumDistance) return;
+
+  if (distanceSq < 0.0001) {
+    position.set(collider.x, position.y, collider.z);
+    return;
+  }
+
+  const scale = maximumDistance / Math.sqrt(distanceSq);
+  position.x = collider.x + dx * scale;
+  position.z = collider.z + dz * scale;
 }
 
 function resolveCircleCollision(
