@@ -1,6 +1,10 @@
 export const TOWN_SPREAD = 1.45;
 export const WORLD_LIMIT = 27;
 
+export const PERIMETER_WALL_CENTER = 35;
+export const PERIMETER_WALL_THICKNESS = 1.45;
+export const WALKABLE_WORLD_LIMIT = PERIMETER_WALL_CENTER - PERIMETER_WALL_THICKNESS / 2;
+
 export const PLAYER_RADIUS = 0.42;
 export const PLAYER_STEP_HEIGHT = 0.48;
 export const SURFACE_CLEARANCE = 0.06;

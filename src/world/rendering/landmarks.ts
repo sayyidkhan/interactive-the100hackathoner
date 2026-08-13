@@ -193,6 +193,7 @@ export function addTree(scene: THREE.Scene, x: number, z: number, variant = 0, l
   lawn.scale.set(1.24, 0.78, 1);
   lawn.position.set(x, 0.016, z);
   lawn.receiveShadow = true;
+  lawn.userData.environmentRole = "lawn";
   scene.add(lawn);
 
   const trunk = new THREE.Mesh(
@@ -212,6 +213,7 @@ export function addTree(scene: THREE.Scene, x: number, z: number, variant = 0, l
   leaves.scale.setScalar(treeScale);
   leaves.castShadow = true;
   leaves.userData.windSway = { phase: variant * 0.73, amplitude: 0.038 };
+  leaves.userData.environmentRole = "foliage";
   scene.add(leaves);
 
   const leafMaterial = new THREE.MeshStandardMaterial({ color: "#527f50", roughness: 0.88 });
@@ -220,6 +222,7 @@ export function addTree(scene: THREE.Scene, x: number, z: number, variant = 0, l
   leafClusterA.scale.setScalar(treeScale);
   leafClusterA.castShadow = true;
   leafClusterA.userData.windSway = { phase: variant * 0.73 + 1.4, amplitude: 0.052 };
+  leafClusterA.userData.environmentRole = "foliage";
   scene.add(leafClusterA);
 
   const leafClusterB = new THREE.Mesh(new THREE.IcosahedronGeometry(0.64, 0), leafMaterial);
@@ -227,6 +230,7 @@ export function addTree(scene: THREE.Scene, x: number, z: number, variant = 0, l
   leafClusterB.scale.setScalar(treeScale);
   leafClusterB.castShadow = true;
   leafClusterB.userData.windSway = { phase: variant * 0.73 + 2.7, amplitude: 0.046 };
+  leafClusterB.userData.environmentRole = "foliage";
   scene.add(leafClusterB);
 
   addSoftShadow(scene, x + 0.88 * treeScale, z + 0.48 * treeScale, 2.35 * treeScale, 0.72 * treeScale, -0.22, 0.22);

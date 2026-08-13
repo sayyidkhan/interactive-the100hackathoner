@@ -3,8 +3,15 @@ import * as THREE from "three";
 const SHADOW_Y = 0.034;
 let softShadowTexture: THREE.CanvasTexture | null = null;
 
-export function createTownLights(scene: THREE.Scene): void {
-  scene.add(new THREE.HemisphereLight("#fff6e6", "#c8d6b8", 0.77));
+export type TownLights = {
+  hemisphere: THREE.HemisphereLight;
+  sun: THREE.DirectionalLight;
+  fill: THREE.DirectionalLight;
+};
+
+export function createTownLights(scene: THREE.Scene): TownLights {
+  const hemisphere = new THREE.HemisphereLight("#fff6e6", "#c8d6b8", 0.77);
+  scene.add(hemisphere);
 
   const sun = new THREE.DirectionalLight("#ffedd2", 1.68);
   sun.position.set(-30, 42, 25);
@@ -27,6 +34,7 @@ export function createTownLights(scene: THREE.Scene): void {
   const fill = new THREE.DirectionalLight("#d8e8f0", 0.25);
   fill.position.set(30, 20, -25);
   scene.add(fill);
+  return { hemisphere, sun, fill };
 }
 
 function getSoftShadowTexture(): THREE.CanvasTexture {

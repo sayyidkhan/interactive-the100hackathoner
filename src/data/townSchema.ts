@@ -22,7 +22,41 @@ export type TownAssetType =
   | "gardenPlot"
   | "grassClump";
 
-export type HairStyle = "crop" | "swept" | "afro" | "bald";
+export type HairStyle =
+  | "crop"
+  | "swept"
+  | "afro"
+  | "bald"
+  | "bob"
+  | "bun"
+  | "braids"
+  | "coily"
+  | "mohawk"
+  | "long";
+
+export type BodyPreset = "compact" | "average" | "tall" | "broad";
+export type FaceStyle = "soft" | "round" | "bright";
+export type AccessoryStyle = "none" | "glasses" | "cap" | "beanie";
+export type WeatherMode = "live" | "manual";
+export type WeatherCondition = "clear" | "cloudy" | "rain" | "storm" | "snow";
+export type DayNightMode = "timezone" | "manual";
+export type SeasonCycle = "four" | "two";
+export type SeasonChoice = "auto" | "spring" | "summer" | "autumn" | "winter" | "wet" | "dry";
+export type FallingFoliage = "off" | "sakura" | "leaves" | "mixed";
+export type AnimalKind = "corgi" | "goose";
+
+export type EnvironmentSettings = {
+  weatherMode: WeatherMode;
+  weather: WeatherCondition;
+  latitude: number;
+  longitude: number;
+  timezoneOffset: number;
+  dayNightMode: DayNightMode;
+  manualHour: number;
+  seasonCycle: SeasonCycle;
+  season: SeasonChoice;
+  foliage: FallingFoliage;
+};
 
 export type CharacterAppearance = {
   skin: string;
@@ -32,6 +66,9 @@ export type CharacterAppearance = {
   trim: string;
   pants: string;
   shoes: string;
+  bodyPreset?: BodyPreset;
+  faceStyle?: FaceStyle;
+  accessory?: AccessoryStyle;
 };
 
 export type CharacterSchema = {
@@ -44,6 +81,18 @@ export type CharacterSchema = {
   phase?: number;
   speech?: string;
   movement?: { walk: number; sprint: number; jump: number };
+};
+
+export type AnimalSchema = {
+  id: string;
+  kind: AnimalKind;
+  label: string;
+  primaryColor: string;
+  secondaryColor: string;
+  speed: number;
+  route: [number, number][];
+  phase?: number;
+  bob?: number;
 };
 
 export type TownCollision =
@@ -68,8 +117,10 @@ export type TownAsset = {
 export type TownSchema = {
   version: number;
   town: { name: string };
+  environment: EnvironmentSettings;
   player: CharacterSchema;
   citizens: CharacterSchema[];
+  animals: AnimalSchema[];
   assets: TownAsset[];
 };
 
@@ -133,7 +184,55 @@ const BUILDER_PROP_ASSET_IDS = new Set([
   "grass-clump-10"
 ]);
 
-const HAIR_STYLES = new Set<HairStyle>(["crop", "swept", "afro", "bald"]);
+const HAIR_STYLES = new Set<HairStyle>(["crop", "swept", "afro", "bald", "bob", "bun", "braids", "coily", "mohawk", "long"]);
+const BODY_PRESETS = new Set<BodyPreset>(["compact", "average", "tall", "broad"]);
+const FACE_STYLES = new Set<FaceStyle>(["soft", "round", "bright"]);
+const ACCESSORY_STYLES = new Set<AccessoryStyle>(["none", "glasses", "cap", "beanie"]);
+const WEATHER_MODES = new Set<WeatherMode>(["live", "manual"]);
+const WEATHER_CONDITIONS = new Set<WeatherCondition>(["clear", "cloudy", "rain", "storm", "snow"]);
+const DAY_NIGHT_MODES = new Set<DayNightMode>(["timezone", "manual"]);
+const SEASON_CYCLES = new Set<SeasonCycle>(["four", "two"]);
+const SEASON_CHOICES = new Set<SeasonChoice>(["auto", "spring", "summer", "autumn", "winter", "wet", "dry"]);
+const FALLING_FOLIAGE = new Set<FallingFoliage>(["off", "sakura", "leaves", "mixed"]);
+const ANIMAL_KINDS = new Set<AnimalKind>(["corgi", "goose"]);
+
+export const DEFAULT_ENVIRONMENT_SETTINGS: EnvironmentSettings = {
+  weatherMode: "live",
+  weather: "clear",
+  latitude: 1.3521,
+  longitude: 103.8198,
+  timezoneOffset: 8,
+  dayNightMode: "timezone",
+  manualHour: 14,
+  seasonCycle: "two",
+  season: "auto",
+  foliage: "sakura"
+};
+
+export const DEFAULT_TOWN_ANIMALS: AnimalSchema[] = [
+  {
+    id: "animal-goose",
+    kind: "goose",
+    label: "Puddle",
+    primaryColor: "#f7f0df",
+    secondaryColor: "#d89035",
+    speed: 0.72,
+    route: [[2.8, 3.3], [5.4, 2.8], [7.1, 4.5], [5.8, 6.2], [2.6, 6.1], [1.7, 4.5], [4.2, 5.1]],
+    phase: 0.2,
+    bob: 0.025
+  },
+  {
+    id: "animal-corgi",
+    kind: "corgi",
+    label: "Mochi",
+    primaryColor: "#c17b3f",
+    secondaryColor: "#f0dfbe",
+    speed: 1.05,
+    route: [[-6.6, -2.8], [-4.3, -5.7], [-0.8, -6.2], [2.7, -4.2], [3.4, -1.7], [-1.8, -2.6], [-5.1, -1.1], [0.8, -3.4]],
+    phase: 2.4,
+    bob: 0.035
+  }
+];
 
 export const TOWN_SCHEMA_STORAGE_KEY = "the100hackathoner.town-schema.v1";
 
@@ -148,6 +247,8 @@ export function parseTownSchema(value: unknown): TownSchema {
   if (!candidate.town || typeof candidate.town.name !== "string") throw new Error("Town schema needs a town name.");
   if (!candidate.player || candidate.player.kind !== "player") throw new Error("Town schema needs a player definition.");
   if (!Array.isArray(candidate.citizens) || !Array.isArray(candidate.assets)) throw new Error("Town schema needs citizens and assets arrays.");
+  candidate.environment = parseEnvironmentSettings(candidate.environment);
+  candidate.animals = parseAnimals(candidate.animals);
 
   const assetIds = new Set<string>();
   candidate.assets.forEach((asset) => {
@@ -164,6 +265,58 @@ export function parseTownSchema(value: unknown): TownSchema {
 
   [candidate.player, ...candidate.citizens].forEach((character) => assertCharacter(character));
   return candidate as TownSchema;
+}
+
+function parseAnimals(value: unknown): AnimalSchema[] {
+  const animals = Array.isArray(value)
+    ? value
+    : DEFAULT_TOWN_ANIMALS.map((animal) => ({ ...animal, route: animal.route.map((position) => [...position] as [number, number]) }));
+  const ids = new Set<string>();
+  animals.forEach((animal) => {
+    if (!animal || typeof animal !== "object") throw new Error("Animal must be an object.");
+    const candidate = animal as AnimalSchema;
+    if (typeof candidate.id !== "string" || !ANIMAL_KINDS.has(candidate.kind) || typeof candidate.label !== "string") {
+      throw new Error("Animal needs an id, name, and supported species.");
+    }
+    if (ids.has(candidate.id)) throw new Error(`Duplicate animal id: ${candidate.id}`);
+    ids.add(candidate.id);
+    for (const color of [candidate.primaryColor, candidate.secondaryColor]) {
+      if (typeof color !== "string" || !/^#[0-9a-f]{6}$/i.test(color)) throw new Error(`Animal ${candidate.id} has an invalid color.`);
+    }
+    if (!Number.isFinite(candidate.speed) || candidate.speed < 0.2 || candidate.speed > 2) {
+      throw new Error(`Animal ${candidate.id} has an invalid speed.`);
+    }
+    if (!Array.isArray(candidate.route) || candidate.route.length < 2) throw new Error(`Animal ${candidate.id} needs at least two route points.`);
+    candidate.route.forEach((position) => assertPosition(position, `Animal ${candidate.id} route`));
+  });
+  return animals as AnimalSchema[];
+}
+
+function parseEnvironmentSettings(value: unknown): EnvironmentSettings {
+  const candidate = value && typeof value === "object" ? value as Partial<EnvironmentSettings> : {};
+  const settings: EnvironmentSettings = {
+    ...DEFAULT_ENVIRONMENT_SETTINGS,
+    ...candidate
+  };
+  if (!WEATHER_MODES.has(settings.weatherMode)) throw new Error("Town environment has an invalid weather mode.");
+  if (!WEATHER_CONDITIONS.has(settings.weather)) throw new Error("Town environment has an invalid weather condition.");
+  if (!DAY_NIGHT_MODES.has(settings.dayNightMode)) throw new Error("Town environment has an invalid day/night mode.");
+  if (!SEASON_CYCLES.has(settings.seasonCycle)) throw new Error("Town environment has an invalid season cycle.");
+  if (!SEASON_CHOICES.has(settings.season)) throw new Error("Town environment has an invalid season.");
+  if (!FALLING_FOLIAGE.has(settings.foliage)) throw new Error("Town environment has invalid falling foliage.");
+  if (!Number.isFinite(settings.latitude) || settings.latitude < -90 || settings.latitude > 90) {
+    throw new Error("Town environment has an invalid latitude.");
+  }
+  if (!Number.isFinite(settings.longitude) || settings.longitude < -180 || settings.longitude > 180) {
+    throw new Error("Town environment has an invalid longitude.");
+  }
+  if (!Number.isFinite(settings.timezoneOffset) || settings.timezoneOffset < -12 || settings.timezoneOffset > 14) {
+    throw new Error("Town environment has an invalid timezone.");
+  }
+  if (!Number.isFinite(settings.manualHour) || settings.manualHour < 0 || settings.manualHour > 23) {
+    throw new Error("Town environment has an invalid manual hour.");
+  }
+  return settings;
 }
 
 export function loadTownSchemaDraft(): TownSchema {
@@ -210,6 +363,9 @@ function assertCharacter(character: unknown): asserts character is CharacterSche
   }
   const appearance = value.appearance;
   if (!appearance || !HAIR_STYLES.has(appearance.hairStyle)) throw new Error(`Character ${value.id} has an invalid appearance.`);
+  if (appearance.bodyPreset !== undefined && !BODY_PRESETS.has(appearance.bodyPreset)) throw new Error(`Character ${value.id} has an invalid body preset.`);
+  if (appearance.faceStyle !== undefined && !FACE_STYLES.has(appearance.faceStyle)) throw new Error(`Character ${value.id} has an invalid face style.`);
+  if (appearance.accessory !== undefined && !ACCESSORY_STYLES.has(appearance.accessory)) throw new Error(`Character ${value.id} has an invalid accessory.`);
   for (const color of [appearance.skin, appearance.hair, appearance.shirt, appearance.trim, appearance.pants, appearance.shoes]) {
     if (typeof color !== "string" || !/^#[0-9a-f]{6}$/i.test(color)) {
       throw new Error(`Character ${value.id} has an invalid color.`);

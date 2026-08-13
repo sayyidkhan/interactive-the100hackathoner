@@ -6,7 +6,7 @@ import {
   PLAYER_RADIUS,
   PLAYER_STEP_HEIGHT,
   SURFACE_CLEARANCE,
-  WORLD_LIMIT
+  WALKABLE_WORLD_LIMIT
 } from "../worldConstants";
 
 export type PlayerMotion = {
@@ -100,13 +100,11 @@ export function updatePlayerMovement(
     motion.grounded = false;
   }
 
-  player.position.x = THREE.MathUtils.clamp(player.position.x, -WORLD_LIMIT + PLAYER_RADIUS, WORLD_LIMIT - PLAYER_RADIUS);
-  player.position.z = THREE.MathUtils.clamp(player.position.z, -WORLD_LIMIT + PLAYER_RADIUS, WORLD_LIMIT - PLAYER_RADIUS);
+  clampToWalkableWorld(player.position);
 }
 
 function resolvePlayerCollisions(position: THREE.Vector3, colliders: CollisionShape[]): void {
-  position.x = THREE.MathUtils.clamp(position.x, -WORLD_LIMIT + PLAYER_RADIUS, WORLD_LIMIT - PLAYER_RADIUS);
-  position.z = THREE.MathUtils.clamp(position.z, -WORLD_LIMIT + PLAYER_RADIUS, WORLD_LIMIT - PLAYER_RADIUS);
+  clampToWalkableWorld(position);
 
   for (const collider of colliders) {
     if (collider.top !== undefined && position.y >= collider.top - SURFACE_CLEARANCE) continue;
@@ -114,8 +112,13 @@ function resolvePlayerCollisions(position: THREE.Vector3, colliders: CollisionSh
     else resolveBoxCollision(position, collider);
   }
 
-  position.x = THREE.MathUtils.clamp(position.x, -WORLD_LIMIT + PLAYER_RADIUS, WORLD_LIMIT - PLAYER_RADIUS);
-  position.z = THREE.MathUtils.clamp(position.z, -WORLD_LIMIT + PLAYER_RADIUS, WORLD_LIMIT - PLAYER_RADIUS);
+  clampToWalkableWorld(position);
+}
+
+function clampToWalkableWorld(position: THREE.Vector3): void {
+  const playerCenterLimit = WALKABLE_WORLD_LIMIT - PLAYER_RADIUS;
+  position.x = THREE.MathUtils.clamp(position.x, -playerCenterLimit, playerCenterLimit);
+  position.z = THREE.MathUtils.clamp(position.z, -playerCenterLimit, playerCenterLimit);
 }
 
 function getWalkableSurfaceHeight(position: THREE.Vector3, colliders: CollisionShape[], maxHeight: number): number {

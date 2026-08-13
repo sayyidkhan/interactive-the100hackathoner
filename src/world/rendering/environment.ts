@@ -1,5 +1,9 @@
 import * as THREE from "three";
-import { TOWN_SPREAD } from "../worldConstants";
+import {
+  PERIMETER_WALL_CENTER,
+  PERIMETER_WALL_THICKNESS,
+  TOWN_SPREAD
+} from "../worldConstants";
 import { addRock } from "./props";
 
 export function addWaterfront(scene: THREE.Scene): void {
@@ -13,6 +17,7 @@ export function addWaterfront(scene: THREE.Scene): void {
   );
   water.rotation.x = -Math.PI / 2;
   water.position.set(-8, -0.02, 31);
+  water.userData.environmentRole = "water";
   scene.add(water);
 
   for (let i = 0; i < 26; i += 1) {
@@ -21,9 +26,9 @@ export function addWaterfront(scene: THREE.Scene): void {
 }
 
 export function addPerimeterWalls(scene: THREE.Scene): void {
-  const boundary = 35;
+  const boundary = PERIMETER_WALL_CENTER;
   const wallHeight = 3.25;
-  const wallThickness = 1.45;
+  const wallThickness = PERIMETER_WALL_THICKNESS;
   const wallMaterial = new THREE.MeshStandardMaterial({
     color: "#456d43",
     emissive: "#29472d",
@@ -43,12 +48,14 @@ export function addPerimeterWalls(scene: THREE.Scene): void {
     wall.position.set(spec.x, wallHeight / 2, spec.z);
     wall.castShadow = false;
     wall.receiveShadow = true;
+    wall.userData.environmentRole = "foliage";
     scene.add(wall);
 
     const cap = new THREE.Mesh(new THREE.BoxGeometry(spec.width + 0.18, 0.48, spec.depth + 0.18), capMaterial);
     cap.position.set(spec.x, wallHeight + 0.12, spec.z);
     cap.castShadow = false;
     cap.receiveShadow = true;
+    cap.userData.environmentRole = "foliage";
     scene.add(cap);
   }
 }
@@ -73,6 +80,7 @@ export function addLandscapeDetails(scene: THREE.Scene): void {
     patch.scale.set(1, stretch, 1);
     patch.position.set(x, 0.008, z);
     patch.receiveShadow = true;
+    patch.userData.environmentRole = "lawn";
     scene.add(patch);
   }
 }
@@ -86,6 +94,7 @@ export function addPath(scene: THREE.Scene, x: number, z: number, width: number,
   path.rotation.z = rotation;
   path.position.set(x, 0.012, z);
   path.receiveShadow = true;
+  path.userData.environmentRole = "path";
   scene.add(path);
 }
 

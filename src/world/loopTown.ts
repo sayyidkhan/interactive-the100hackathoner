@@ -38,11 +38,13 @@ import {
   type PlayerMotion,
   updatePlayerMovement
 } from "./player/movement";
-import { createTownAnimals, type TownAnimal, updateTownAnimals } from "./animals";
+import { createAnimalModel, createTownAnimals, type TownAnimal, updateTownAnimals } from "./animals";
 import {
   createAtmosphere,
   createFireflies,
+  createMoon,
   createSakuraPetals,
+  createWeatherParticles,
   type AtmosphereObject,
   type Firefly,
   type SakuraPetal,
@@ -50,6 +52,10 @@ import {
   updateFireflies,
   updateSakuraPetals
 } from "./atmosphere";
+import {
+  createEnvironmentController,
+  type EnvironmentRuntimeStatus
+} from "./environment";
 import { createFootballPitch, type TownBall, updateFootball } from "./football";
 import {
   type WaterTowerAnchor,
@@ -77,6 +83,11 @@ import {
   zoomBuilderCamera
 } from "./camera/builder";
 import { applySceneShadows, createSoftShadow, createTownLights } from "./rendering/shadows";
+import {
+  createSeasonalScenery,
+  refreshSeasonalSceneryLayout,
+  updateSeasonalScenery
+} from "./seasonalScenery";
 import {
   addLandscapeDetails,
   addPath,
@@ -191,8 +202,9 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
   bindVirtualControls(root, input);
   hud.setProgress(discovered);
 
-  createTownLights(scene);
+  const townLights = createTownLights(scene);
   const town = createTown(scene, townSchema);
+  const seasonalScenery = createSeasonalScenery(scene, town.assetLayer);
   let foliage = collectFoliage(town.assetLayer);
   const builderSelectionMarker = createBuilderSelectionMarker(scene);
   const builderGrid = createBuilderGrid(scene);
@@ -206,24 +218,57 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
   scene.add(citizenLayer);
   let citizens = createCitizens(citizenLayer, townSchema.citizens);
   const atmosphere = createAtmosphere(scene);
-  const animals = createTownAnimals(scene);
+  const moon = createMoon(scene);
+  const animalLayer = new THREE.Group();
+  animalLayer.name = "town-schema-animals";
+  scene.add(animalLayer);
+  let animals = createTownAnimals(animalLayer, townSchema.animals);
   const sakuraPetals = createSakuraPetals(scene);
   const fireflies = createFireflies(scene);
+  const weatherParticles = createWeatherParticles(scene);
   const unlockBursts: UnlockBurst[] = [];
   applySceneShadows(scene);
+
+  const environmentController = createEnvironmentController({
+    scene,
+    camera,
+    lights: townLights,
+    atmosphere,
+    moon,
+    petals: sakuraPetals,
+    fireflies,
+    weatherParticles,
+    seasonalScenery,
+    onStatus: (status: EnvironmentRuntimeStatus) => {
+      root.dataset.weather = status.weather;
+      root.dataset.season = status.season;
+      root.dataset.localHour = status.localHour.toFixed(2);
+      if (status.moon) {
+        root.dataset.moonPhase = status.moon.phaseName;
+        root.dataset.moonIllumination = status.moon.fraction.toFixed(3);
+      }
+      root.dispatchEvent(new CustomEvent<EnvironmentRuntimeStatus>("town:environment-status", { detail: status }));
+    }
+  });
 
   let pendingTownSchema: TownSchema | null = null;
   let schemaUpdateFrame: number | undefined;
   const applyTownSchema = (nextSchema: TownSchema) => {
     clearGroup(town.assetLayer);
     renderTownAssets(town.assetLayer, nextSchema.assets);
+    refreshSeasonalSceneryLayout(seasonalScenery, town.assetLayer);
     foliage = collectFoliage(town.assetLayer);
     colliders = createTownColliders(nextSchema);
     applyCharacterAppearance(player, nextSchema.player.appearance, nextSchema.player.movement);
     clearGroup(citizenLayer);
     citizens = createCitizens(citizenLayer, nextSchema.citizens);
+    clearGroup(animalLayer);
+    animals = createTownAnimals(animalLayer, nextSchema.animals);
     applySceneShadows(town.assetLayer);
     applySceneShadows(citizenLayer);
+    applySceneShadows(animalLayer);
+    environmentController.apply(nextSchema.environment);
+    environmentController.refreshSeasonMaterials(town.assetLayer);
   };
   const scheduleTownSchemaUpdate = (nextSchema: TownSchema) => {
     townSchema = nextSchema;
@@ -252,6 +297,7 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
     },
     createAssetPreview: createTownAsset,
     createCharacterPreview: (character) => createCharacterPreviewModel(character),
+    createAnimalPreview: createAnimalModel,
     onCameraZoom: (amount) => {
       zoomBuilderCamera(builderCamera, amount);
     },
@@ -261,10 +307,6 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
     onActiveChange: (active) => {
       builderActive = active;
       builderGrid.visible = active;
-      atmosphere.forEach((item) => { item.object.visible = !active; });
-      sakuraPetals.mesh.visible = !active;
-      fireflies.core.visible = !active;
-      fireflies.halo.visible = !active;
       if (!active) {
         builderSelectionMarker.visible = false;
         return;
@@ -280,6 +322,8 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
       input.inspectRequested = false;
     }
   });
+  root.addEventListener("town:weather-refresh", () => environmentController.refreshWeather(true));
+  environmentController.apply(townSchema.environment);
   bindBuilderCanvasInteractions(renderer.domElement, camera, town.assetLayer, () => builderActive, townBuilder, builderCamera);
 
   const cinematic = createCinematicState(camera, player.position);
@@ -419,6 +463,8 @@ export function initLoopTown(root: HTMLElement, options: LoopTownOptions = {}): 
     updateTownAnimals(animals, clock.elapsedTime, delta);
     updateSakuraPetals(sakuraPetals, clock.elapsedTime);
     updateFireflies(fireflies, clock.elapsedTime);
+    updateSeasonalScenery(seasonalScenery, clock.elapsedTime);
+    environmentController.update(clock.elapsedTime, delta);
     const targetFov = !builderActive && !cinematic.active && playerMotion.speed > 4.8 ? 46 : 40;
     const previousFov = camera.fov;
     camera.fov = THREE.MathUtils.damp(camera.fov, targetFov, 12, delta);
@@ -494,6 +540,7 @@ function createTown(scene: THREE.Scene, schema: TownSchema): TownRuntime {
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = 0.005;
   ground.receiveShadow = true;
+  ground.userData.environmentRole = "ground";
   scene.add(ground);
   addLandscapeDetails(scene);
   addPerimeterWalls(scene);
@@ -509,6 +556,7 @@ function createTown(scene: THREE.Scene, schema: TownSchema): TownRuntime {
   plaza.rotation.x = -Math.PI / 2;
   plaza.position.y = 0.018;
   plaza.receiveShadow = true;
+  plaza.userData.environmentRole = "path";
   scene.add(plaza);
   addPathStones(scene);
 

@@ -1,9 +1,11 @@
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+import { type AnimalSchema } from "../data/townSchema";
 import { addSoftShadow } from "./rendering/shadows";
 import { TOWN_SPREAD } from "./worldConstants";
 
 export type TownAnimal = {
+  schemaId: string;
   object: THREE.Group;
   waypoints: THREE.Vector3[];
   target: THREE.Vector3;
@@ -14,37 +16,35 @@ export type TownAnimal = {
   nextDecision: number;
 };
 
-export function createTownAnimals(scene: THREE.Scene): TownAnimal[] {
+export function createTownAnimals(parent: THREE.Object3D, schemas: AnimalSchema[]): TownAnimal[] {
   const scaleWaypoints = (points: Array<[number, number]>) =>
     points.map(([x, z]) => new THREE.Vector3(x * TOWN_SPREAD, 0, z * TOWN_SPREAD));
-  const specs = [
-    {
-      object: createGoose(),
-      waypoints: scaleWaypoints([[2.8, 3.3], [5.4, 2.8], [7.1, 4.5], [5.8, 6.2], [2.6, 6.1], [1.7, 4.5], [4.2, 5.1]]),
-      speed: 0.72,
-      phase: 0.2,
-      bob: 0.025,
-      nextDecision: 0
-    },
-    {
-      object: createCorgi(),
-      waypoints: scaleWaypoints([[-6.6, -2.8], [-4.3, -5.7], [-0.8, -6.2], [2.7, -4.2], [3.4, -1.7], [-1.8, -2.6], [-5.1, -1.1], [0.8, -3.4]]),
-      speed: 1.05,
-      phase: 2.4,
-      bob: 0.035,
-      nextDecision: 0
-    }
-  ];
+  const specs = schemas.map((schema) => ({
+    schemaId: schema.id,
+    object: createAnimalModel(schema),
+    waypoints: scaleWaypoints(schema.route),
+    speed: schema.speed,
+    phase: schema.phase ?? 0,
+    bob: schema.bob ?? (schema.kind === "corgi" ? 0.035 : 0.025),
+    nextDecision: 0
+  }));
 
   for (const animal of specs) {
     animal.object.position.copy(animal.waypoints[0]);
-    scene.add(animal.object);
+    animal.object.name = `animal:${animal.schemaId}`;
+    parent.add(animal.object);
   }
   return specs.map((animal) => ({
     ...animal,
     target: animal.waypoints[1].clone(),
     velocity: new THREE.Vector3()
   }));
+}
+
+export function createAnimalModel(schema: AnimalSchema): THREE.Group {
+  return schema.kind === "goose"
+    ? createGoose(schema.primaryColor, schema.secondaryColor)
+    : createCorgi(schema.primaryColor, schema.secondaryColor);
 }
 
 export function updateTownAnimals(animals: TownAnimal[], time: number, delta: number): void {
@@ -87,11 +87,12 @@ function animalMesh(geometry: THREE.BufferGeometry, material: THREE.Material): T
   return mesh;
 }
 
-function createGoose(): THREE.Group {
+function createGoose(primaryColor: string, secondaryColor: string): THREE.Group {
   const group = new THREE.Group();
-  const white = new THREE.MeshStandardMaterial({ color: "#f7f0df", roughness: 0.76 });
-  const wingWhite = new THREE.MeshStandardMaterial({ color: "#e9e2d2", roughness: 0.8 });
-  const orange = new THREE.MeshStandardMaterial({ color: "#d89035", roughness: 0.7 });
+  const white = new THREE.MeshStandardMaterial({ color: primaryColor, roughness: 0.76 });
+  const wingWhite = new THREE.MeshStandardMaterial({ color: primaryColor, roughness: 0.86 });
+  wingWhite.color.offsetHSL(0, -0.03, -0.04);
+  const orange = new THREE.MeshStandardMaterial({ color: secondaryColor, roughness: 0.7 });
   const dark = new THREE.MeshStandardMaterial({ color: "#292824", roughness: 0.68 });
 
   const body = animalMesh(new THREE.SphereGeometry(0.32, 22, 16), white);
@@ -148,10 +149,10 @@ function createGoose(): THREE.Group {
   return group;
 }
 
-function createCorgi(): THREE.Group {
+function createCorgi(primaryColor: string, secondaryColor: string): THREE.Group {
   const group = new THREE.Group();
-  const tan = new THREE.MeshStandardMaterial({ color: "#c17b3f", roughness: 0.76 });
-  const cream = new THREE.MeshStandardMaterial({ color: "#f0dfbe", roughness: 0.8 });
+  const tan = new THREE.MeshStandardMaterial({ color: primaryColor, roughness: 0.76 });
+  const cream = new THREE.MeshStandardMaterial({ color: secondaryColor, roughness: 0.8 });
   const dark = new THREE.MeshStandardMaterial({ color: "#302820", roughness: 0.68 });
 
   const body = animalMesh(new RoundedBoxGeometry(0.48, 0.34, 0.72, 6, 0.11), tan);

@@ -76,6 +76,15 @@ export function bindBuilderCanvasInteractions(
 
   element.addEventListener("pointerdown", (event) => {
     if (!isActive() || event.button !== 0) return;
+    const placementAssetId = builder.getPlacementAssetId();
+    if (placementAssetId) {
+      const placementPoint = getGroundPoint(event);
+      if (!placementPoint) return;
+      builder.moveAsset(placementAssetId, placementPoint.x / TOWN_SPREAD, placementPoint.z / TOWN_SPREAD);
+      builder.commitAssetMove();
+      element.style.cursor = "default";
+      return;
+    }
     const assetId = getAssetIdAtPointer(event);
     const point = getGroundPoint(event);
     element.setPointerCapture(event.pointerId);
@@ -102,6 +111,13 @@ export function bindBuilderCanvasInteractions(
   element.addEventListener("pointermove", (event) => {
     if (!isActive()) return;
     if (!interaction) {
+      const placementAssetId = builder.getPlacementAssetId();
+      if (placementAssetId) {
+        const placementPoint = getGroundPoint(event);
+        if (placementPoint) builder.moveAsset(placementAssetId, placementPoint.x / TOWN_SPREAD, placementPoint.z / TOWN_SPREAD);
+        element.style.cursor = "crosshair";
+        return;
+      }
       element.style.cursor = getAssetIdAtPointer(event) ? "grab" : "default";
       return;
     }
