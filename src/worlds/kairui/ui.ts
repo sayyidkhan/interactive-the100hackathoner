@@ -5,12 +5,14 @@ import type { CoastalEnvironmentState } from "./environment";
 export type CoastalHud = {
   isModalOpen(): boolean;
   setNearby(landmark: CoastalLandmark | null): void;
+  setBalloonNearby(active: boolean): void;
   setProgress(discovered: ReadonlySet<string>, total: number): void;
   openLandmark(landmark: CoastalLandmark, isNew: boolean): void;
   closeLandmark(): void;
   setTour(active: boolean, landmark: CoastalLandmark | null): void;
   setEnvironment(state: CoastalEnvironmentState, localTime: string, isNight: boolean): void;
   setTransit(mode: "none" | "boat" | "balloon"): void;
+  setBalloonMode(mode: "autopilot" | "free"): void;
   setEstablishing(active: boolean): void;
   dispose(): void;
 };
@@ -18,12 +20,14 @@ export type CoastalHud = {
 type CoastalHudOptions = {
   onEnterWorld(): void;
   onInspect(): void;
+  onBalloonBoard(): void;
   onTourToggle(): void;
   onTourPrevious(): void;
   onTourNext(): void;
   onTourSelect(index: number): void;
   onEnvironmentChange(state: CoastalEnvironmentState): void;
   onTransit(mode: "none" | "boat" | "balloon"): void;
+  onBalloonModeChange(mode: "autopilot" | "free"): void;
 };
 
 export function createCoastalHud(root: HTMLElement, options: CoastalHudOptions): CoastalHud {
@@ -83,6 +87,13 @@ export function createCoastalHud(root: HTMLElement, options: CoastalHudOptions):
       <span data-coastal-transit-exit-label>Camera mode active</span>
       <strong>Return to free roam ↙</strong>
     </button>
+    <section class="coastal-balloon-mode" data-coastal-balloon-mode hidden aria-label="Balloon flight mode">
+      <div role="group" aria-label="Balloon controls">
+        <button type="button" data-coastal-balloon-mode="autopilot">Autopilot</button>
+        <button type="button" data-coastal-balloon-mode="free">Free flight</button>
+      </div>
+      <small data-coastal-balloon-hint hidden>A/D turn · W/S speed · Space/Shift altitude</small>
+    </section>
     <nav class="coastal-chapter-rail" aria-label="Operator journal chapters">
       ${COASTAL_LANDMARKS.map((landmark, index) => `
         <button type="button" data-coastal-chapter="${index}" aria-label="Go to chapter ${index + 1}: ${landmark.chapter}">
@@ -161,12 +172,16 @@ export function createCoastalHud(root: HTMLElement, options: CoastalHudOptions):
   const transitButtons = [...hud.querySelectorAll<HTMLButtonElement>("[data-coastal-transit]")];
   const transitExit = hud.querySelector<HTMLButtonElement>("[data-coastal-transit-exit]")!;
   const transitExitLabel = hud.querySelector<HTMLElement>("[data-coastal-transit-exit-label]")!;
+  const balloonMode = hud.querySelector<HTMLElement>("[data-coastal-balloon-mode]")!;
+  const balloonModeButtons = [...hud.querySelectorAll<HTMLButtonElement>("[data-coastal-balloon-mode] button")];
+  const balloonHint = hud.querySelector<HTMLElement>("[data-coastal-balloon-hint]")!;
   const chapterButtons = [...hud.querySelectorAll<HTMLButtonElement>("[data-coastal-chapter]")];
   const close = hud.querySelector<HTMLButtonElement>(".coastal-card-close")!;
   const previous = hud.querySelector<HTMLButtonElement>("[data-coastal-previous]")!;
   const next = hud.querySelector<HTMLButtonElement>("[data-coastal-next]")!;
   const free = hud.querySelector<HTMLButtonElement>("[data-coastal-free]")!;
   let nearby: CoastalLandmark | null = null;
+  let balloonNearby = false;
   let tourActive = false;
   let environmentState: CoastalEnvironmentState = { season: "summer", weather: "clear", time: "live" };
 
@@ -174,7 +189,19 @@ export function createCoastalHud(root: HTMLElement, options: CoastalHudOptions):
     card.hidden = true;
     root.classList.remove("coastal-card-open");
   };
-  const inspect = () => options.onInspect();
+  const updatePrompt = () => {
+    prompt.hidden = !nearby && !balloonNearby;
+    const label = prompt.querySelector("span");
+    if (label) label.textContent = balloonNearby
+      ? "Board the hot air balloon"
+      : nearby
+        ? `Inspect ${nearby.name}`
+        : "Inspect landmark";
+  };
+  const inspect = () => {
+    if (balloonNearby) options.onBalloonBoard();
+    else options.onInspect();
+  };
   const closeEnvironment = () => {
     environmentPanel.hidden = true;
     environmentToggle.setAttribute("aria-expanded", "false");
@@ -253,6 +280,11 @@ export function createCoastalHud(root: HTMLElement, options: CoastalHudOptions):
   transitButtons.forEach((button) => button.addEventListener("click", handleTransit));
   const exitTransit = () => options.onTransit("none");
   transitExit.addEventListener("click", exitTransit);
+  const handleBalloonMode = (event: Event) => {
+    const mode = (event.currentTarget as HTMLButtonElement).dataset.coastalBalloonMode;
+    if (mode === "autopilot" || mode === "free") options.onBalloonModeChange(mode);
+  };
+  balloonModeButtons.forEach((button) => button.addEventListener("click", handleBalloonMode));
   const handleChapter = (event: Event) => {
     const index = Number((event.currentTarget as HTMLButtonElement).dataset.coastalChapter);
     if (Number.isFinite(index)) options.onTourSelect(index);
@@ -263,9 +295,11 @@ export function createCoastalHud(root: HTMLElement, options: CoastalHudOptions):
     isModalOpen: () => !card.hidden || !menuPanel.hidden || !environmentPanel.hidden,
     setNearby(landmark) {
       nearby = landmark;
-      prompt.hidden = !landmark;
-      const label = prompt.querySelector("span");
-      if (label) label.textContent = landmark ? `Inspect ${landmark.name}` : "Inspect landmark";
+      updatePrompt();
+    },
+    setBalloonNearby(active) {
+      balloonNearby = active;
+      updatePrompt();
     },
     setProgress(discovered, total) {
       const currentKeys = new Set(COASTAL_LANDMARKS.map((landmark) => `kairui:${landmark.id}`));
@@ -334,8 +368,17 @@ export function createCoastalHud(root: HTMLElement, options: CoastalHudOptions):
         button.setAttribute("aria-pressed", String(selected));
       });
       transitExit.hidden = mode === "none";
-      transitExitLabel.textContent = mode === "boat" ? "Cruise camera active" : "Overview camera active";
+      transitExitLabel.textContent = mode === "boat" ? "Cruise camera active" : "Balloon ride active";
+      balloonMode.hidden = mode !== "balloon";
       root.dataset.coastalTransit = mode;
+    },
+    setBalloonMode(mode) {
+      balloonModeButtons.forEach((button) => {
+        const selected = button.dataset.coastalBalloonMode === mode;
+        button.classList.toggle("active", selected);
+        button.setAttribute("aria-pressed", String(selected));
+      });
+      balloonHint.hidden = mode !== "free";
     },
     setEstablishing(active) {
       enterButton.hidden = !active;
@@ -358,6 +401,7 @@ export function createCoastalHud(root: HTMLElement, options: CoastalHudOptions):
       environmentButtons.forEach((button) => button.removeEventListener("click", handleEnvironmentButton));
       transitButtons.forEach((button) => button.removeEventListener("click", handleTransit));
       transitExit.removeEventListener("click", exitTransit);
+      balloonModeButtons.forEach((button) => button.removeEventListener("click", handleBalloonMode));
       chapterButtons.forEach((button) => button.removeEventListener("click", handleChapter));
       hud.remove();
     }

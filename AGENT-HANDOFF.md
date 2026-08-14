@@ -22,14 +22,16 @@ and art-direction references, not content sources.
 - Canonical repository: `/Users/sayyid/Documents/github/interactive-the100hackathoner`
 - Active branch: `dev-v5`
 - Tracking branch: `origin/dev-v5`
-- Latest product commit: `65d50f4 feat(kairui): refine coastal interface and camera modes`
-- Handoff baseline: `eb4da98 docs: add dev-v5 agent handoff`
 - The main repository has been consolidated onto `dev-v5` and is the only
   location agents should edit.
 
 The old nested clone at `dist/kairui-worktree` is deprecated and remains only as
 a temporary local copy. Do not make new changes there. It can be removed later
 after the user explicitly approves deletion.
+
+A read-only reference of the decompiled kairui.dev site lives on
+`origin/codex/decompile-kairui`. It is an art-direction and technique reference,
+not a content source.
 
 Branch purpose and history are documented in `docs/KINGDOM-ROADMAP.md`.
 
@@ -85,41 +87,58 @@ The menu contains:
 - Explore: Free roam / Cruise / Overview
 - Environment summary and controls
 
-Cruise and Overview are alternate camera modes. Both show a persistent
-`Return to free roam` control. Returning restores the player, movement controls
-and gameplay camera. Free roam is also an explicit option inside the menu.
+Cruise remains a boat-camera mode. Overview now boards the physical hot-air
+balloon. Both show a persistent `Return to free roam` control. Returning
+restores the player, movement controls and gameplay camera. Free roam is also
+an explicit option inside the menu.
+
+The balloon is also boardable from the ground when the player is nearby
+(`E · Board the hot air balloon`). While riding, Autopilot follows a closed
+coastal loop; Free flight lets the rider turn, speed and change altitude.
+Switching back to Autopilot eases onto the nearest loop point.
 
 The guided tour is autopilot: the visitor only selects Previous, Next or a
-chapter. The story panel is compact at bottom-left; chapters `01–06` sit on the
-right edge.
+chapter. Camera travel now glides along a terrain-cleared Catmull-Rom route
+instead of cutting point-to-point. The story panel is compact at bottom-left;
+chapters `01–06` sit on the right edge.
 
 ## Important files
 
-- `src/worlds/kairui/index.ts` — coastal runtime orchestration, camera modes,
-  player state, tour flow and environment integration.
+- `src/worlds/kairui/index.ts` — coastal runtime orchestration, balloon ride
+  (autopilot / free flight), tour route, player state and environment.
 - `src/worlds/kairui/ui.ts` — Kairui HUD markup, menu, climate panel, chapter
-  controls and transit/free-roam actions.
-- `src/worlds/kairui/scene.ts` — terrain, coast, sea, landmarks, props and moving
-  world elements.
+  controls, balloon-mode toggle and transit/free-roam actions.
+- `src/worlds/kairui/scene.ts` — terrain, coast, sea, landmarks, harbor pier,
+  clouds, gulls, islands, balloon mesh and ambient life.
 - `src/worlds/kairui/content.ts` — Sayyid's authored chapter content.
 - `src/worlds/kairui/environment.ts` — weather, season, daylight and palette.
-- `src/worlds/kairui/materials.ts` — custom rendering materials.
+- `src/worlds/kairui/materials.ts` — water/sky shaders and vegetation sway.
 - `src/styles.css` — shared UI styling; Kairui overrides are near the end under
   `Unified post-entry Kairui UI palette`.
 - `src/engine/` — shared multi-world lifecycle and contracts.
 - `docs/KINGDOM-ROADMAP.md` — branch/version map and architectural direction.
 
-## Recent fixes included in `65d50f4`
+## Recent work included in this handoff
 
-- Rebuilt the oversized menu as a game-style pause panel.
-- Unified post-entry overlays around dark teal, cream and warm gold.
-- Moved the tour card to a compact bottom-left layout.
-- Moved chapter navigation to the right.
-- Added a working close path for the climate panel.
-- Added explicit Free roam, Cruise and Overview states.
-- Added a persistent return action from Cruise/Overview.
-- Restored the player and gameplay camera after leaving cinematic camera modes.
-- Updated branch/version documentation.
+Coastal world polish against the kairui.dev quality bar, without copying its
+content:
+
+- Footprint-based dry-pad validation; Signal Archive and lighthouse sit on
+  raised stone pads inland of the waterline.
+- Harbor pier rebuilt as a walkable structure: ramp, plank deck, rails,
+  instanced pilings, terminal platform, four docked boats, lines and fenders.
+- Opaque lit low-poly cloud clusters with weather-reactive coverage.
+- Three authored gull flocks with elliptical flight and phased wing flaps.
+- Rideable hot-air balloon with burner, basket camera, 90s loop, Autopilot /
+  Free flight toggle, and empty-balloon return-home.
+- Water shader: shoreline foam from `coastalShoreX`, wave lighting, breathing
+  glitter, night moonlight path, horizon fresnel. Geometric tube foam removed.
+- Ambient life: unsynced vegetation sway, hut chimney smoke, campfire flicker,
+  far sails, pulsing lighthouse, rare dolphin-pod events.
+- Night palette now dims terrain; hut windows and lamps brighten at night.
+- Guided tour glides along a clearance-safe camera route between chapters.
+- Pause-menu climate button no longer blocked by the Guided tour control.
+- Seabed lowered so tan patches no longer surface through wave troughs.
 
 ## Product and design preferences
 
@@ -132,6 +151,8 @@ right edge.
   it does not add meaning.
 - Preserve performance and mobile readability while adding immersion.
 - Challenge weak design assumptions rather than merely adding more UI.
+- Quality comes from authored geometry, lighting and ambient motion — not bloom
+  or post-processing. The kairui.dev reference uses none.
 
 ## Next-agent checklist
 
@@ -140,14 +161,14 @@ right edge.
 3. Confirm the repository path is the project root, not
    `dist/kairui-worktree`.
 4. Run the app and visually inspect `/worlds/kairui` before changing it.
-5. Test free roam, Cruise, Overview, climate controls and guided tour after any
-   camera or HUD change.
+5. After camera or HUD changes, test free roam, Cruise, balloon Autopilot and
+   Free flight, climate controls and the guided tour (including chapter hops).
 6. Run `npm run build` and `git diff --check` before handing work back.
 
 ## Known follow-up opportunities
 
-- Perform responsive QA for the new three-option Explore row and transit return
-  action on narrow screens.
+- Perform responsive QA for the Explore row, balloon-mode toggle and transit
+  return action on narrow screens.
 - Split the large main bundle using route/world-level dynamic imports.
 - Continue terrain, lighting and atmospheric polish without increasing HUD
   density.

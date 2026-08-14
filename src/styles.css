@@ -5581,6 +5581,61 @@ dd {
   color: rgba(38, 62, 62, 0.66);
 }
 
+.coastal-balloon-mode {
+  position: absolute;
+  pointer-events: auto;
+  right: 24px;
+  bottom: 104px;
+  z-index: 2;
+  display: grid;
+  gap: 5px;
+  min-width: 196px;
+  padding: 7px;
+  color: #f8efdf;
+  background: rgba(20, 39, 40, 0.9);
+  border: 1px solid rgba(242, 207, 134, 0.38);
+  border-radius: 13px;
+  box-shadow: 0 14px 38px rgba(4, 17, 21, 0.2);
+  backdrop-filter: blur(16px);
+}
+
+.coastal-balloon-mode[hidden] {
+  display: none;
+}
+
+.coastal-balloon-mode > div {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+
+.coastal-balloon-mode button {
+  min-height: 27px;
+  padding: 5px 7px;
+  color: rgba(248, 239, 223, 0.72);
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.coastal-balloon-mode button.active {
+  color: #263e3e;
+  background: #f2cf86;
+  border-color: #f7dda6;
+}
+
+.coastal-balloon-mode small {
+  color: rgba(248, 239, 223, 0.63);
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 0.025em;
+  text-align: center;
+}
+
 .coastal-root[data-coastal-transit="boat"] .coastal-tour-button,
 .coastal-root[data-coastal-transit="balloon"] .coastal-tour-button {
   opacity: 0;
@@ -7736,6 +7791,12 @@ dd {
 
 .coastal-menu-open canvas {
   filter: saturate(0.82) brightness(0.82);
+}
+
+/* The pause panel owns the lower-right click target while it is open. */
+.coastal-menu-open .coastal-tour-button {
+  pointer-events: none;
+  opacity: 0;
 }
 
 @media (max-width: 760px) {
