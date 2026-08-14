@@ -19,19 +19,24 @@ and art-direction references, not content sources.
 
 ## Current Git state
 
-- Repository worktree: `dist/kairui-worktree`
+- Canonical repository: `/Users/sayyid/Documents/github/interactive-the100hackathoner`
 - Active branch: `dev-v5`
-- Current commit: `65d50f4 feat(kairui): refine coastal interface and camera modes`
-- Remote state at handoff: `dev-v5` is **one commit ahead** of `origin/dev-v5`.
-- Working tree was clean immediately after `65d50f4`; this handoff file itself is
-  intentionally uncommitted.
+- Tracking branch: `origin/dev-v5`
+- Latest product commit: `65d50f4 feat(kairui): refine coastal interface and camera modes`
+- Handoff baseline: `eb4da98 docs: add dev-v5 agent handoff`
+- The main repository has been consolidated onto `dev-v5` and is the only
+  location agents should edit.
+
+The old nested clone at `dist/kairui-worktree` is deprecated and remains only as
+a temporary local copy. Do not make new changes there. It can be removed later
+after the user explicitly approves deletion.
 
 Branch purpose and history are documented in `docs/KINGDOM-ROADMAP.md`.
 
 ## Run and verify
 
 ```bash
-cd /Users/sayyid/Documents/github/interactive-the100hackathoner/dist/kairui-worktree
+cd /Users/sayyid/Documents/github/interactive-the100hackathoner
 npm install
 npm run dev -- --host 127.0.0.1 --port 5175
 ```
@@ -132,7 +137,8 @@ right edge.
 
 1. Read `README.md` and `docs/KINGDOM-ROADMAP.md`.
 2. Confirm `git status --short --branch`; do not overwrite unrelated changes.
-3. Push `65d50f4` only if the user asks.
+3. Confirm the repository path is the project root, not
+   `dist/kairui-worktree`.
 4. Run the app and visually inspect `/worlds/kairui` before changing it.
 5. Test free roam, Cruise, Overview, climate controls and guided tour after any
    camera or HUD change.
