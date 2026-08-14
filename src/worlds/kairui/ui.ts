@@ -23,7 +23,7 @@ type CoastalHudOptions = {
   onTourNext(): void;
   onTourSelect(index: number): void;
   onEnvironmentChange(state: CoastalEnvironmentState): void;
-  onTransit(mode: "boat" | "balloon"): void;
+  onTransit(mode: "none" | "boat" | "balloon"): void;
 };
 
 export function createCoastalHud(root: HTMLElement, options: CoastalHudOptions): CoastalHud {
@@ -44,28 +44,44 @@ export function createCoastalHud(root: HTMLElement, options: CoastalHudOptions):
       <span aria-hidden="true">☰</span><strong>Menu</strong>
     </button>
     <section class="coastal-menu-panel" id="coastal-menu-panel" data-coastal-menu-panel hidden aria-label="Coastal menu">
+      <header class="coastal-menu-header">
+        <div><span>Paused</span><strong>Operator coast</strong></div>
+        <button type="button" data-coastal-resume><span aria-hidden="true">▶</span> Resume</button>
+      </header>
       <div class="coastal-progress" aria-live="polite">
-        <span>Field notes</span>
+        <span><i aria-hidden="true">◇</i> Field notes</span>
         <strong data-coastal-progress>0 / 5</strong>
       </div>
-      <nav class="coastal-world-switcher" aria-label="Kingdom travel">
-        <a href="/worlds/shawn">Village</a>
-        <a href="/worlds/kairui" aria-current="page">Coast</a>
-        <a href="/kingdoms">All worlds</a>
-      </nav>
-      <div class="coastal-transit" aria-label="Coastal transit">
-        <button type="button" data-coastal-transit="boat" title="Take a harbour cruise">⛵ <span>Cruise</span></button>
-        <button type="button" data-coastal-transit="balloon" title="Take a balloon overview">◉ <span>Overview</span></button>
+      <div class="coastal-menu-group">
+        <span>Travel</span>
+        <nav class="coastal-world-switcher" aria-label="Kingdom travel">
+          <a href="/worlds/shawn"><i aria-hidden="true">⌂</i><span>Village</span></a>
+          <a href="/worlds/kairui" aria-current="page"><i aria-hidden="true">≈</i><span>Coast</span></a>
+          <a href="/kingdoms"><i aria-hidden="true">◇</i><span>Worlds</span></a>
+        </nav>
+      </div>
+      <div class="coastal-menu-group">
+        <span>Explore</span>
+        <div class="coastal-transit" aria-label="Coastal transit">
+          <button type="button" data-coastal-transit="none" title="Return to free roam"><i aria-hidden="true">↙</i><span>Free roam</span></button>
+          <button type="button" data-coastal-transit="boat" title="Take a harbour cruise"><i aria-hidden="true">⛵</i><span>Cruise</span></button>
+          <button type="button" data-coastal-transit="balloon" title="Take a balloon overview"><i aria-hidden="true">◉</i><span>Overview</span></button>
+        </div>
       </div>
       <button class="coastal-environment-toggle" type="button" data-coastal-environment-toggle aria-expanded="false">
-        <span data-coastal-time>GMT+8</span>
-        <strong data-coastal-environment-summary>Summer · Clear</strong>
+        <i aria-hidden="true">☼</i>
+        <span><small data-coastal-time>GMT+8</small><strong data-coastal-environment-summary>Summer · Clear</strong></span>
+        <b aria-hidden="true">›</b>
       </button>
-      <small>WASD · drag to look · E inspect</small>
+      <footer><span>WASD</span> Move <span>E</span> Inspect <span>Esc</span> Resume</footer>
     </section>
     <button class="coastal-tour-button" type="button" data-coastal-tour>
       <span>Six authored chapters · 4 min</span>
       <strong>Begin operator journal</strong>
+    </button>
+    <button class="coastal-transit-exit" type="button" data-coastal-transit-exit hidden>
+      <span data-coastal-transit-exit-label>Camera mode active</span>
+      <strong>Return to free roam ↙</strong>
     </button>
     <nav class="coastal-chapter-rail" aria-label="Operator journal chapters">
       ${COASTAL_LANDMARKS.map((landmark, index) => `
@@ -75,8 +91,8 @@ export function createCoastalHud(root: HTMLElement, options: CoastalHudOptions):
     </nav>
     <section class="coastal-environment-panel" data-coastal-environment-panel hidden aria-label="Coastal environment">
       <header>
-        <span>World atmosphere</span>
-        <strong>Coastal climate</strong>
+        <div><span>World atmosphere</span><strong>Coastal climate</strong></div>
+        <button type="button" class="coastal-environment-close" aria-label="Close coastal climate">×</button>
       </header>
       <div class="coastal-environment-group">
         <span>Season</span>
@@ -138,9 +154,13 @@ export function createCoastalHud(root: HTMLElement, options: CoastalHudOptions):
   const card = hud.querySelector<HTMLElement>("[data-coastal-card]")!;
   const menuToggle = hud.querySelector<HTMLButtonElement>("[data-coastal-menu-toggle]")!;
   const menuPanel = hud.querySelector<HTMLElement>("[data-coastal-menu-panel]")!;
+  const resumeButton = hud.querySelector<HTMLButtonElement>("[data-coastal-resume]")!;
   const environmentToggle = hud.querySelector<HTMLButtonElement>("[data-coastal-environment-toggle]")!;
   const environmentPanel = hud.querySelector<HTMLElement>("[data-coastal-environment-panel]")!;
+  const environmentClose = hud.querySelector<HTMLButtonElement>(".coastal-environment-close")!;
   const transitButtons = [...hud.querySelectorAll<HTMLButtonElement>("[data-coastal-transit]")];
+  const transitExit = hud.querySelector<HTMLButtonElement>("[data-coastal-transit-exit]")!;
+  const transitExitLabel = hud.querySelector<HTMLElement>("[data-coastal-transit-exit-label]")!;
   const chapterButtons = [...hud.querySelectorAll<HTMLButtonElement>("[data-coastal-chapter]")];
   const close = hud.querySelector<HTMLButtonElement>(".coastal-card-close")!;
   const previous = hud.querySelector<HTMLButtonElement>("[data-coastal-previous]")!;
@@ -155,16 +175,26 @@ export function createCoastalHud(root: HTMLElement, options: CoastalHudOptions):
     root.classList.remove("coastal-card-open");
   };
   const inspect = () => options.onInspect();
+  const closeEnvironment = () => {
+    environmentPanel.hidden = true;
+    environmentToggle.setAttribute("aria-expanded", "false");
+  };
   const closeMenu = () => {
     menuPanel.hidden = true;
     menuToggle.setAttribute("aria-expanded", "false");
+    root.classList.remove("coastal-menu-open");
   };
   const toggleMenu = () => {
-    menuPanel.hidden = !menuPanel.hidden;
+    const willOpen = menuPanel.hidden;
+    if (willOpen) closeEnvironment();
+    menuPanel.hidden = !willOpen;
     menuToggle.setAttribute("aria-expanded", String(!menuPanel.hidden));
+    root.classList.toggle("coastal-menu-open", !menuPanel.hidden);
+    if (!menuPanel.hidden) resumeButton.focus();
   };
   prompt.addEventListener("click", inspect);
   menuToggle.addEventListener("click", toggleMenu);
+  resumeButton.addEventListener("click", closeMenu);
   tourButton.addEventListener("click", options.onTourToggle);
   enterButton.addEventListener("click", options.onEnterWorld);
   close.addEventListener("click", hideCard);
@@ -181,11 +211,25 @@ export function createCoastalHud(root: HTMLElement, options: CoastalHudOptions):
     if (tourActive) options.onTourToggle();
   });
   const toggleEnvironment = () => {
-    environmentPanel.hidden = !environmentPanel.hidden;
+    const willOpen = environmentPanel.hidden;
+    environmentPanel.hidden = !willOpen;
     environmentToggle.setAttribute("aria-expanded", String(!environmentPanel.hidden));
-    if (!environmentPanel.hidden) closeMenu();
+    if (willOpen) closeMenu();
   };
   environmentToggle.addEventListener("click", toggleEnvironment);
+  environmentClose.addEventListener("click", closeEnvironment);
+  const handleDocumentPointerDown = (event: PointerEvent) => {
+    const target = event.target as Node | null;
+    if (!target || environmentPanel.hidden) return;
+    if (!environmentPanel.contains(target) && !environmentToggle.contains(target)) closeEnvironment();
+  };
+  const handleDocumentKeyDown = (event: KeyboardEvent) => {
+    if (event.key !== "Escape") return;
+    closeEnvironment();
+    closeMenu();
+  };
+  document.addEventListener("pointerdown", handleDocumentPointerDown);
+  document.addEventListener("keydown", handleDocumentKeyDown);
   const environmentButtons = [...environmentPanel.querySelectorAll<HTMLButtonElement>("button[data-value]")];
   const handleEnvironmentButton = (event: Event) => {
     const button = event.currentTarget as HTMLButtonElement;
@@ -201,12 +245,14 @@ export function createCoastalHud(root: HTMLElement, options: CoastalHudOptions):
   const handleTransit = (event: Event) => {
     const button = event.currentTarget as HTMLButtonElement;
     const mode = button.dataset.coastalTransit;
-    if (mode === "boat" || mode === "balloon") {
+    if (mode === "none" || mode === "boat" || mode === "balloon") {
       closeMenu();
       options.onTransit(mode);
     }
   };
   transitButtons.forEach((button) => button.addEventListener("click", handleTransit));
+  const exitTransit = () => options.onTransit("none");
+  transitExit.addEventListener("click", exitTransit);
   const handleChapter = (event: Event) => {
     const index = Number((event.currentTarget as HTMLButtonElement).dataset.coastalChapter);
     if (Number.isFinite(index)) options.onTourSelect(index);
@@ -251,6 +297,7 @@ export function createCoastalHud(root: HTMLElement, options: CoastalHudOptions):
     setTour(active, landmark) {
       tourActive = active;
       closeMenu();
+      closeEnvironment();
       tourButton.classList.toggle("active", active);
       tourButton.querySelector("strong")!.textContent = active ? "Exit tour" : "Guided tour";
       tourButton.querySelector("span")!.textContent = active && landmark ? `Travelling · ${landmark.name}` : "Guided journey";
@@ -286,21 +333,31 @@ export function createCoastalHud(root: HTMLElement, options: CoastalHudOptions):
         button.classList.toggle("active", selected);
         button.setAttribute("aria-pressed", String(selected));
       });
+      transitExit.hidden = mode === "none";
+      transitExitLabel.textContent = mode === "boat" ? "Cruise camera active" : "Overview camera active";
       root.dataset.coastalTransit = mode;
     },
     setEstablishing(active) {
       enterButton.hidden = !active;
-      if (active) closeMenu();
+      if (active) {
+        closeMenu();
+        closeEnvironment();
+      }
       root.dataset.coastalEstablishing = active ? "true" : "false";
     },
     dispose() {
       prompt.removeEventListener("click", inspect);
       menuToggle.removeEventListener("click", toggleMenu);
+      resumeButton.removeEventListener("click", closeMenu);
       tourButton.removeEventListener("click", options.onTourToggle);
       enterButton.removeEventListener("click", options.onEnterWorld);
       environmentToggle.removeEventListener("click", toggleEnvironment);
+      environmentClose.removeEventListener("click", closeEnvironment);
+      document.removeEventListener("pointerdown", handleDocumentPointerDown);
+      document.removeEventListener("keydown", handleDocumentKeyDown);
       environmentButtons.forEach((button) => button.removeEventListener("click", handleEnvironmentButton));
       transitButtons.forEach((button) => button.removeEventListener("click", handleTransit));
+      transitExit.removeEventListener("click", exitTransit);
       chapterButtons.forEach((button) => button.removeEventListener("click", handleChapter));
       hud.remove();
     }

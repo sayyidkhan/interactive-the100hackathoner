@@ -229,8 +229,9 @@ export function mountKairuiKingdom(root: HTMLElement): void {
       applyEnvironment();
     },
     onTransit: (mode) => {
-      transitMode = transitMode === mode ? "none" : mode;
-      transitStartedAt = runtime.clock.elapsedTime;
+      transitMode = mode;
+      if (mode !== "none") transitStartedAt = runtime.clock.elapsedTime;
+      else player.visible = true;
       hud.setTransit(transitMode);
     }
   });

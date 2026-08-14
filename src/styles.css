@@ -5041,6 +5041,7 @@ dd {
 .coastal-progress,
 .coastal-world-switcher,
 .coastal-tour-button,
+.coastal-transit-exit,
 .coastal-environment-toggle,
 .coastal-environment-panel,
 .coastal-transit,
@@ -5532,6 +5533,61 @@ dd {
   font-size: 13px;
 }
 
+.coastal-transit-exit {
+  right: 24px;
+  bottom: 24px;
+  display: grid;
+  min-width: 196px;
+  gap: 3px;
+  padding: 13px 16px;
+  color: #fff9ed;
+  text-align: left;
+  background: rgba(20, 39, 40, 0.94);
+  border: 1px solid rgba(242, 207, 134, 0.52);
+  border-radius: 19px;
+  box-shadow: 0 20px 52px rgba(4, 17, 21, 0.24);
+  cursor: pointer;
+  backdrop-filter: blur(18px) saturate(0.76);
+  transition: transform 180ms ease, background 180ms ease;
+}
+
+.coastal-transit-exit[hidden] {
+  display: none;
+}
+
+.coastal-transit-exit span {
+  color: #e8a15c;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.coastal-transit-exit strong {
+  font-size: 13px;
+}
+
+.coastal-transit-exit:hover,
+.coastal-transit-exit:focus-visible {
+  color: #263e3e;
+  background: #f2cf86;
+  border-color: #f7dda6;
+  outline: 0;
+  transform: translateY(-2px);
+}
+
+.coastal-transit-exit:hover span,
+.coastal-transit-exit:focus-visible span {
+  color: rgba(38, 62, 62, 0.66);
+}
+
+.coastal-root[data-coastal-transit="boat"] .coastal-tour-button,
+.coastal-root[data-coastal-transit="balloon"] .coastal-tour-button {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .coastal-prompt {
   bottom: 25px;
   left: 50%;
@@ -5835,6 +5891,12 @@ dd {
     right: 12px;
     bottom: 12px;
     min-width: 140px;
+  }
+
+  .coastal-transit-exit {
+    right: 12px;
+    bottom: 12px;
+    min-width: 176px;
   }
 
   .coastal-environment-toggle {
@@ -7239,4 +7301,637 @@ dd {
   .builder-placement-pulse {
     animation: none;
   }
+}
+
+/* Compact Kairui journal layout ----------------------------------------- */
+
+.coastal-chapter-rail {
+  top: 50%;
+  right: 18px;
+  left: auto;
+  transform: translateY(-50%);
+}
+
+.coastal-chapter-rail button {
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: center;
+}
+
+.coastal-chapter-rail span,
+.coastal-chapter-rail button.active span {
+  max-width: 0;
+  padding-right: 0;
+  padding-left: 0;
+  opacity: 0;
+}
+
+.coastal-chapter-rail:hover span,
+.coastal-chapter-rail button:focus-visible span {
+  max-width: 90px;
+  padding-right: 9px;
+  opacity: 1;
+}
+
+.coastal-story-card {
+  top: auto;
+  right: auto;
+  bottom: 24px;
+  left: 24px;
+  width: min(360px, calc(100vw - 48px));
+  max-height: min(62vh, 560px);
+  box-sizing: border-box;
+  padding: 18px;
+  border-radius: 22px 22px 8px 22px;
+  box-shadow: 0 24px 72px rgba(28, 49, 48, 0.22), inset 3px 0 0 var(--landmark-accent, var(--coastal-coral));
+  transform: none;
+  animation: coastal-card-compact-arrive 240ms cubic-bezier(0.2, 0.72, 0.2, 1);
+}
+
+@media (min-width: 1100px) {
+  .coastal-story-card {
+    width: min(360px, 31vw);
+    padding: 18px;
+  }
+
+  .coastal-story-card h1 {
+    font-size: 34px;
+  }
+}
+
+.coastal-story-card h1 {
+  margin: 5px 34px 8px 0;
+  font-size: clamp(31px, 3.2vw, 38px);
+  line-height: 0.94;
+}
+
+.coastal-story-eyebrow {
+  padding-right: 34px;
+}
+
+.coastal-story-card p {
+  margin-bottom: 13px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.coastal-story-metric {
+  display: none;
+}
+
+.coastal-story-log {
+  display: block;
+  margin-bottom: 14px;
+}
+
+.coastal-story-log div {
+  padding-top: 9px;
+}
+
+.coastal-story-log div:not(:first-child) {
+  display: none;
+}
+
+.coastal-story-log dd {
+  font-size: 10px;
+  line-height: 1.42;
+}
+
+.coastal-card-close {
+  top: 13px;
+  right: 13px;
+  width: 32px;
+  height: 32px;
+  font-size: 18px;
+}
+
+.coastal-card-actions {
+  gap: 6px;
+}
+
+.coastal-card-actions button {
+  min-height: 36px;
+  padding: 6px;
+  border-radius: 10px;
+  font-size: 9px;
+}
+
+.coastal-card-open .coastal-tour-button {
+  visibility: hidden;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.coastal-card-open canvas {
+  filter: saturate(0.92) brightness(0.96);
+}
+
+@keyframes coastal-card-compact-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+@media (max-width: 760px) {
+  .coastal-story-card {
+    right: 10px;
+    bottom: 10px;
+    left: 10px;
+    width: auto;
+    max-height: 64vh;
+  }
+
+  .coastal-chapter-rail {
+    top: 50%;
+    right: 10px;
+    bottom: auto;
+    left: auto;
+    display: grid;
+    transform: translateY(-50%);
+  }
+
+  .coastal-card-open .coastal-chapter-rail {
+    visibility: hidden;
+    pointer-events: none;
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .coastal-story-card {
+    animation: none;
+  }
+}
+
+.coastal-environment-panel header {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+}
+
+.coastal-environment-panel header > div {
+  display: grid;
+  gap: 1px;
+}
+
+.coastal-environment-close {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  place-items: center;
+  color: #5b5044;
+  background: #f4ead7;
+  border: 1px solid var(--coastal-line);
+  border-radius: 50%;
+  font: 400 20px/1 Inter, system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.coastal-environment-close:hover,
+.coastal-environment-close:focus-visible {
+  color: #fffaf0;
+  background: #315b5e;
+  outline: 0;
+}
+
+.coastal-environment-close:focus-visible {
+  box-shadow: 0 0 0 3px var(--coastal-gold);
+}
+
+/* Kairui field-kit pause menu ------------------------------------------- */
+
+.coastal-menu-panel {
+  top: 76px;
+  right: 24px;
+  width: min(288px, calc(100vw - 48px));
+  gap: 12px;
+  padding: 12px;
+  color: #f8efdf;
+  background: rgba(20, 39, 40, 0.94);
+  border: 1px solid rgba(255, 244, 218, 0.2);
+  border-radius: 18px 18px 7px 18px;
+  box-shadow: 0 24px 70px rgba(4, 17, 21, 0.32), inset 0 1px rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(22px) saturate(0.74);
+}
+
+.coastal-menu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 3px 9px;
+  border-bottom: 1px solid rgba(255, 244, 218, 0.14);
+}
+
+.coastal-menu-header > div {
+  display: grid;
+  gap: 1px;
+}
+
+.coastal-menu-header > div span,
+.coastal-menu-group > span {
+  color: #e8a15c;
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.coastal-menu-header > div strong {
+  font-family: "Bebas Neue", "Arial Narrow", sans-serif;
+  font-size: 22px;
+  font-weight: 400;
+  letter-spacing: 0.025em;
+  line-height: 1;
+}
+
+.coastal-menu-header button {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 11px;
+  color: #263e3e;
+  background: #f2cf86;
+  border: 0;
+  border-radius: 10px;
+  font: 850 10px/1 Inter, system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.coastal-menu-header button span {
+  font-size: 8px;
+}
+
+.coastal-menu-panel .coastal-progress {
+  padding: 9px 11px;
+  color: #f8efdf;
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(255, 244, 218, 0.09);
+  border-radius: 11px;
+}
+
+.coastal-menu-panel .coastal-progress span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: rgba(248, 239, 223, 0.7);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+
+.coastal-menu-panel .coastal-progress i {
+  color: #f2cf86;
+  font-style: normal;
+}
+
+.coastal-menu-panel .coastal-progress strong {
+  color: #f8efdf;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.coastal-menu-group {
+  display: grid;
+  gap: 6px;
+}
+
+.coastal-menu-panel .coastal-world-switcher,
+.coastal-menu-panel .coastal-transit {
+  display: grid;
+  gap: 6px;
+  padding: 0;
+  background: transparent;
+}
+
+.coastal-menu-panel .coastal-world-switcher {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.coastal-menu-panel .coastal-transit {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.coastal-menu-panel .coastal-world-switcher a,
+.coastal-menu-panel .coastal-transit button {
+  display: grid;
+  min-width: 0;
+  min-height: 52px;
+  place-content: center;
+  gap: 4px;
+  padding: 7px 5px;
+  color: rgba(248, 239, 223, 0.7);
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(255, 244, 218, 0.08);
+  border-radius: 11px;
+  font: 800 9px/1 Inter, system-ui, sans-serif;
+  text-align: center;
+  text-decoration: none;
+}
+
+.coastal-menu-panel .coastal-world-switcher a i,
+.coastal-menu-panel .coastal-transit button i {
+  color: #f2cf86;
+  font-size: 15px;
+  font-style: normal;
+}
+
+.coastal-menu-panel .coastal-world-switcher a[aria-current="page"],
+.coastal-menu-panel .coastal-transit button.active {
+  color: #263e3e;
+  background: #f2cf86;
+  border-color: #f7dda6;
+}
+
+.coastal-menu-panel .coastal-world-switcher a[aria-current="page"] i,
+.coastal-menu-panel .coastal-transit button.active i {
+  color: #263e3e;
+}
+
+.coastal-menu-panel .coastal-environment-toggle {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  min-height: 54px;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  color: #f8efdf;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(255, 244, 218, 0.09);
+  border-radius: 11px;
+}
+
+.coastal-menu-panel .coastal-environment-toggle > i {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  color: #263e3e;
+  background: #f2cf86;
+  border-radius: 9px;
+  font-size: 17px;
+  font-style: normal;
+}
+
+.coastal-menu-panel .coastal-environment-toggle > span {
+  display: grid;
+  gap: 2px;
+  color: inherit;
+  text-transform: none;
+}
+
+.coastal-menu-panel .coastal-environment-toggle small {
+  color: rgba(248, 239, 223, 0.52);
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.coastal-menu-panel .coastal-environment-toggle strong {
+  color: #f8efdf;
+  font-size: 11px;
+}
+
+.coastal-menu-panel .coastal-environment-toggle b {
+  color: rgba(248, 239, 223, 0.48);
+  font-size: 20px;
+  font-weight: 400;
+}
+
+.coastal-menu-panel footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  color: rgba(248, 239, 223, 0.42);
+  font-size: 7px;
+}
+
+.coastal-menu-panel footer span {
+  padding: 3px 5px;
+  color: rgba(248, 239, 223, 0.78);
+  background: rgba(255, 255, 255, 0.075);
+  border-radius: 4px;
+  font-weight: 850;
+}
+
+.coastal-menu-panel button:hover,
+.coastal-menu-panel a:hover,
+.coastal-menu-panel button:focus-visible,
+.coastal-menu-panel a:focus-visible {
+  border-color: rgba(242, 207, 134, 0.68);
+  outline: 0;
+}
+
+.coastal-menu-panel button:focus-visible,
+.coastal-menu-panel a:focus-visible {
+  box-shadow: 0 0 0 2px #f2cf86;
+}
+
+.coastal-menu-open canvas {
+  filter: saturate(0.82) brightness(0.82);
+}
+
+@media (max-width: 760px) {
+  .coastal-menu-panel {
+    top: 64px;
+    right: 12px;
+    width: min(288px, calc(100vw - 24px));
+  }
+
+  .coastal-menu-panel footer {
+    display: none;
+  }
+}
+
+/* Unified post-entry Kairui UI palette ---------------------------------- */
+
+.coastal-root {
+  --kairui-ui-bg: rgba(20, 39, 40, 0.94);
+  --kairui-ui-raised: rgba(255, 255, 255, 0.055);
+  --kairui-ui-border: rgba(255, 244, 218, 0.16);
+  --kairui-ui-text: #f8efdf;
+  --kairui-ui-muted: rgba(248, 239, 223, 0.62);
+  --kairui-ui-gold: #f2cf86;
+  --kairui-ui-orange: #e8a15c;
+  --kairui-ui-ink: #263e3e;
+}
+
+.coastal-root.coastal-established .coastal-plaque,
+.coastal-root.coastal-established .coastal-menu-toggle,
+.coastal-root.coastal-established .coastal-tour-button,
+.coastal-root.coastal-established .coastal-story-card,
+.coastal-root.coastal-established .coastal-environment-panel {
+  color: var(--kairui-ui-text);
+  background: var(--kairui-ui-bg);
+  border-color: var(--kairui-ui-border);
+  box-shadow: 0 22px 64px rgba(4, 17, 21, 0.28), inset 0 1px rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(22px) saturate(0.74);
+}
+
+.coastal-root.coastal-established .coastal-plaque {
+  border-radius: 17px 17px 17px 6px;
+}
+
+.coastal-root.coastal-established .coastal-plaque span,
+.coastal-root.coastal-established .coastal-story-eyebrow > span,
+.coastal-root.coastal-established .coastal-story-log dt,
+.coastal-root.coastal-established .coastal-environment-panel header span,
+.coastal-root.coastal-established .coastal-environment-group > span {
+  color: var(--kairui-ui-orange);
+}
+
+.coastal-root.coastal-established .coastal-plaque strong,
+.coastal-root.coastal-established .coastal-story-card h1,
+.coastal-root.coastal-established .coastal-environment-panel header strong {
+  color: var(--kairui-ui-text);
+}
+
+.coastal-root.coastal-established .coastal-menu-toggle {
+  color: var(--kairui-ui-text);
+}
+
+.coastal-root.coastal-established .coastal-menu-toggle span {
+  color: var(--kairui-ui-gold);
+}
+
+.coastal-root.coastal-established .coastal-tour-button {
+  color: var(--kairui-ui-text);
+  border-color: rgba(242, 207, 134, 0.5);
+}
+
+.coastal-root.coastal-established .coastal-tour-button:hover,
+.coastal-root.coastal-established .coastal-tour-button:focus-visible,
+.coastal-root.coastal-established .coastal-tour-button.active {
+  color: var(--kairui-ui-ink);
+  background: var(--kairui-ui-gold);
+  border-color: #f7dda6;
+}
+
+.coastal-root.coastal-established .coastal-tour-button span {
+  color: var(--kairui-ui-muted);
+}
+
+.coastal-root.coastal-established .coastal-tour-button:hover span,
+.coastal-root.coastal-established .coastal-tour-button:focus-visible span,
+.coastal-root.coastal-established .coastal-tour-button.active span {
+  color: rgba(38, 62, 62, 0.68);
+}
+
+.coastal-root.coastal-established .coastal-story-card {
+  border-radius: 22px 22px 8px 22px;
+  box-shadow: 0 24px 72px rgba(4, 17, 21, 0.3), inset 3px 0 0 var(--kairui-ui-gold);
+}
+
+.coastal-root.coastal-established .coastal-story-eyebrow b,
+.coastal-root.coastal-established .coastal-story-card p,
+.coastal-root.coastal-established .coastal-story-log dd {
+  color: var(--kairui-ui-muted);
+}
+
+.coastal-root.coastal-established .coastal-story-log div {
+  border-color: var(--kairui-ui-border);
+}
+
+.coastal-root.coastal-established .coastal-card-close,
+.coastal-root.coastal-established .coastal-environment-close {
+  color: var(--kairui-ui-gold);
+  background: var(--kairui-ui-raised);
+  border-color: var(--kairui-ui-border);
+}
+
+.coastal-root.coastal-established .coastal-card-close:hover,
+.coastal-root.coastal-established .coastal-card-close:focus-visible,
+.coastal-root.coastal-established .coastal-environment-close:hover,
+.coastal-root.coastal-established .coastal-environment-close:focus-visible {
+  color: var(--kairui-ui-ink);
+  background: var(--kairui-ui-gold);
+}
+
+.coastal-root.coastal-established .coastal-card-actions button {
+  color: var(--kairui-ui-ink);
+  background: var(--kairui-ui-gold);
+}
+
+.coastal-root.coastal-established .coastal-card-actions button:first-child,
+.coastal-root.coastal-established .coastal-card-actions button:last-child {
+  color: var(--kairui-ui-text);
+  background: var(--kairui-ui-raised);
+  border: 1px solid var(--kairui-ui-border);
+}
+
+.coastal-root.coastal-established .coastal-environment-panel {
+  border-radius: 22px 22px 8px 22px;
+}
+
+.coastal-root.coastal-established .coastal-environment-group button {
+  color: var(--kairui-ui-muted);
+  background: var(--kairui-ui-raised);
+  border-color: var(--kairui-ui-border);
+}
+
+.coastal-root.coastal-established .coastal-environment-group button:hover,
+.coastal-root.coastal-established .coastal-environment-group button:focus-visible {
+  color: var(--kairui-ui-text);
+  border-color: rgba(242, 207, 134, 0.6);
+  outline: 0;
+}
+
+.coastal-root.coastal-established .coastal-environment-group button.selected {
+  color: var(--kairui-ui-ink);
+  background: var(--kairui-ui-gold);
+  border-color: #f7dda6;
+}
+
+.coastal-root.coastal-established .coastal-chapter-rail::before {
+  background: rgba(242, 207, 134, 0.38);
+}
+
+.coastal-root.coastal-established .coastal-chapter-rail i {
+  color: var(--kairui-ui-text);
+  background: rgba(20, 39, 40, 0.8);
+  border-color: var(--kairui-ui-border);
+}
+
+.coastal-root.coastal-established .coastal-chapter-rail span {
+  color: var(--kairui-ui-text);
+  text-shadow: 0 2px 8px rgba(4, 17, 21, 0.72);
+}
+
+.coastal-root.coastal-established .coastal-chapter-rail button.active i {
+  color: var(--kairui-ui-ink);
+  background: var(--kairui-ui-gold);
+  border-color: #f7dda6;
+  box-shadow: 0 0 0 5px rgba(242, 207, 134, 0.18);
+}
+
+.coastal-root.coastal-established .coastal-prompt {
+  color: var(--kairui-ui-ink);
+  background: var(--kairui-ui-gold);
+  border-color: #f7dda6;
+  box-shadow: 0 20px 54px rgba(4, 17, 21, 0.24);
+}
+
+.coastal-root.coastal-established .coastal-prompt kbd {
+  color: var(--kairui-ui-text);
+  background: var(--kairui-ui-ink);
+}
+
+.coastal-root.coastal-established .coastal-controls {
+  color: var(--kairui-ui-muted);
+  background: var(--kairui-ui-bg);
+  border: 1px solid var(--kairui-ui-border);
+}
+
+.coastal-root.coastal-established .coastal-story-card button:focus-visible,
+.coastal-root.coastal-established .coastal-environment-panel button:focus-visible,
+.coastal-root.coastal-established .coastal-tour-button:focus-visible,
+.coastal-root.coastal-established .coastal-prompt:focus-visible {
+  outline-color: var(--kairui-ui-gold);
 }

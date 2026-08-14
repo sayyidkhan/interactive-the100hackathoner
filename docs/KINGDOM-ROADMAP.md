@@ -7,6 +7,7 @@ portfolio engine with multiple connected kingdoms.
 
 | Branch | Product milestone |
 | --- | --- |
+| `codex/loop-town-amazing-pass` | Major single-town polish pass for the exploration loop, discovery journal, HUD and town presentation |
 | `dev-v2` | Shawn Kingdom |
 | `dev-v3` | Shawn Kingdom with editable world-building tools |
 | `codex/decompile-kairui` | Technical study archive of Kairui's public coastal portfolio |
@@ -15,6 +16,14 @@ portfolio engine with multiple connected kingdoms.
 | `dev-v5` | Unified Shawn + Kairui open world |
 
 ## Product vision
+
+### Loop Town foundation
+
+`codex/loop-town-amazing-pass` is the last major single-town product milestone
+before the multi-kingdom architecture. It expanded the discovery catalogue and
+refined the core loop, HUD, persistent journal and town composition. It is an
+ancestor of `dev-v5`, not a separate production destination, and remains a
+useful checkpoint for understanding how the portfolio experience evolved.
 
 ### Shawn Kingdom
 

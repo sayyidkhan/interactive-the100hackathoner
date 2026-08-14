@@ -42,6 +42,7 @@ Useful routes:
 
 ## World Roadmap
 
+- `codex/loop-town-amazing-pass` — major single-town experience pass that refined the exploration loop, discovery journal, HUD and town presentation; preserved as the foundation before the multi-kingdom architecture
 - `dev-v2` — Shawn Kingdom
 - `dev-v3` — Shawn Kingdom with editable world-building tools
 - `codex/decompile-kairui` — Kairui technical study archive
@@ -49,8 +50,10 @@ Useful routes:
 - `dev-v4` — Coastal Hackathon Kingdom
 - `dev-v5` — unified Shawn + Kairui open world
 
-The Shawn-inspired kingdom focuses on town building, residents, discoveries and
-environment customization. The Kairui-inspired kingdom focuses on coastal
+The `loop-town-amazing-pass` branch established the original product loop:
+explore, discover a hackathon story, extract the operator lesson and save it in
+the journal. The Shawn-inspired kingdom focuses on town building, residents,
+discoveries and environment customization. The Kairui-inspired kingdom focuses on coastal
 terrain, cinematic storytelling, guided exploration, boats, balloon travel and
 atmospheric world design. `dev-v5` connects both through a shared player,
 environment clock and discovery ledger.
