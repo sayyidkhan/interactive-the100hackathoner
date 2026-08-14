@@ -13,6 +13,7 @@ export type CoastalHud = {
   setEnvironment(state: CoastalEnvironmentState, localTime: string, isNight: boolean): void;
   setTransit(mode: "none" | "boat" | "balloon"): void;
   setBalloonMode(mode: "autopilot" | "free"): void;
+  setHoverboard(active: boolean): void;
   setEstablishing(active: boolean): void;
   dispose(): void;
 };
@@ -21,6 +22,7 @@ type CoastalHudOptions = {
   onEnterWorld(): void;
   onInspect(): void;
   onBalloonBoard(): void;
+  onHoverboardToggle(): void;
   onTourToggle(): void;
   onTourPrevious(): void;
   onTourNext(): void;
@@ -77,11 +79,12 @@ export function createCoastalHud(root: HTMLElement, options: CoastalHudOptions):
         <span><small data-coastal-time>GMT+8</small><strong data-coastal-environment-summary>Summer · Clear</strong></span>
         <b aria-hidden="true">›</b>
       </button>
-      <footer><span>WASD</span> Move <span>E</span> Inspect <span>Esc</span> Resume</footer>
+      <footer><span>WASD</span> Move <span>Q</span> Board <span>E</span> Inspect <span>Esc</span> Resume</footer>
     </section>
     <button class="coastal-tour-button" type="button" data-coastal-tour>
-      <span>Six authored chapters · 4 min</span>
-      <strong>Begin operator journal</strong>
+      <i aria-hidden="true">✦</i>
+      <span><small>Story route</small><strong>Guided tour</strong></span>
+      <b aria-hidden="true">›</b>
     </button>
     <button class="coastal-transit-exit" type="button" data-coastal-transit-exit hidden>
       <span data-coastal-transit-exit-label>Camera mode active</span>
@@ -136,7 +139,10 @@ export function createCoastalHud(root: HTMLElement, options: CoastalHudOptions):
       <kbd>E</kbd>
       <span>Inspect landmark</span>
     </button>
-    <div class="coastal-controls">WASD explore · Shift jog · drag to look · E inspect</div>
+    <button class="coastal-hoverboard-toggle" type="button" data-coastal-hoverboard aria-pressed="false" title="Summon hoverboard (Q)">
+      <kbd>Q</kbd><span><small>Quick travel</small><strong>Summon board</strong></span><b aria-hidden="true">›</b>
+    </button>
+    <div class="coastal-controls">WASD explore · Shift boost · Q hoverboard · E inspect</div>
     <section class="coastal-story-card" data-coastal-card hidden role="dialog" aria-modal="true" aria-labelledby="coastal-story-title">
       <button type="button" class="coastal-card-close" aria-label="Close story">×</button>
       <div class="coastal-story-eyebrow"><span data-coastal-kicker></span><b data-coastal-chapter-count>01 / 06</b></div>
@@ -159,6 +165,7 @@ export function createCoastalHud(root: HTMLElement, options: CoastalHudOptions):
   root.appendChild(hud);
 
   const prompt = hud.querySelector<HTMLButtonElement>("[data-coastal-prompt]")!;
+  const hoverboardButton = hud.querySelector<HTMLButtonElement>("[data-coastal-hoverboard]")!;
   const progress = hud.querySelector<HTMLElement>("[data-coastal-progress]")!;
   const tourButton = hud.querySelector<HTMLButtonElement>("[data-coastal-tour]")!;
   const enterButton = hud.querySelector<HTMLButtonElement>("[data-coastal-enter]")!;
@@ -220,6 +227,7 @@ export function createCoastalHud(root: HTMLElement, options: CoastalHudOptions):
     if (!menuPanel.hidden) resumeButton.focus();
   };
   prompt.addEventListener("click", inspect);
+  hoverboardButton.addEventListener("click", options.onHoverboardToggle);
   menuToggle.addEventListener("click", toggleMenu);
   resumeButton.addEventListener("click", closeMenu);
   tourButton.addEventListener("click", options.onTourToggle);
@@ -334,7 +342,7 @@ export function createCoastalHud(root: HTMLElement, options: CoastalHudOptions):
       closeEnvironment();
       tourButton.classList.toggle("active", active);
       tourButton.querySelector("strong")!.textContent = active ? "Exit tour" : "Guided tour";
-      tourButton.querySelector("span")!.textContent = active && landmark ? `Travelling · ${landmark.name}` : "Guided journey";
+      tourButton.querySelector("small")!.textContent = active && landmark ? `Travelling · ${landmark.name}` : active ? "Tour in progress" : "Story route";
       root.dataset.coastalTour = active ? "active" : "free";
       chapterButtons.forEach((button) => {
         const selectedIndex = landmark ? COASTAL_LANDMARKS.findIndex((item) => item.id === landmark.id) : -1;
@@ -380,6 +388,13 @@ export function createCoastalHud(root: HTMLElement, options: CoastalHudOptions):
       });
       balloonHint.hidden = mode !== "free";
     },
+    setHoverboard(active) {
+      hoverboardButton.classList.toggle("active", active);
+      hoverboardButton.setAttribute("aria-pressed", String(active));
+      hoverboardButton.title = active ? "Dismiss hoverboard (Q)" : "Summon hoverboard (Q)";
+      hoverboardButton.querySelector<HTMLElement>("small")!.textContent = active ? "2.2× travel speed" : "Quick travel";
+      hoverboardButton.querySelector<HTMLElement>("strong")!.textContent = active ? "Dismiss board" : "Summon board";
+    },
     setEstablishing(active) {
       enterButton.hidden = !active;
       if (active) {
@@ -390,6 +405,7 @@ export function createCoastalHud(root: HTMLElement, options: CoastalHudOptions):
     },
     dispose() {
       prompt.removeEventListener("click", inspect);
+      hoverboardButton.removeEventListener("click", options.onHoverboardToggle);
       menuToggle.removeEventListener("click", toggleMenu);
       resumeButton.removeEventListener("click", closeMenu);
       tourButton.removeEventListener("click", options.onTourToggle);

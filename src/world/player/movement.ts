@@ -20,6 +20,7 @@ export type PlayerMotion = {
 
 export type CollisionShape =
   | { kind: "box"; x: number; z: number; width: number; depth: number; top?: number }
+  | { kind: "ramp"; x: number; z: number; width: number; depth: number; startTop: number; endTop: number; axis: "x" | "z" }
   | { kind: "circle"; x: number; z: number; radius: number; top?: number }
   | { kind: "boundary-circle"; x: number; z: number; radius: number; top?: number };
 
@@ -120,7 +121,11 @@ function resolvePlayerCollisions(position: THREE.Vector3, colliders: CollisionSh
   clampToWalkableWorld(position, worldLimit);
 
   for (const collider of colliders) {
-    if (collider.top !== undefined && position.y >= collider.top - SURFACE_CLEARANCE) continue;
+    const surfaceTop = getColliderTop(position, collider);
+    // Walkable platforms must not behave like walls at their perimeter. Allow
+    // the player to cross the collision shell whenever the surface is within
+    // the normal step height; the floor sampler will then place them on top.
+    if (surfaceTop !== undefined && surfaceTop <= position.y + PLAYER_STEP_HEIGHT + SURFACE_CLEARANCE) continue;
     if (collider.kind === "boundary-circle") resolveBoundaryCircleCollision(position, collider);
     else if (collider.kind === "circle") resolveCircleCollision(position, collider);
     else resolveBoxCollision(position, collider);
@@ -143,10 +148,20 @@ function getWalkableSurfaceHeight(
 ): number {
   let surfaceHeight = getGroundHeight(position.x, position.z);
   for (const collider of colliders) {
-    if (collider.top === undefined || collider.top > maxHeight) continue;
-    if (isOnColliderSurface(position, collider)) surfaceHeight = Math.max(surfaceHeight, collider.top);
+    if (!isOnColliderSurface(position, collider)) continue;
+    const colliderTop = getColliderTop(position, collider);
+    if (colliderTop === undefined || colliderTop > maxHeight) continue;
+    surfaceHeight = Math.max(surfaceHeight, colliderTop);
   }
   return surfaceHeight;
+}
+
+function getColliderTop(position: THREE.Vector3, collider: CollisionShape): number | undefined {
+  if (collider.kind !== "ramp") return collider.top;
+  const coordinate = collider.axis === "x" ? position.x : position.z;
+  const span = collider.axis === "x" ? collider.width : collider.depth;
+  const progress = THREE.MathUtils.clamp((coordinate - (collider.axis === "x" ? collider.x : collider.z) + span / 2) / span, 0, 1);
+  return THREE.MathUtils.lerp(collider.startTop, collider.endTop, progress);
 }
 
 function isOnColliderSurface(position: THREE.Vector3, collider: CollisionShape): boolean {
@@ -206,7 +221,7 @@ function resolveCircleCollision(
 
 function resolveBoxCollision(
   position: THREE.Vector3,
-  collider: Extract<CollisionShape, { kind: "box" }>
+  collider: Extract<CollisionShape, { kind: "box" | "ramp" }>
 ): void {
   const minX = collider.x - collider.width / 2 - PLAYER_RADIUS;
   const maxX = collider.x + collider.width / 2 + PLAYER_RADIUS;

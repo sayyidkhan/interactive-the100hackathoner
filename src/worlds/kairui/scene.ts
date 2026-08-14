@@ -34,6 +34,10 @@ const colors = {
 };
 
 const WATER_Y = -0.55;
+const COASTAL_BOAT_MIN_CLEARANCE = 10;
+const COASTAL_BOAT_ROUTE_CENTRE_Z = -34;
+const COASTAL_BOAT_ROUTE_REACH = 96;
+const COASTAL_BOAT_ROUTE_SPEED = 0.055;
 
 const COASTAL_TRAIL_POINTS = [
   new THREE.Vector3(24, 0, -142),
@@ -65,6 +69,20 @@ export function coastalShoreX(z: number): number {
   const inlet = 13 * Math.exp(-(((z + 16) / 54) ** 2));
   const northernCove = -7 * Math.exp(-(((z + 104) / 31) ** 2));
   return 18 * Math.sin(z * 0.016 + 0.35) + 7 * Math.sin(z * 0.043) + inlet + northernCove;
+}
+
+/**
+ * Keeps the ambient sailboat on a closed loop that follows the authored coast.
+ * The second harmonic varies its distance from shore so the return journey is
+ * not a mechanical retrace, while the final clamp is the grounding guardrail.
+ */
+export function coastalBoatPositionAt(time: number, target = new THREE.Vector3()): THREE.Vector3 {
+  const phase = time * COASTAL_BOAT_ROUTE_SPEED;
+  const z = COASTAL_BOAT_ROUTE_CENTRE_Z + Math.sin(phase) * COASTAL_BOAT_ROUTE_REACH;
+  const routeClearance = 15 + Math.cos(phase) * 4 + Math.sin(phase * 2) * 1.5;
+  const shoreline = coastalShoreX(z);
+  const x = Math.min(shoreline - routeClearance, shoreline - COASTAL_BOAT_MIN_CLEARANCE);
+  return target.set(x, WATER_Y + 0.34, z);
 }
 
 type LandmarkPlacement = {
@@ -119,6 +137,8 @@ type SmokePuff = {
 type DistrictLife = {
   smokePuffs: SmokePuff[];
   emissiveMaterials: THREE.MeshStandardMaterial[];
+  nightLights: THREE.PointLight[];
+  lampGlowMaterials: THREE.SpriteMaterial[];
 };
 
 type FarSail = {
@@ -202,23 +222,27 @@ function resolveDryLandmarkPlacement(landmark: CoastalLandmark): LandmarkPlaceme
 
 function coastalTerrainBaseHeight(x: number, z: number): number {
   const coastDistance = x - coastalShoreX(z);
-  const land = smoothRange(-8, 22, coastDistance);
+  // Build the coast as a readable sequence instead of lifting the hill directly
+  // out of the water: submerged shelf -> wet shoreline -> dry beach -> upland.
+  const submergedShelf = smoothRange(-12, 0, coastDistance);
+  const beachShelf = smoothRange(0, 14, coastDistance);
+  const upland = smoothRange(8, 48, coastDistance);
   const northernRise = Math.pow(smoothRange(64, -152, z), 1.56);
-  const inland = smoothRange(4, 86, coastDistance);
+  const inland = smoothRange(18, 92, coastDistance);
   const bluff = Math.pow(smoothRange(35, 98, coastDistance), 1.42);
-  let height = land * (0.35 + northernRise * 23 + bluff * (3.5 + northernRise * 10));
-  height += land * inland * 4.8 * Math.sin(x * 0.043 + 1.3) * Math.sin(z * 0.031);
-  height += land * 7.6 * smoothRange(14, 55, coastDistance) * Math.exp(-(((z - 2) / 78) ** 2));
-  height += land * Math.pow(smoothRange(118, 185, coastDistance), 1.4) * 24;
+  const coastalShelfHeight = -3 + submergedShelf * 2.45 + beachShelf * 0.82;
+  let height = coastalShelfHeight + upland * (northernRise * 23 + bluff * (3.5 + northernRise * 10));
+  height += upland * inland * 4.8 * Math.sin(x * 0.043 + 1.3) * Math.sin(z * 0.031);
+  height += upland * 7.6 * smoothRange(14, 55, coastDistance) * Math.exp(-(((z - 2) / 78) ** 2));
+  height += upland * Math.pow(smoothRange(118, 185, coastDistance), 1.4) * 24;
   height -= height * 0.2 * Math.exp(-(((z + 72) / 37) ** 2));
-  height += land * Math.sin(x * 0.088) * Math.cos(z * 0.068) * 1.12 * (0.3 + inland);
+  height += upland * Math.sin(x * 0.088) * Math.cos(z * 0.068) * 1.12 * (0.3 + inland);
   // A shallow creek cuts diagonally through the interior bluff and makes the
   // main road read as a route through geography rather than a line on a plane.
   const creekX = 55 + Math.sin(z * 0.024) * 11;
   const creek = Math.exp(-(((x - creekX) / 7.2) ** 2));
-  height -= land * creek * (2.8 + northernRise * 5.5);
-  height = Math.max(height, 0.22 * land);
-  height -= (1 - land) * 4.2;
+  height -= upland * creek * (2.8 + northernRise * 5.5);
+  height = Math.max(height, coastalShelfHeight);
   return height;
 }
 
@@ -256,7 +280,7 @@ export function createCoastalScene(scene: THREE.Scene): CoastalScene {
 
   const terrain = createCoastalTerrain(world);
   const swayUniforms: SwayTimeUniform[] = [];
-  createCoastalCliffs(world);
+  createCoastalSeabed(world);
   createCoastalRoad(world);
   createCreekAndBridges(world);
   const pier = createPier(world);
@@ -289,6 +313,8 @@ export function createCoastalScene(scene: THREE.Scene): CoastalScene {
   createCoastalForest(world, swayUniforms);
   const clouds = createClouds(world);
   const boat = createBoat(world);
+  const boatRoutePosition = new THREE.Vector3();
+  const boatRouteLookAhead = new THREE.Vector3();
   const balloon = createBalloon(world);
   const gullFlocks = createSeaBirds(world);
   const celestial = createCelestial(world);
@@ -335,6 +361,13 @@ export function createCoastalScene(scene: THREE.Scene): CoastalScene {
         const baseIntensity = material.userData.baseEmissiveIntensity as number;
         material.emissiveIntensity = palette.isNight ? baseIntensity * 2.15 : baseIntensity;
       });
+      const lampIntensity = palette.isNight ? (state.weather === "storm" ? 3.1 : 4.2) : state.time === "sunset" ? 0.65 : 0;
+      districtLife.nightLights.forEach((light, index) => {
+        light.intensity = lampIntensity * (0.92 + (index % 3) * 0.06);
+      });
+      districtLife.lampGlowMaterials.forEach((material) => {
+        material.opacity = palette.isNight ? 0.62 : state.time === "sunset" ? 0.16 : 0;
+      });
     },
     setTourRoute(from, target) {
       tourRoute.set(from, target);
@@ -353,8 +386,14 @@ export function createCoastalScene(scene: THREE.Scene): CoastalScene {
       if (campLife) updateCampFire(campLife, time);
       clouds.update(time);
       updateSeaBirds(gullFlocks, time);
-      boat.position.x = -42 + THREE.MathUtils.euclideanModulo(time * 0.72, 84);
-      boat.position.z = -30 + Math.sin(time * 0.2) * 42;
+      coastalBoatPositionAt(time, boatRoutePosition);
+      coastalBoatPositionAt(time + 0.85, boatRouteLookAhead);
+      boat.position.copy(boatRoutePosition);
+      const travelX = boatRouteLookAhead.x - boatRoutePosition.x;
+      const travelZ = boatRouteLookAhead.z - boatRoutePosition.z;
+      // The boat mesh is authored along local +X, so face that axis into the
+      // sampled forward direction instead of sliding sideways along the coast.
+      boat.rotation.y = Math.atan2(-travelZ, travelX);
       boat.rotation.z = Math.sin(time * 1.1) * 0.025;
       const flame = balloon.userData.flame as THREE.Mesh | undefined;
       const flameMaterial = balloon.userData.flameMaterial as THREE.MeshStandardMaterial | undefined;
@@ -404,6 +443,7 @@ function createCoastalTerrain(world: THREE.Group): { setPalette(grass: string, s
   const working = new THREE.Color();
   const terrainBands = new Uint8Array(positions.count);
   const terrainVariation = new Float32Array(positions.count);
+  const beachGrassBlend = new Float32Array(positions.count);
 
   for (let index = 0; index < positions.count; index += 1) {
     let x = positions.getX(index);
@@ -417,9 +457,14 @@ function createCoastalTerrain(world: THREE.Group): { setPalette(grass: string, s
       coastalTerrainHeight(x + 1, z) - coastalTerrainHeight(x - 1, z),
       coastalTerrainHeight(x, z + 1) - coastalTerrainHeight(x, z - 1)
     ) * 0.5;
-    if (shoreDistance < 4.4) {
-      terrainBands[index] = shoreDistance < -1 ? 0 : 1;
-      working.copy(shoreDistance < -1 ? wetSand : sand);
+    if (shoreDistance < 2) {
+      terrainBands[index] = 0;
+      working.copy(wetSand);
+    } else if (shoreDistance < 18) {
+      terrainBands[index] = 1;
+      const grassMix = smoothRange(10, 18, shoreDistance);
+      beachGrassBlend[index] = grassMix;
+      working.copy(sand).lerp(grass, grassMix);
     } else if (slope > 1.05) {
       terrainBands[index] = 2;
       working.copy(rock);
@@ -456,7 +501,7 @@ function createCoastalTerrain(world: THREE.Group): { setPalette(grass: string, s
       const colorAttribute = geometry.getAttribute("color") as THREE.BufferAttribute;
       for (let index = 0; index < colorAttribute.count; index += 1) {
         if (terrainBands[index] === 0) working.copy(nextSand).lerp(new THREE.Color("#81786b"), 0.22);
-        else if (terrainBands[index] === 1) working.copy(nextSand);
+        else if (terrainBands[index] === 1) working.copy(nextSand).lerp(nextGrass, beachGrassBlend[index]);
         else if (terrainBands[index] === 2) working.copy(nextGrass).lerp(new THREE.Color("#756f67"), 0.54);
         else working.copy(nextGrass).lerp(meadow, terrainVariation[index] * 0.3);
         colorAttribute.setXYZ(index, working.r, working.g, working.b);
@@ -466,47 +511,7 @@ function createCoastalTerrain(world: THREE.Group): { setPalette(grass: string, s
   };
 }
 
-function createCoastalCliffs(world: THREE.Group): void {
-  const samples = 140;
-  const positions: number[] = [];
-  const colors: number[] = [];
-  const indices: number[] = [];
-  const topColor = new THREE.Color("#a08b6d");
-  const lowerColor = new THREE.Color("#7c6f5d");
-  const color = new THREE.Color();
-
-  for (let index = 0; index < samples; index += 1) {
-    const progress = index / (samples - 1);
-    const z = -154 + progress * 340;
-    const x = coastalShoreX(z) + 1.5;
-    const topY = Math.max(-0.18, coastalTerrainHeight(x, z) - 0.05);
-    const bottomY = -7;
-    positions.push(x, topY, z, x - 2.5, bottomY, z);
-    color.copy(topColor).lerp(lowerColor, 0.12);
-    colors.push(color.r, color.g, color.b);
-    color.copy(lowerColor).lerp(topColor, 0.08 + (index % 5) * 0.018);
-    colors.push(color.r, color.g, color.b);
-    if (index < samples - 1) {
-      const offset = index * 2;
-      indices.push(offset, offset + 2, offset + 1, offset + 1, offset + 2, offset + 3);
-    }
-  }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
-  geometry.setIndex(indices);
-  geometry.computeVertexNormals();
-  const cliffs = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({
-    vertexColors: true,
-    flatShading: true,
-    roughness: 1,
-    metalness: 0,
-    side: THREE.DoubleSide
-  }));
-  cliffs.castShadow = true;
-  cliffs.receiveShadow = true;
-  world.add(cliffs);
-
+function createCoastalSeabed(world: THREE.Group): void {
   // A warm seabed catches any grazing camera ray without presenting a dark
   // geometric slab. Its top remains just below the animated water surface.
   // Keep the seabed top below the deepest animated wave trough (water sits at
@@ -685,9 +690,14 @@ function createPier(world: THREE.Group): HarborPier {
   const metalMaterial = matte("#3e4746");
 
   const rampLength = 9;
-  const rampStartY = landY + 0.12;
+  const rampCenterX = -1.4;
+  const rampLandX = anchorX + rampCenterX + rampLength / 2;
+  // Sample the point where the ramp actually meets land. Sampling anchorX
+  // (the ramp midpoint) made the visible landing sit below the terrain and
+  // created a sharp, unreliable navigation step at the bridge entrance.
+  const rampStartY = Math.max(landY, coastalTerrainHeight(rampLandX, z)) + 0.12;
   const ramp = new THREE.Mesh(new THREE.BoxGeometry(rampLength, 0.3, deckWidth), timberLight);
-  ramp.position.set(-1.4, (rampStartY + deckTop) / 2, 0);
+  ramp.position.set(rampCenterX, (rampStartY + deckTop) / 2, 0);
   ramp.rotation.z = -Math.atan2(deckTop - rampStartY, rampLength);
   ramp.receiveShadow = true;
   pier.add(ramp);
@@ -797,13 +807,18 @@ function createPier(world: THREE.Group): HarborPier {
     pier.add(fender);
   });
 
-  const walkableColliders: CollisionShape[] = [];
-  for (let index = 0; index < 6; index += 1) {
-    const progress = index / 5;
-    const x = anchorX + 2.8 - progress * rampLength;
-    const top = THREE.MathUtils.lerp(rampStartY + 0.15, deckTop + 0.03, progress);
-    walkableColliders.push({ kind: "box", x, z, width: 1.8, depth: deckWidth - 0.25, top });
-  }
+  const walkableColliders: CollisionShape[] = [{
+    kind: "ramp",
+    x: anchorX + rampCenterX,
+    z,
+    // Extend slightly past both visible joins so the terrain, ramp and deck
+    // share a continuous walkable seam even at low or uneven frame rates.
+    width: rampLength + 0.8,
+    depth: deckWidth - 0.1,
+    startTop: deckTop + 0.03,
+    endTop: rampStartY + 0.15,
+    axis: "x"
+  }];
   walkableColliders.push({ kind: "box", x: anchorX + deckStart - deckLength / 2, z, width: deckLength, depth: deckWidth - 0.25, top: deckTop + 0.03 });
   walkableColliders.push({ kind: "box", x: anchorX + terminalX, z, width: 10, depth: 9, top: deckTop + 0.03 });
 
@@ -975,6 +990,7 @@ function createDistrictSetDressing(world: THREE.Group): DistrictLife {
   });
   glowMaterial.userData.baseEmissiveIntensity = glowMaterial.emissiveIntensity;
   const smokePuffs: SmokePuff[] = [];
+  const nightLights: THREE.PointLight[] = [];
   hutPlacements.forEach(([x, z, scale, color, rotation], index) => {
     const hut = new THREE.Group();
     hut.position.set(x, coastalTerrainHeight(x, z), z);
@@ -1037,6 +1053,31 @@ function createDistrictSetDressing(world: THREE.Group): DistrictLife {
     roughness: 0.66
   });
   bulbMaterial.userData.baseEmissiveIntensity = bulbMaterial.emissiveIntensity;
+  const glowTextureSize = 32;
+  const glowPixels = new Uint8Array(glowTextureSize * glowTextureSize * 4);
+  for (let y = 0; y < glowTextureSize; y += 1) {
+    for (let x = 0; x < glowTextureSize; x += 1) {
+      const dx = (x + 0.5) / glowTextureSize * 2 - 1;
+      const dy = (y + 0.5) / glowTextureSize * 2 - 1;
+      const falloff = Math.pow(Math.max(0, 1 - Math.hypot(dx, dy)), 2.2);
+      const offset = (y * glowTextureSize + x) * 4;
+      glowPixels[offset] = 255;
+      glowPixels[offset + 1] = 244;
+      glowPixels[offset + 2] = 190;
+      glowPixels[offset + 3] = Math.round(falloff * 255);
+    }
+  }
+  const glowTexture = new THREE.DataTexture(glowPixels, glowTextureSize, glowTextureSize, THREE.RGBAFormat);
+  glowTexture.needsUpdate = true;
+  const lampGlowMaterial = new THREE.SpriteMaterial({
+    map: glowTexture,
+    color: "#ffd47a",
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    toneMapped: false
+  });
   COASTAL_LANDMARKS.forEach((landmark, districtIndex) => {
     for (const side of [-1, 1]) {
       const z = landmark.position[2] + side * 7.5;
@@ -1049,10 +1090,23 @@ function createDistrictSetDressing(world: THREE.Group): DistrictLife {
       const bulb = new THREE.Mesh(new THREE.DodecahedronGeometry(0.38, 1), bulbMaterial);
       bulb.position.y = 3.85;
       lamp.add(bulb);
+      const halo = new THREE.Sprite(lampGlowMaterial);
+      halo.position.y = 3.85;
+      halo.scale.set(2.45, 2.45, 1);
+      lamp.add(halo);
+      const light = new THREE.PointLight("#ffc66b", 0, 13, 2);
+      light.position.y = 3.55;
+      lamp.add(light);
+      nightLights.push(light);
       world.add(lamp);
     }
   });
-  return { smokePuffs, emissiveMaterials: [glowMaterial, bulbMaterial] };
+  return {
+    smokePuffs,
+    emissiveMaterials: [glowMaterial, bulbMaterial],
+    nightLights,
+    lampGlowMaterials: [lampGlowMaterial]
+  };
 }
 
 function updateDistrictLife(life: DistrictLife, time: number): void {

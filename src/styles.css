@@ -5046,6 +5046,7 @@ dd {
 .coastal-environment-panel,
 .coastal-transit,
 .coastal-prompt,
+.coastal-hoverboard-toggle,
 .coastal-controls,
 .coastal-chapter-rail,
 .coastal-story-card {
@@ -5256,6 +5257,7 @@ dd {
 .coastal-root[data-coastal-establishing="true"] .coastal-world-switcher,
 .coastal-root[data-coastal-establishing="true"] .coastal-progress,
 .coastal-root[data-coastal-establishing="true"] .coastal-tour-button,
+.coastal-root[data-coastal-establishing="true"] .coastal-hoverboard-toggle,
 .coastal-root[data-coastal-establishing="true"] .coastal-chapter-rail {
   visibility: hidden;
   pointer-events: none;
@@ -5448,6 +5450,7 @@ dd {
 .coastal-transit,
 .coastal-environment-toggle,
 .coastal-controls,
+.coastal-hoverboard-toggle,
 .coastal-tour-button,
 .coastal-chapter-rail {
   transition: opacity 320ms ease, visibility 320ms ease, transform 320ms ease;
@@ -5461,6 +5464,7 @@ dd {
 
 .coastal-root[data-coastal-establishing="true"] .coastal-tour-button,
 .coastal-root[data-coastal-establishing="true"] .coastal-environment-toggle,
+.coastal-root[data-coastal-establishing="true"] .coastal-hoverboard-toggle,
 .coastal-root[data-coastal-establishing="true"] .coastal-controls {
   transform: translateY(8px);
 }
@@ -5678,6 +5682,90 @@ dd {
 .coastal-prompt span {
   font-size: 12px;
   font-weight: 900;
+}
+
+.coastal-hoverboard-toggle {
+  bottom: 66px;
+  left: 24px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 12px 8px 8px;
+  color: var(--kairui-ui-text, #fff9ed);
+  background: rgba(20, 39, 40, 0.9);
+  border: 1px solid rgba(242, 207, 134, 0.38);
+  border-radius: 999px;
+  box-shadow: 0 15px 38px rgba(4, 17, 21, 0.2);
+  cursor: pointer;
+  backdrop-filter: blur(16px) saturate(0.78);
+  transition: color 180ms ease, background 180ms ease, border-color 180ms ease, opacity 260ms ease, transform 180ms ease;
+}
+
+.coastal-hoverboard-toggle:hover,
+.coastal-hoverboard-toggle:focus-visible {
+  border-color: var(--kairui-ui-gold, #f2cf86);
+  outline: 0;
+  transform: translateY(-2px);
+}
+
+.coastal-hoverboard-toggle:focus-visible {
+  box-shadow: 0 0 0 3px rgba(242, 207, 134, 0.32), 0 15px 38px rgba(4, 17, 21, 0.2);
+}
+
+.coastal-hoverboard-toggle kbd {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  color: var(--kairui-ui-ink, #263e3e);
+  background: var(--kairui-ui-gold, #f2cf86);
+  border-radius: 50%;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.coastal-hoverboard-toggle span {
+  display: grid;
+  gap: 1px;
+  text-align: left;
+}
+
+.coastal-hoverboard-toggle small {
+  color: var(--kairui-ui-orange, #e8a15c);
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.coastal-hoverboard-toggle strong {
+  font-size: 10px;
+}
+
+.coastal-hoverboard-toggle.active {
+  color: var(--kairui-ui-ink, #263e3e);
+  background: var(--kairui-ui-gold, #f2cf86);
+  border-color: #f7dda6;
+}
+
+.coastal-hoverboard-toggle.active kbd {
+  color: var(--kairui-ui-gold, #f2cf86);
+  background: var(--kairui-ui-ink, #263e3e);
+}
+
+.coastal-hoverboard-toggle.active small {
+  color: rgba(38, 62, 62, 0.68);
+}
+
+.coastal-root[data-coastal-tour="active"] .coastal-hoverboard-toggle,
+.coastal-root[data-coastal-transit="boat"] .coastal-hoverboard-toggle,
+.coastal-root[data-coastal-transit="balloon"] .coastal-hoverboard-toggle,
+.coastal-card-open .coastal-hoverboard-toggle,
+.coastal-menu-open .coastal-hoverboard-toggle {
+  visibility: hidden;
+  pointer-events: none;
+  opacity: 0;
 }
 
 .coastal-controls {
@@ -5969,6 +6057,11 @@ dd {
 
   .coastal-prompt {
     bottom: 78px;
+  }
+
+  .coastal-hoverboard-toggle {
+    bottom: 72px;
+    left: 12px;
   }
 
   .coastal-story-card {
@@ -7995,4 +8088,183 @@ dd {
 .coastal-root.coastal-established .coastal-tour-button:focus-visible,
 .coastal-root.coastal-established .coastal-prompt:focus-visible {
   outline-color: var(--kairui-ui-gold);
+}
+
+/* Keep the two recurring movement actions in one compact lower-right stack. */
+.coastal-root.coastal-established .coastal-tour-button {
+  right: 24px;
+  bottom: 24px;
+  min-width: 148px;
+  padding: 10px 14px;
+  border-radius: 16px;
+}
+
+.coastal-root.coastal-established .coastal-tour-button strong {
+  font-size: 11px;
+}
+
+.coastal-root.coastal-established .coastal-hoverboard-toggle {
+  right: 24px;
+  bottom: 78px;
+  left: auto;
+}
+
+@media (max-width: 760px) {
+  .coastal-root.coastal-established .coastal-tour-button {
+    right: 12px;
+    bottom: 12px;
+    min-width: 128px;
+    padding: 9px 13px;
+  }
+
+  .coastal-root.coastal-established .coastal-hoverboard-toggle {
+    right: 12px;
+    bottom: 64px;
+    left: auto;
+  }
+}
+
+/* Compact action dock: one visual language for tour and fast traversal. */
+.coastal-root.coastal-established .coastal-tour-button,
+.coastal-root.coastal-established .coastal-hoverboard-toggle {
+  box-sizing: border-box;
+  width: 162px;
+  min-width: 162px;
+  min-height: 48px;
+  grid-template-columns: 30px minmax(0, 1fr) 10px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  color: var(--kairui-ui-text);
+  text-align: left;
+  background:
+    linear-gradient(135deg, rgba(242, 207, 134, 0.08), transparent 58%),
+    rgba(20, 39, 40, 0.94);
+  border: 1px solid rgba(242, 207, 134, 0.32);
+  border-radius: 15px;
+  box-shadow: 0 14px 34px rgba(4, 17, 21, 0.24), inset 0 1px rgba(255, 255, 255, 0.045);
+  backdrop-filter: blur(18px) saturate(0.76);
+}
+
+.coastal-root.coastal-established .coastal-tour-button {
+  display: grid;
+}
+
+.coastal-root.coastal-established .coastal-hoverboard-toggle {
+  display: grid;
+  bottom: 80px;
+}
+
+.coastal-root.coastal-established .coastal-tour-button i,
+.coastal-root.coastal-established .coastal-hoverboard-toggle kbd {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  color: var(--kairui-ui-ink);
+  background: var(--kairui-ui-gold);
+  border: 1px solid rgba(255, 245, 216, 0.68);
+  border-radius: 10px;
+  font: inherit;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 950;
+  box-shadow: 0 6px 16px rgba(4, 17, 21, 0.16);
+}
+
+.coastal-root.coastal-established .coastal-tour-button span,
+.coastal-root.coastal-established .coastal-hoverboard-toggle span {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+  color: inherit;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.coastal-root.coastal-established .coastal-tour-button small,
+.coastal-root.coastal-established .coastal-hoverboard-toggle small {
+  overflow: hidden;
+  color: var(--kairui-ui-orange);
+  font-size: 6.5px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.coastal-root.coastal-established .coastal-tour-button strong,
+.coastal-root.coastal-established .coastal-hoverboard-toggle strong {
+  overflow: hidden;
+  color: var(--kairui-ui-text);
+  font-size: 10px;
+  font-weight: 850;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.coastal-root.coastal-established .coastal-tour-button b,
+.coastal-root.coastal-established .coastal-hoverboard-toggle b {
+  color: var(--kairui-ui-gold);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1;
+  transition: transform 180ms ease;
+}
+
+.coastal-root.coastal-established .coastal-tour-button:hover,
+.coastal-root.coastal-established .coastal-tour-button:focus-visible,
+.coastal-root.coastal-established .coastal-hoverboard-toggle:hover,
+.coastal-root.coastal-established .coastal-hoverboard-toggle:focus-visible {
+  color: var(--kairui-ui-text);
+  background:
+    linear-gradient(135deg, rgba(242, 207, 134, 0.17), transparent 62%),
+    rgba(24, 47, 47, 0.97);
+  border-color: rgba(242, 207, 134, 0.7);
+  transform: translateY(-2px);
+}
+
+.coastal-root.coastal-established .coastal-tour-button:hover b,
+.coastal-root.coastal-established .coastal-tour-button:focus-visible b,
+.coastal-root.coastal-established .coastal-hoverboard-toggle:hover b,
+.coastal-root.coastal-established .coastal-hoverboard-toggle:focus-visible b {
+  transform: translateX(2px);
+}
+
+.coastal-root.coastal-established .coastal-tour-button.active,
+.coastal-root.coastal-established .coastal-hoverboard-toggle.active {
+  color: var(--kairui-ui-ink);
+  background: var(--kairui-ui-gold);
+  border-color: #f7dda6;
+}
+
+.coastal-root.coastal-established .coastal-tour-button.active i,
+.coastal-root.coastal-established .coastal-hoverboard-toggle.active kbd {
+  color: var(--kairui-ui-gold);
+  background: var(--kairui-ui-ink);
+  border-color: rgba(38, 62, 62, 0.28);
+}
+
+.coastal-root.coastal-established .coastal-tour-button.active small,
+.coastal-root.coastal-established .coastal-hoverboard-toggle.active small,
+.coastal-root.coastal-established .coastal-tour-button.active strong,
+.coastal-root.coastal-established .coastal-hoverboard-toggle.active strong,
+.coastal-root.coastal-established .coastal-tour-button.active b,
+.coastal-root.coastal-established .coastal-hoverboard-toggle.active b {
+  color: var(--kairui-ui-ink);
+}
+
+@media (max-width: 760px) {
+  .coastal-root.coastal-established .coastal-tour-button,
+  .coastal-root.coastal-established .coastal-hoverboard-toggle {
+    width: 150px;
+    min-width: 150px;
+  }
+
+  .coastal-root.coastal-established .coastal-hoverboard-toggle {
+    bottom: 68px;
+  }
 }

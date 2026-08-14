@@ -8,6 +8,7 @@ import { bindLookControls, initializeGameplayCamera, updateGameplayCamera } from
 import { updatePlayerMovement, type PlayerMotion } from "../../world/player/movement";
 import { applySceneShadows } from "../../world/rendering/shadows";
 import { COASTAL_LANDMARKS, type CoastalLandmark } from "./content";
+import { createCoastalHoverboard, updateCoastalHoverboard } from "./hoverboard";
 import { coastalShoreX, createCoastalScene } from "./scene";
 import { createCoastalHud } from "./ui";
 import {
@@ -107,6 +108,10 @@ export function mountKairuiKingdom(root: HTMLElement): void {
   const townSchema = loadTownSchemaDraft();
   const player = createPlayer();
   applyCharacterAppearance(player, townSchema.player.appearance, townSchema.player.movement);
+  const baseWalkMultiplier = typeof player.userData.walkMultiplier === "number" ? player.userData.walkMultiplier : 1;
+  const baseSprintMultiplier = typeof player.userData.sprintMultiplier === "number" ? player.userData.sprintMultiplier : 1;
+  const hoverboard = createCoastalHoverboard();
+  player.add(hoverboard.object);
   // Begin on the upper headland so the coast, landmarks and ocean read as one
   // authored vista instead of dropping the visitor behind the first building.
   player.position.set(68, coast.getGroundHeight(68, -18), -18);
@@ -157,6 +162,8 @@ export function mountKairuiKingdom(root: HTMLElement): void {
   const establishingLook = new THREE.Vector3();
   const boatPosition = new THREE.Vector3();
   const boatCameraPosition = new THREE.Vector3();
+  const boatForward = new THREE.Vector3();
+  const boatLookTarget = new THREE.Vector3();
   let tourTransitionStartedAt = 0;
   let tourTransitionDuration = 1850;
   let tourEnvironmentBefore: CoastalEnvironmentState | null = null;
@@ -164,6 +171,7 @@ export function mountKairuiKingdom(root: HTMLElement): void {
   let environmentStamp = "";
   let transitMode: "none" | "boat" | "balloon" = "none";
   let transitStartedAt = 0;
+  const boat = coast.transit.boat;
   const balloon = coast.transit.balloon;
   const balloonRoute = createBalloonRideRoute(coast.getGroundHeight);
   const balloonRouteLength = balloonRoute.getLength();
@@ -185,6 +193,7 @@ export function mountKairuiKingdom(root: HTMLElement): void {
   let freeFlightAscend = false;
   let balloonRide: BalloonRide | null = null;
   let balloonReturn: BalloonReturn | null = null;
+  let hoverboardActive = false;
   let establishing = true;
   const establishingStartedAt = performance.now();
   const vistaStart = new THREE.Vector3(-62, 24, 92);
@@ -193,6 +202,17 @@ export function mountKairuiKingdom(root: HTMLElement): void {
   camera.position.copy(vistaStart);
   camera.lookAt(vistaTarget);
   let hud: ReturnType<typeof createCoastalHud>;
+  const setHoverboard = (active: boolean) => {
+    if (active && (establishing || tourActive || transitMode !== "none" || hud.isModalOpen())) return;
+    hoverboardActive = active;
+    player.userData.walkMultiplier = baseWalkMultiplier * (active ? 2.2 : 1);
+    player.userData.sprintMultiplier = baseSprintMultiplier * (active ? 2.2 : 1);
+    if (!active) motion.velocity.multiplyScalar(0.42);
+    hoverboard.object.visible = active;
+    root.dataset.coastalHoverboardMode = active ? "active" : "inactive";
+    hud.setHoverboard(active);
+  };
+  const toggleHoverboard = () => setHoverboard(!hoverboardActive);
   const tourCameraStops = coast.landmarks.map(({ object, landmark }) => safeCameraPosition(
     new THREE.Vector3(...landmark.shotOffset).add(object.position),
     coast.getGroundHeight,
@@ -271,6 +291,7 @@ export function mountKairuiKingdom(root: HTMLElement): void {
     applyEnvironment();
   };
   const setTour = (active: boolean) => {
+    if (active && hoverboardActive) setHoverboard(false);
     tourActive = active;
     if (active) {
       establishing = false;
@@ -342,6 +363,7 @@ export function mountKairuiKingdom(root: HTMLElement): void {
   };
   const beginBalloonRide = () => {
     if (balloonRide || transitMode === "boat" || establishing || tourActive || hud.isModalOpen()) return;
+    if (hoverboardActive) setHoverboard(false);
     const heading = poseBalloonRide(0, 0);
     setCameraQuaternion(balloonCameraPosition, balloonPoseLook, balloonLookQuaternion);
     balloonRide = {
@@ -442,6 +464,7 @@ export function mountKairuiKingdom(root: HTMLElement): void {
     onEnterWorld: dismissEstablishing,
     onInspect: inspectNearby,
     onBalloonBoard: beginBalloonRide,
+    onHoverboardToggle: toggleHoverboard,
     onTourToggle: () => setTour(!tourActive),
     onTourPrevious: () => moveTour(-1),
     onTourNext: () => moveTour(1),
@@ -469,6 +492,7 @@ export function mountKairuiKingdom(root: HTMLElement): void {
         beginBalloonRide();
         return;
       }
+      if (mode !== "none" && hoverboardActive) setHoverboard(false);
       transitMode = mode;
       if (mode !== "none") transitStartedAt = runtime.clock.elapsedTime;
       else player.visible = true;
@@ -480,6 +504,7 @@ export function mountKairuiKingdom(root: HTMLElement): void {
   hud.setTour(false, null);
   hud.setTransit("none");
   hud.setBalloonMode("autopilot");
+  hud.setHoverboard(false);
   hud.setEstablishing(true);
   applyEnvironment();
 
@@ -496,6 +521,12 @@ export function mountKairuiKingdom(root: HTMLElement): void {
   };
   window.addEventListener("keydown", handleBalloonAltitudeKey);
   window.addEventListener("keyup", handleBalloonAltitudeKey);
+  const handleHoverboardKey = (event: KeyboardEvent) => {
+    if (event.code !== "KeyQ" || event.repeat || isEditableElement(event.target)) return;
+    event.preventDefault();
+    toggleHoverboard();
+  };
+  window.addEventListener("keydown", handleHoverboardKey);
 
   runtime.start(({ delta, elapsed }) => {
     updateBalloonReturn(delta, elapsed);
@@ -507,7 +538,12 @@ export function mountKairuiKingdom(root: HTMLElement): void {
         delta,
         coast.colliders,
         camera,
-        updatePlayerRig,
+        (target, walkTime, moving, sprinting) => updatePlayerRig(
+          target,
+          walkTime,
+          hoverboardActive ? false : moving,
+          hoverboardActive ? false : sprinting
+        ),
         coast.getGroundHeight,
         145,
         coast.isWalkable
@@ -516,6 +552,7 @@ export function mountKairuiKingdom(root: HTMLElement): void {
       input.jumpRequested = false;
       input.inspectRequested = false;
     }
+    updateCoastalHoverboard(hoverboard, hoverboardActive, elapsed, motion.speed, delta);
 
     let closest: CoastalLandmark | null = null;
     const interactionsEnabled = transitMode === "none" && !establishing && !tourActive && !hud.isModalOpen();
@@ -605,11 +642,14 @@ export function mountKairuiKingdom(root: HTMLElement): void {
       camera.lookAt(tourLookCurrent);
       player.visible = false;
     } else if (transitMode === "boat") {
-      const phase = (elapsed - transitStartedAt) * 0.24;
-      boatPosition.set(-18 + Math.cos(phase) * 32, 0.55, -24 + Math.sin(phase) * 76);
-      boatCameraPosition.set(boatPosition.x - 12, 11, boatPosition.z + 16);
+      boatPosition.copy(boat.position);
+      boatForward.set(1, 0, 0).applyQuaternion(boat.quaternion).normalize();
+      boatCameraPosition.copy(boatPosition).addScaledVector(boatForward, -11);
+      boatCameraPosition.y += 8;
+      boatLookTarget.copy(boatPosition).addScaledVector(boatForward, 12);
+      boatLookTarget.y += 1.4;
       camera.position.lerp(boatCameraPosition, 1 - Math.exp(-3 * delta));
-      camera.lookAt(26, 3.8, -30 + Math.sin(phase) * 55);
+      camera.lookAt(boatLookTarget);
       player.visible = false;
     } else if (transitMode === "balloon" && balloonRide) {
       const ride = balloonRide;
@@ -732,6 +772,7 @@ export function mountKairuiKingdom(root: HTMLElement): void {
     window.removeEventListener("keydown", handleBalloonEscape);
     window.removeEventListener("keydown", handleBalloonAltitudeKey);
     window.removeEventListener("keyup", handleBalloonAltitudeKey);
+    window.removeEventListener("keydown", handleHoverboardKey);
     hud.dispose();
     inputBinding.dispose();
     runtime.dispose();
@@ -861,4 +902,13 @@ function townEnvironmentFromCoast(
     season: environment.season,
     foliage: environment.season === "spring" ? "sakura" : environment.season === "autumn" ? "leaves" : "off"
   };
+}
+
+function isEditableElement(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement && (
+    target.isContentEditable
+    || target instanceof HTMLInputElement
+    || target instanceof HTMLTextAreaElement
+    || target instanceof HTMLSelectElement
+  );
 }
