@@ -82,7 +82,8 @@ export function coastalBoatPositionAt(time: number, target = new THREE.Vector3()
   const routeClearance = 15 + Math.cos(phase) * 4 + Math.sin(phase * 2) * 1.5;
   const shoreline = coastalShoreX(z);
   const x = Math.min(shoreline - routeClearance, shoreline - COASTAL_BOAT_MIN_CLEARANCE);
-  return target.set(x, WATER_Y + 0.34, z);
+  // Keep the hull settled into the surface instead of hovering above it.
+  return target.set(x, WATER_Y - 0.02, z);
 }
 
 type LandmarkPlacement = {
@@ -222,26 +223,36 @@ function resolveDryLandmarkPlacement(landmark: CoastalLandmark): LandmarkPlaceme
 
 function coastalTerrainBaseHeight(x: number, z: number): number {
   const coastDistance = x - coastalShoreX(z);
-  // Build the coast as a readable sequence instead of lifting the hill directly
-  // out of the water: submerged shelf -> wet shoreline -> dry beach -> upland.
+  // Build the coast as a readable sequence instead of one broad green dome:
+  // submerged shelf -> wet shoreline -> dry beach -> escarpment -> upper ridge.
+  // The shorter escarpment transition exposes large low-poly facets while the
+  // separate upper terrace keeps landmark pads walkable.
   const submergedShelf = smoothRange(-12, 0, coastDistance);
   const beachShelf = smoothRange(0, 14, coastDistance);
-  const upland = smoothRange(8, 48, coastDistance);
+  const escarpment = smoothRange(12, 31, coastDistance);
+  const upperTerrace = smoothRange(29, 55, coastDistance);
   const northernRise = Math.pow(smoothRange(64, -152, z), 1.56);
-  const inland = smoothRange(18, 92, coastDistance);
-  const bluff = Math.pow(smoothRange(35, 98, coastDistance), 1.42);
+  const inland = smoothRange(26, 92, coastDistance);
+  const bluff = Math.pow(smoothRange(39, 104, coastDistance), 1.35);
   const coastalShelfHeight = -3 + submergedShelf * 2.45 + beachShelf * 0.82;
-  let height = coastalShelfHeight + upland * (northernRise * 23 + bluff * (3.5 + northernRise * 10));
-  height += upland * inland * 4.8 * Math.sin(x * 0.043 + 1.3) * Math.sin(z * 0.031);
-  height += upland * 7.6 * smoothRange(14, 55, coastDistance) * Math.exp(-(((z - 2) / 78) ** 2));
-  height += upland * Math.pow(smoothRange(118, 185, coastDistance), 1.4) * 24;
+  let height = coastalShelfHeight
+    + escarpment * (5.8 + northernRise * 12.5)
+    + upperTerrace * (2.6 + northernRise * 9.5 + bluff * (2.2 + northernRise * 4.5));
+  // Two overlapping ridge masses and a saddle form the three depth bands that
+  // make the coast read from offshore: cliff village, upper forest, skyline.
+  const workshopRidge = Math.exp(-(((z + 69) / 42) ** 2));
+  const harbourRidge = Math.exp(-(((z - 12) / 56) ** 2));
+  height += upperTerrace * workshopRidge * smoothRange(35, 78, coastDistance) * 5.4;
+  height += upperTerrace * harbourRidge * smoothRange(30, 72, coastDistance) * 3.1;
+  height += upperTerrace * inland * 2.7 * Math.sin(x * 0.043 + 1.3) * Math.sin(z * 0.031);
+  height += upperTerrace * Math.pow(smoothRange(118, 185, coastDistance), 1.4) * 17;
   height -= height * 0.2 * Math.exp(-(((z + 72) / 37) ** 2));
-  height += upland * Math.sin(x * 0.088) * Math.cos(z * 0.068) * 1.12 * (0.3 + inland);
+  height += upperTerrace * Math.sin(x * 0.088) * Math.cos(z * 0.068) * 0.62 * (0.3 + inland);
   // A shallow creek cuts diagonally through the interior bluff and makes the
   // main road read as a route through geography rather than a line on a plane.
   const creekX = 55 + Math.sin(z * 0.024) * 11;
   const creek = Math.exp(-(((x - creekX) / 7.2) ** 2));
-  height -= upland * creek * (2.8 + northernRise * 5.5);
+  height -= upperTerrace * creek * (2.8 + northernRise * 5.5);
   height = Math.max(height, coastalShelfHeight);
   return height;
 }
@@ -273,7 +284,7 @@ export function createCoastalScene(scene: THREE.Scene): CoastalScene {
   world.add(sky);
 
   const waterMaterial = makeWaterMaterial();
-  const water = new THREE.Mesh(new THREE.PlaneGeometry(1600, 1600, 96, 96), waterMaterial);
+  const water = new THREE.Mesh(new THREE.PlaneGeometry(1600, 1600, 72, 72), waterMaterial);
   water.rotation.x = -Math.PI / 2;
   water.position.set(-160, WATER_Y, -20);
   world.add(water);
@@ -327,6 +338,18 @@ export function createCoastalScene(scene: THREE.Scene): CoastalScene {
   const lighthouseMaterial = landmarks.find(({ landmark }) => landmark.kind === "lighthouse")?.object.userData.lighthouseMaterial as THREE.MeshStandardMaterial | undefined;
   let isNight = false;
   applySceneShadows(world);
+  // Kairui's art direction is intentionally matte. The shared shadow utility
+  // raises environment reflections for glossy town assets, so bring this world
+  // back to its authored low-poly finish after shadow flags are assigned.
+  world.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return;
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    materials.forEach((material) => {
+      if (material instanceof THREE.MeshStandardMaterial && material.metalness < 0.15) {
+        material.envMapIntensity = Math.min(material.envMapIntensity, 0.36);
+      }
+    });
+  });
 
   return {
     colliders,
@@ -394,7 +417,9 @@ export function createCoastalScene(scene: THREE.Scene): CoastalScene {
       // The boat mesh is authored along local +X, so face that axis into the
       // sampled forward direction instead of sliding sideways along the coast.
       boat.rotation.y = Math.atan2(-travelZ, travelX);
-      boat.rotation.z = Math.sin(time * 1.1) * 0.025;
+      boat.position.y += Math.sin(time * 0.72) * 0.035;
+      boat.rotation.x = Math.sin(time * 0.58 + 0.8) * 0.008;
+      boat.rotation.z = Math.sin(time * 0.66) * 0.01;
       const flame = balloon.userData.flame as THREE.Mesh | undefined;
       const flameMaterial = balloon.userData.flameMaterial as THREE.MeshStandardMaterial | undefined;
       const burnerLight = balloon.userData.burnerLight as THREE.PointLight | undefined;
@@ -430,7 +455,9 @@ export function createCoastalScene(scene: THREE.Scene): CoastalScene {
 }
 
 function createCoastalTerrain(world: THREE.Group): { setPalette(grass: string, sand: string): void } {
-  const geometry = new THREE.PlaneGeometry(340, 430, 136, 172);
+  // Fewer, larger faces make the authored escarpment read as intentional
+  // low-poly geology and save vertex work versus the former smooth mound.
+  const geometry = new THREE.PlaneGeometry(340, 430, 104, 132);
   geometry.rotateX(-Math.PI / 2);
   geometry.translate(28, 0, -32);
   const positions = geometry.getAttribute("position") as THREE.BufferAttribute;
@@ -439,7 +466,9 @@ function createCoastalTerrain(world: THREE.Group): { setPalette(grass: string, s
   const wetSand = new THREE.Color("#b8a27f");
   const grass = new THREE.Color(colors.grass);
   const meadow = new THREE.Color("#aabd78");
-  const rock = new THREE.Color("#8f806f");
+  const rock = new THREE.Color("#a46e47");
+  const shadowRock = new THREE.Color("#76513d");
+  const wetRock = new THREE.Color("#81786b");
   const working = new THREE.Color();
   const terrainBands = new Uint8Array(positions.count);
   const terrainVariation = new Float32Array(positions.count);
@@ -465,9 +494,11 @@ function createCoastalTerrain(world: THREE.Group): { setPalette(grass: string, s
       const grassMix = smoothRange(10, 18, shoreDistance);
       beachGrassBlend[index] = grassMix;
       working.copy(sand).lerp(grass, grassMix);
-    } else if (slope > 1.05) {
+    } else if ((shoreDistance < 48 && slope > 0.84) || (shoreDistance < 76 && slope > 1.28)) {
       terrainBands[index] = 2;
-      working.copy(rock);
+      const cliffVariation = 0.12 + hash2(x * 0.73, z * 0.81) * 0.28;
+      terrainVariation[index] = cliffVariation;
+      working.copy(rock).lerp(shadowRock, cliffVariation);
     }
     else {
       terrainBands[index] = 3;
@@ -500,9 +531,11 @@ function createCoastalTerrain(world: THREE.Group): { setPalette(grass: string, s
       const nextSand = new THREE.Color(sandColor);
       const colorAttribute = geometry.getAttribute("color") as THREE.BufferAttribute;
       for (let index = 0; index < colorAttribute.count; index += 1) {
-        if (terrainBands[index] === 0) working.copy(nextSand).lerp(new THREE.Color("#81786b"), 0.22);
+        if (terrainBands[index] === 0) working.copy(nextSand).lerp(wetRock, 0.22);
         else if (terrainBands[index] === 1) working.copy(nextSand).lerp(nextGrass, beachGrassBlend[index]);
-        else if (terrainBands[index] === 2) working.copy(nextGrass).lerp(new THREE.Color("#756f67"), 0.54);
+        // Cliff faces remain warm ochre through every season. Recolouring them
+        // from the grass palette was flattening the coast into one green mass.
+        else if (terrainBands[index] === 2) working.copy(rock).lerp(shadowRock, terrainVariation[index]);
         else working.copy(nextGrass).lerp(meadow, terrainVariation[index] * 0.3);
         colorAttribute.setXYZ(index, working.r, working.g, working.b);
       }
@@ -524,7 +557,9 @@ function createCoastalSeabed(world: THREE.Group): void {
 }
 
 function createCoastalRoad(world: THREE.Group): void {
-  const material = matte("#cfb789");
+  // The route is part of the establishing composition: a warmer, slightly
+  // broader ribbon lets the eye follow the settlement up the escarpment.
+  const material = matte("#b9855d");
   const curve = new THREE.CatmullRomCurve3(COASTAL_TRAIL_POINTS, false, "centripetal", 0.35);
   const samples = 240;
   const positions = new Float32Array((samples + 1) * 2 * 3);
@@ -534,7 +569,7 @@ function createCoastalRoad(world: THREE.Group): void {
     const progress = index / samples;
     const center = curve.getPointAt(progress);
     const tangent = curve.getTangentAt(progress).setY(0).normalize();
-    const side = new THREE.Vector3(-tangent.z, 0, tangent.x).multiplyScalar(2.8);
+    const side = new THREE.Vector3(-tangent.z, 0, tangent.x).multiplyScalar(3.35);
     for (let edge = 0; edge < 2; edge += 1) {
       const point = center.clone().addScaledVector(side, edge === 0 ? -1 : 1);
       point.y = coastalTerrainHeight(point.x, point.z) + 0.1;
@@ -592,7 +627,7 @@ function createCreekAndBridges(world: THREE.Group): void {
   creek.userData.receiveOnly = true;
   world.add(creek);
 
-  for (const [index, z] of [-82, -18, 43].entries()) {
+  for (const [index, z] of [-18, 43].entries()) {
     const x = 55 + Math.sin(z * 0.024) * 11;
     const bridge = new THREE.Group();
     bridge.position.set(x, coastalTerrainHeight(x, z) + 0.5, z);
@@ -617,20 +652,31 @@ function createCreekAndBridges(world: THREE.Group): void {
 
 function createCoastalForest(world: THREE.Group, swayUniforms: SwayTimeUniform[]): void {
   const trunkMaterial = matte("#725238");
-  const crownMaterials = [
-    matSway("#426c4d", 0.11, 0.72, swayUniforms),
-    matSway("#557f55", 0.13, 0.67, swayUniforms),
-    matSway("#668e5e", 0.1, 0.78, swayUniforms)
-  ];
+  const broadleafMaterial = matSway("#ffffff", 0.11, 0.72, swayUniforms);
+  const coniferMaterial = matSway("#ffffff", 0.085, 0.66, swayUniforms);
   const shrubMaterials = [
     matSway("#3f674b", 0.08, 0.9, swayUniforms),
     matSway("#587b52", 0.07, 0.84, swayUniforms)
   ];
+  const broadleafColors = [new THREE.Color("#426c4d"), new THREE.Color("#557f55"), new THREE.Color("#668e5e")];
+  const coniferColors = [new THREE.Color("#2f5738"), new THREE.Color("#3a6740"), new THREE.Color("#4a7448")];
   const groves = [
     [82, -132, 16, 22], [71, -96, 12, 19], [80, -55, 17, 24],
     [68, -10, 13, 18], [79, 31, 18, 22], [70, 65, 15, 18],
     [49, -120, 10, 13], [52, 43, 9, 12]
   ] as const;
+
+  type TreePlacement = {
+    x: number;
+    y: number;
+    z: number;
+    scale: number;
+    rotation: number;
+    color: THREE.Color;
+  };
+  const broadleafPlacements: TreePlacement[] = [];
+  const coniferPlacements: TreePlacement[] = [];
+
   for (let index = 0; index < 148; index += 1) {
     const grove = groves[index % groves.length];
     const angle = index * 2.39996;
@@ -644,17 +690,19 @@ function createCoastalForest(world: THREE.Group, swayUniforms: SwayTimeUniform[]
     const ground = coastalTerrainHeight(x, z);
     if (ground <= 0.4 || x - shoreline < 6) continue;
     const scale = 0.68 + (index % 7) * 0.12;
-    const tree = new THREE.Group();
-    tree.position.set(x, ground, z);
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.22, 2.2 * scale, 6), trunkMaterial);
-    trunk.position.y = 1.1 * scale;
-    tree.add(trunk);
-    const crown = new THREE.Mesh(new THREE.DodecahedronGeometry(1.32 * scale, 1), crownMaterials[index % crownMaterials.length]);
-    crown.position.y = 3.18 * scale;
-    crown.scale.y = 1.18;
-    crown.rotation.y = index * 0.71;
-    tree.add(crown);
-    world.add(tree);
+    const placement = {
+      x,
+      y: ground,
+      z,
+      scale,
+      rotation: index * 0.71,
+      color: index % 5 < 3 ? coniferColors[index % coniferColors.length] : broadleafColors[index % broadleafColors.length]
+    };
+    // Upper and rear groves become conifer masses; broadleaf trees stay around
+    // the village and creek. The alternating species break the former uniform
+    // line of spherical canopies without increasing the number of trees.
+    if (index % 5 < 3) coniferPlacements.push(placement);
+    else broadleafPlacements.push(placement);
 
     if (index % 2 === 0) {
       const shrub = new THREE.Mesh(new THREE.DodecahedronGeometry(0.54 + (index % 4) * 0.09, 1), shrubMaterials[index % shrubMaterials.length]);
@@ -664,6 +712,66 @@ function createCoastalForest(world: THREE.Group, swayUniforms: SwayTimeUniform[]
       world.add(shrub);
     }
   }
+
+  const allPlacements = [...coniferPlacements, ...broadleafPlacements];
+  const dummy = new THREE.Object3D();
+  const trunkGeometry = new THREE.CylinderGeometry(0.12, 0.22, 2.2, 6);
+  const trunks = new THREE.InstancedMesh(trunkGeometry, trunkMaterial, allPlacements.length);
+  allPlacements.forEach((placement, index) => {
+    dummy.position.set(placement.x, placement.y + 1.1 * placement.scale, placement.z);
+    dummy.rotation.set(0, placement.rotation, 0);
+    dummy.scale.setScalar(placement.scale);
+    dummy.updateMatrix();
+    trunks.setMatrixAt(index, dummy.matrix);
+  });
+  trunks.castShadow = true;
+  trunks.receiveShadow = true;
+  trunks.computeBoundingSphere();
+  world.add(trunks);
+
+  if (broadleafPlacements.length > 0) {
+    const crowns = new THREE.InstancedMesh(
+      new THREE.DodecahedronGeometry(1.32, 1),
+      broadleafMaterial,
+      broadleafPlacements.length
+    );
+    broadleafPlacements.forEach((placement, index) => {
+      dummy.position.set(placement.x, placement.y + 3.18 * placement.scale, placement.z);
+      dummy.rotation.set(0, placement.rotation, 0);
+      dummy.scale.set(placement.scale, placement.scale * 1.18, placement.scale);
+      dummy.updateMatrix();
+      crowns.setMatrixAt(index, dummy.matrix);
+      crowns.setColorAt(index, placement.color);
+    });
+    crowns.castShadow = true;
+    crowns.receiveShadow = true;
+    crowns.instanceColor!.needsUpdate = true;
+    crowns.computeBoundingSphere();
+    world.add(crowns);
+  }
+
+  const pineLayers = [
+    { geometry: new THREE.ConeGeometry(1.45, 2.35, 7), y: 2.18 },
+    { geometry: new THREE.ConeGeometry(1.12, 2.05, 7), y: 3.18 },
+    { geometry: new THREE.ConeGeometry(0.78, 1.72, 7), y: 4.08 }
+  ];
+  pineLayers.forEach(({ geometry, y }, layerIndex) => {
+    if (coniferPlacements.length === 0) return;
+    const layer = new THREE.InstancedMesh(geometry, coniferMaterial, coniferPlacements.length);
+    coniferPlacements.forEach((placement, index) => {
+      dummy.position.set(placement.x, placement.y + y * placement.scale, placement.z);
+      dummy.rotation.set(0, placement.rotation + layerIndex * 0.19, 0);
+      dummy.scale.setScalar(placement.scale);
+      dummy.updateMatrix();
+      layer.setMatrixAt(index, dummy.matrix);
+      layer.setColorAt(index, placement.color);
+    });
+    layer.castShadow = true;
+    layer.receiveShadow = true;
+    layer.instanceColor!.needsUpdate = true;
+    layer.computeBoundingSphere();
+    world.add(layer);
+  });
 }
 
 function createPier(world: THREE.Group): HarborPier {
@@ -899,6 +1007,10 @@ function createLandmark(world: THREE.Group, landmark: CoastalLandmark, colliders
   const placement = resolveDryLandmarkPlacement(landmark);
   const needsFoundation = landmark.kind === "archive" || landmark.kind === "lighthouse";
   group.position.set(placement.x, placement.y + (needsFoundation ? 0.78 : 0), placement.z);
+  // Workshop and career façades were facing across the ridge, so the offshore
+  // hero camera mostly saw blank rear walls. Turn the story buildings toward
+  // the coast and let their lit windows, signs and entrances carry the view.
+  if (landmark.kind === "workshop" || landmark.kind === "career") group.rotation.y = Math.PI / 2;
   world.add(group);
 
   if (needsFoundation) createStoneFoundation(group, landmark.kind === "archive" ? 13.6 : 8.4, landmark.kind === "archive" ? 13.6 : 8.4);
@@ -973,12 +1085,14 @@ function createLighthouse(group: THREE.Group, accent: string): void {
 
 function createDistrictSetDressing(world: THREE.Group): DistrictLife {
   const hutPlacements = [
-    [38, -106, 0.82, "#d48662", 0.18], [42, -90, 0.7, "#73958d", -0.2],
-    [47, -76, 0.92, "#d6a05f", 0.12], [50, -60, 0.72, "#7c909b", -0.18],
-    [49, -47, 0.78, "#a87259", 0.1], [53, -31, 0.9, "#73958d", -0.12],
-    [50, -14, 0.75, "#d48662", 0.24], [56, 2, 0.9, "#d6a05f", -0.18],
-    [48, 16, 0.72, "#73958d", 0.15], [53, 32, 0.9, "#8d79a6", -0.14],
-    [45, 45, 0.72, "#a87259", 0.18], [47, 62, 0.82, "#73958d", -0.18]
+    // Three irregular terraces read as one settlement from offshore. The old
+    // evenly-spaced line of huts made every building feel like a separate prop.
+    [58, -112, 0.72, "#d48662", 0.18], [73, -102, 0.82, "#73958d", -0.24],
+    [63, -89, 0.92, "#d6a05f", 0.12], [78, -78, 0.7, "#7c909b", -0.18],
+    [55, -64, 0.78, "#a87259", 0.1], [72, -55, 0.9, "#73958d", -0.16],
+    [59, -42, 0.75, "#d48662", 0.24], [76, -31, 0.9, "#d6a05f", -0.18],
+    [53, -14, 0.72, "#73958d", 0.15], [69, 1, 0.9, "#8d79a6", -0.14],
+    [56, 27, 0.72, "#a87259", 0.18], [70, 46, 0.82, "#73958d", -0.18]
   ] as const;
   const cream = matte("#eadabb");
   const roofMaterials = [matte("#bd694e"), matte("#4f6668"), matte("#8c704c")];
@@ -994,7 +1108,9 @@ function createDistrictSetDressing(world: THREE.Group): DistrictLife {
   hutPlacements.forEach(([x, z, scale, color, rotation], index) => {
     const hut = new THREE.Group();
     hut.position.set(x, coastalTerrainHeight(x, z), z);
-    hut.rotation.y = rotation;
+    // Face homes broadly toward the water, with enough irregularity to avoid
+    // the look of a procedural row of identical props.
+    hut.rotation.y = Math.PI / 2 + rotation;
     hut.scale.setScalar(scale);
     const terrace = new THREE.Mesh(new THREE.BoxGeometry(5.1, 0.42, 4.7), matte("#b7a47d"));
     terrace.position.y = 0.06;
@@ -1315,39 +1431,120 @@ function createExecutionWorkshop(group: THREE.Group, accent: string): void {
     tool.position.set(-2.05 + index * 1.35, 1.56, 3.12);
     group.add(tool);
   }
+  const festoonWire = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.025, 0.025, 5.1, 6),
+    matte("#4a4238")
+  );
+  festoonWire.rotation.z = Math.PI / 2;
+  festoonWire.position.set(0, 3.72, -2.86);
+  group.add(festoonWire);
+  const festoonMaterial = new THREE.MeshStandardMaterial({
+    color: "#fff0bd",
+    emissive: "#f0a84b",
+    emissiveIntensity: 1.65,
+    roughness: 0.72
+  });
+  for (let index = 0; index < 7; index += 1) {
+    const bulb = new THREE.Mesh(new THREE.DodecahedronGeometry(0.11, 0), festoonMaterial);
+    bulb.position.set(-2.35 + index * 0.78, 3.61 - Math.sin(index / 6 * Math.PI) * 0.34, -2.9);
+    group.add(bulb);
+  }
   createJournalSign(group, "BUILD · SHIP · SCALE", 0, -3.05, 0, accent);
 }
 
 function createCareerRidge(group: THREE.Group, accent: string): void {
   const labels = ["NCS", "FREELANCE", "UBS", "DBS", "SEMBCORP"];
-  const colors = ["#a87057", "#c58d65", "#617a8e", "#667f75", "#6f8e7f"];
+  const colors = ["#a87057", "#c58d65", "#617a8e", "#667f75", "#a87958"];
+  const buildingPositions = [
+    [-4.35, -2.25, -0.08], [0, -2.05, 0.04], [4.2, -1.85, -0.05],
+    [-2.75, 3.05, 0.02], [3.05, 3.2, -0.03]
+  ] as const;
+  const buildingHeights = [3.7, 4.4, 4.9, 4.3, 11.8] as const;
+  const windowMaterial = new THREE.MeshStandardMaterial({
+    color: "#ffe3a3",
+    emissive: "#e9b85e",
+    emissiveIntensity: 0.92,
+    roughness: 0.75
+  });
+  const terrace = new THREE.Mesh(new THREE.BoxGeometry(13.2, 0.5, 10.5), matte("#9d8c70"));
+  terrace.position.y = -0.08;
+  terrace.receiveShadow = true;
+  group.add(terrace);
+
   labels.forEach((label, index) => {
     const building = new THREE.Group();
-    const row = index < 3 ? 0 : 1;
-    const column = row === 0 ? index : index - 3;
-    building.position.set((column - (row === 0 ? 1 : 0.5)) * 4.6, row * 2.5, row * 4.1);
+    const [x, z, rotation] = buildingPositions[index];
+    building.position.set(x, 0.18, z);
+    building.rotation.y = rotation;
     const width = index === 4 ? 4.3 : 3.7;
-    const height = 3.5 + index * 1.6;
+    const height = buildingHeights[index];
     const body = new THREE.Mesh(new THREE.BoxGeometry(width, height, 3.6), matte(colors[index]));
-    body.position.y = height / 2 + 0.18;
+    body.position.y = height / 2;
     building.add(body);
-    const roof = new THREE.Mesh(new THREE.ConeGeometry(width * 0.74, 1.25, 4), matte(index === 4 ? accent : "#4f4b4b"));
-    roof.position.y = height + 0.82;
-    roof.rotation.y = Math.PI / 4;
-    roof.scale.z = 0.82;
-    building.add(roof);
-    const light = new THREE.Mesh(
-      new THREE.BoxGeometry(width * 0.54, 0.75, 0.12),
-      new THREE.MeshStandardMaterial({ color: "#ffe3a3", emissive: "#e9b85e", emissiveIntensity: 0.64, roughness: 0.75 })
-    );
-    light.position.set(0, height * 0.58, -1.86);
-    building.add(light);
+    const windowRows = index === 4 ? 5 : 2;
+    for (let row = 0; row < windowRows; row += 1) {
+      for (const side of [-1, 1]) {
+        const light = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.54, 0.12), windowMaterial);
+        light.position.set(side * width * 0.24, 1.25 + row * 1.75, -1.86);
+        building.add(light);
+        const sideLight = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.54, 0.62), windowMaterial);
+        sideLight.position.set(side * (width / 2 + 0.02), 1.25 + row * 1.75, -0.62);
+        building.add(sideLight);
+      }
+    }
+
+    if (index === 4) {
+      const cornice = new THREE.Mesh(new THREE.BoxGeometry(width + 0.48, 0.34, 4.02), matte(accent));
+      cornice.position.y = height + 0.1;
+      building.add(cornice);
+      const clockHouse = new THREE.Mesh(new THREE.BoxGeometry(2.7, 2.15, 2.65), matte("#b58a61"));
+      clockHouse.position.y = height + 1.25;
+      building.add(clockHouse);
+      const clockMaterial = new THREE.MeshStandardMaterial({
+        color: "#f7e3b1",
+        emissive: "#dba84e",
+        emissiveIntensity: 0.75,
+        roughness: 0.7,
+        side: THREE.DoubleSide
+      });
+      const clock = new THREE.Mesh(new THREE.CircleGeometry(0.58, 18), clockMaterial);
+      clock.position.set(0, height + 1.3, -1.34);
+      clock.rotation.y = Math.PI;
+      building.add(clock);
+      for (const y of [3.15, 6.65, 10.15]) {
+        const ledge = new THREE.Mesh(new THREE.BoxGeometry(width + 0.32, 0.18, 3.92), matte("#d0aa72"));
+        ledge.position.y = y;
+        building.add(ledge);
+      }
+      const entry = new THREE.Mesh(new THREE.BoxGeometry(1.08, 1.9, 0.18), matte("#4d342b"));
+      entry.position.set(0, 1.05, -1.9);
+      building.add(entry);
+      const entryGlow = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.5, 0.08), windowMaterial);
+      entryGlow.position.set(0, 1.5, -2.01);
+      building.add(entryGlow);
+      const towerRoof = new THREE.Mesh(new THREE.ConeGeometry(2.35, 1.8, 4), matte("#6d342c"));
+      towerRoof.position.y = height + 3.2;
+      towerRoof.rotation.y = Math.PI / 4;
+      building.add(towerRoof);
+      const spire = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.075, 1.2, 7), matte(accent));
+      spire.position.y = height + 4.55;
+      building.add(spire);
+    } else {
+      const roof = new THREE.Mesh(new THREE.ConeGeometry(width * 0.74, 1.25, 4), matte("#4f4b4b"));
+      roof.position.y = height + 0.72;
+      roof.rotation.y = Math.PI / 4;
+      roof.scale.z = 0.82;
+      building.add(roof);
+    }
     createJournalSign(building, label, 0, -2.02, 0, index === 4 ? accent : "#e9d8b8", 1.36);
     group.add(building);
   });
-  const terrace = new THREE.Mesh(new THREE.BoxGeometry(12, 0.45, 5.4), matte("#b7a47d"));
-  terrace.position.set(0, 2.3, 4.3);
-  group.add(terrace);
+
+  for (let step = 0; step < 4; step += 1) {
+    const stair = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.16, 0.72), matte("#b7a47d"));
+    stair.position.set(0, 0.03 + step * 0.1, -5.62 - step * 0.55);
+    group.add(stair);
+  }
 }
 
 function createVentureHarbour(group: THREE.Group, accent: string): void {
@@ -1433,11 +1630,17 @@ function createJournalSign(
   const stripe = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.13, 0.04), matte(accent));
   stripe.position.set(0, 2.12, -0.12);
   sign.add(stripe);
+  const reverseStripe = stripe.clone();
+  reverseStripe.position.z = 0.12;
+  sign.add(reverseStripe);
   const markerCount = Math.min(9, Math.max(3, Math.round(label.length / 2.8)));
   for (let index = 0; index < markerCount; index += 1) {
     const glyph = new THREE.Mesh(new THREE.BoxGeometry(0.19 + index % 2 * 0.05, 0.08, 0.035), matte("#4e453d"));
     glyph.position.set((index - (markerCount - 1) / 2) * 0.3, 1.72 + (index % 3) * 0.12, -0.12);
     sign.add(glyph);
+    const reverseGlyph = glyph.clone();
+    reverseGlyph.position.z = 0.12;
+    sign.add(reverseGlyph);
   }
   sign.userData.label = label;
   group.add(sign);
@@ -1559,17 +1762,43 @@ function createClouds(world: THREE.Group): CloudLayer {
 
 function createBoat(world: THREE.Group): THREE.Group {
   const boat = new THREE.Group();
-  boat.position.set(-34, -0.18, 8);
-  const hull = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 1.15, 4.2, 5), matte("#bb6248"));
+  boat.position.set(-34, WATER_Y, 8);
+  const hull = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 1.02, 4.4, 6), matte("#bb6248"));
   hull.rotation.z = Math.PI / 2;
-  hull.rotation.y = Math.PI / 2;
-  hull.scale.z = 0.72;
+  hull.position.y = -0.12;
+  hull.scale.z = 0.76;
+  hull.castShadow = true;
   boat.add(hull);
-  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 3.4, 8), matte(colors.timber));
-  mast.position.y = 1.8;
+
+  const gunwale = new THREE.Mesh(new THREE.BoxGeometry(3.7, 0.12, 1.42), matte("#e7d4ae"));
+  gunwale.position.y = 0.46;
+  gunwale.castShadow = true;
+  boat.add(gunwale);
+
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(3.25, 0.08, 1.18), matte("#9d7653"));
+  deck.position.y = 0.54;
+  boat.add(deck);
+
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.075, 3.45, 8), matte(colors.timber));
+  mast.position.set(-0.58, 2.2, 0);
+  mast.castShadow = true;
   boat.add(mast);
-  const sail = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 2.7), matte("#f4e7cc", 0.7));
-  sail.position.set(1.05, 2, 0);
+
+  const boom = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 2.15, 7), matte(colors.timber));
+  boom.rotation.z = Math.PI / 2;
+  boom.position.set(0.36, 1.12, 0);
+  boat.add(boom);
+
+  const sailShape = new THREE.Shape();
+  sailShape.moveTo(0, 0);
+  sailShape.lineTo(1.95, 0);
+  sailShape.lineTo(0, 2.72);
+  sailShape.closePath();
+  const sailMaterial = matte("#f4e7cc", 0.82);
+  sailMaterial.side = THREE.DoubleSide;
+  const sail = new THREE.Mesh(new THREE.ShapeGeometry(sailShape), sailMaterial);
+  sail.position.set(-0.48, 1.15, 0);
+  sail.castShadow = true;
   boat.add(sail);
   world.add(boat);
   return boat;

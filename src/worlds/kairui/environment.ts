@@ -73,20 +73,20 @@ export function resolveCoastalPalette(state: CoastalEnvironmentState, date = new
       }
     : isSunset
       ? {
-          skyHorizon: "#f0a87c",
-          skyZenith: "#7c91b5",
-          waterDeep: "#356f80",
-          waterShallow: "#bd9e86",
-          grass: season.grass,
-          grassDark: season.grassDark,
+          skyHorizon: "#f06f4f",
+          skyZenith: "#c43f4d",
+          waterDeep: "#293f4e",
+          waterShallow: "#756f69",
+          grass: new THREE.Color(season.grass).lerp(new THREE.Color("#5f683f"), 0.34).getStyle(),
+          grassDark: new THREE.Color(season.grassDark).lerp(new THREE.Color("#384434"), 0.4).getStyle(),
           sand: season.sand,
-          fog: "#cda98f",
-          sunlight: "#ff9e5e",
-          hemisphereSky: "#ffd0a0",
-          hemisphereGround: "#596c5c",
-          sunIntensity: 1.35,
-          hemisphereIntensity: 0.72,
-          exposure: 1,
+          fog: "#b86455",
+          sunlight: "#ffd09a",
+          hemisphereSky: "#df8064",
+          hemisphereGround: "#394534",
+          sunIntensity: 1.42,
+          hemisphereIntensity: 0.54,
+          exposure: 0.9,
           isNight: false
         }
       : {

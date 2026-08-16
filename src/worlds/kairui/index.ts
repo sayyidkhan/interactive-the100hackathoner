@@ -74,16 +74,16 @@ export function mountKairuiKingdom(root: HTMLElement): void {
 
   const runtime = createWorldRuntime(root, {
     background: "#f3deb7",
-    fog: { color: "#e8d5b6", near: 95, far: 540 },
+    fog: { color: "#e8d5b6", near: 120, far: 640 },
     camera: { fov: 48, far: 1600 },
     exposure: 0.88,
-    environmentIntensity: 0.28
+    environmentIntensity: 0.2
   });
   const { scene, camera, renderer } = runtime;
 
   const hemisphere = new THREE.HemisphereLight("#fff1d7", "#517a6a", 0.78);
   scene.add(hemisphere);
-  const sunDirection = new THREE.Vector3(-0.55, 0.6, 0.38).normalize();
+  const sunDirection = new THREE.Vector3(-0.62, 0.42, 0.44).normalize();
   const sun = new THREE.DirectionalLight("#ffe0ad", 1.16);
   sun.position.copy(sunDirection).multiplyScalar(190);
   sun.castShadow = true;
@@ -99,7 +99,7 @@ export function mountKairuiKingdom(root: HTMLElement): void {
   sun.shadow.radius = 4;
   scene.add(sun);
   scene.add(sun.target);
-  const coolFill = new THREE.DirectionalLight("#cfe0e8", 0.22);
+  const coolFill = new THREE.DirectionalLight("#cfe0e8", 0.1);
   coolFill.position.set(140, 60, -80);
   scene.add(coolFill);
 
@@ -196,11 +196,18 @@ export function mountKairuiKingdom(root: HTMLElement): void {
   let hoverboardActive = false;
   let establishing = true;
   const establishingStartedAt = performance.now();
-  const vistaStart = new THREE.Vector3(-62, 24, 92);
-  const vistaEnd = new THREE.Vector3(-34, 13, 60);
-  const vistaTarget = new THREE.Vector3(27, 5, 6);
+  // Frame the coast like a place, not a map. The previous offshore position
+  // made the terrain and buildings read as miniatures while the pier consumed
+  // the foreground. This lower, tighter diagonal gives the cliff settlement,
+  // forest ridge and clock tower distinct depth bands in the opening frame.
+  const vistaStart = new THREE.Vector3(-58, 25, 32);
+  const vistaEnd = new THREE.Vector3(-46, 21, 23);
+  const vistaTarget = new THREE.Vector3(38, 10, -45);
+  camera.fov = 41.5;
+  camera.updateProjectionMatrix();
   camera.position.copy(vistaStart);
   camera.lookAt(vistaTarget);
+  player.visible = false;
   let hud: ReturnType<typeof createCoastalHud>;
   const setHoverboard = (active: boolean) => {
     if (active && (establishing || tourActive || transitMode !== "none" || hud.isModalOpen())) return;
@@ -222,14 +229,23 @@ export function mountKairuiKingdom(root: HTMLElement): void {
   const dismissEstablishing = () => {
     establishing = false;
     root.classList.add("coastal-established");
+    player.visible = true;
+    camera.fov = 48;
+    camera.updateProjectionMatrix();
     camera.position.copy(vistaEnd);
     camera.lookAt(player.position.x, player.position.y + 0.82, player.position.z);
     hud.setEstablishing(false);
+    applyEnvironment();
   };
 
   const applyEnvironment = () => {
-    const palette = resolveCoastalPalette(environment);
-    coast.applyEnvironment(environment, palette);
+    // Open on an authored golden-hour cover, then hand control back to the
+    // visitor's live timezone/weather as soon as they enter free roam.
+    const presentedEnvironment: CoastalEnvironmentState = establishing
+      ? { ...environment, weather: "clear", time: "sunset" }
+      : environment;
+    const palette = resolveCoastalPalette(presentedEnvironment);
+    coast.applyEnvironment(presentedEnvironment, palette);
     hemisphere.color.set(palette.hemisphereSky);
     hemisphere.groundColor.set(palette.hemisphereGround);
     hemisphere.intensity = palette.hemisphereIntensity;
@@ -238,7 +254,7 @@ export function mountKairuiKingdom(root: HTMLElement): void {
     renderer.toneMappingExposure = palette.exposure;
     if (scene.fog instanceof THREE.Fog) scene.fog.color.set(palette.fog);
     scene.background = new THREE.Color(palette.skyHorizon);
-    hud.setEnvironment(environment, formatSingaporeTime(), palette.isNight);
+    hud.setEnvironment(presentedEnvironment, formatSingaporeTime(), palette.isNight);
   };
 
   const inspectNearby = (forcedTarget?: CoastalLandmark) => {
@@ -295,6 +311,8 @@ export function mountKairuiKingdom(root: HTMLElement): void {
     tourActive = active;
     if (active) {
       establishing = false;
+      camera.fov = 48;
+      camera.updateProjectionMatrix();
       root.classList.add("coastal-established", "coastal-autopilot");
       transitMode = "none";
       hud.setTransit("none");

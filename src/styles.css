@@ -8268,3 +8268,41 @@ dd {
     bottom: 68px;
   }
 }
+
+/* Keep contextual interactions in rhythm with the compact action dock. */
+.coastal-root.coastal-established .coastal-prompt {
+  box-sizing: border-box;
+  width: 220px;
+  min-height: 46px;
+  justify-content: center;
+  gap: 9px;
+  padding: 6px 12px;
+  border-radius: 999px;
+}
+
+.coastal-root.coastal-established .coastal-prompt kbd {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  font-size: 10px;
+}
+
+.coastal-root.coastal-established .coastal-prompt span {
+  min-width: 0;
+  font-size: 10.5px;
+  line-height: 1.2;
+  text-align: center;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .coastal-root.coastal-established .coastal-prompt {
+    width: 200px;
+    min-height: 44px;
+    padding: 6px 10px;
+  }
+
+  .coastal-root.coastal-established .coastal-prompt span {
+    font-size: 10px;
+  }
+}
