@@ -7,8 +7,8 @@ import { COASTAL_LANDMARKS } from "../kairui/content";
 
 export const UNIFIED_WORLD: WorldDefinition = {
   id: "unified",
-  name: "The Hackathon Kingdoms",
-  description: "One persistent operator journey across the editable village and cinematic coast.",
+  name: "The 100 Hackathoner",
+  description: "A single operator journey, expressed through two evolving editions.",
   routes: [
     { path: "/", mode: "explore" },
     { path: "/kingdoms", mode: "explore" },
@@ -51,44 +51,47 @@ export function mountKingdomHub(root: HTMLElement): void {
   root.innerHTML = `
     <main class="kingdom-hub">
       <header class="kingdom-hub-header">
-        <span>The 100 Hackathoner</span>
-        <h1>Two kingdoms.<br />One operator journey.</h1>
-        <p>Build in the village. Tell the story on the coast. Carry one identity and one body of proof between both.</p>
+        <div class="kingdom-hub-brand"><span>The 100 Hackathoner</span><i aria-hidden="true"></i><span>Operator archive</span></div>
+        <h1>One journey.<br /><em>Two editions.</em></h1>
+        <p>Not separate worlds—two ways to experience the same work. Build the system, then walk through the proof.</p>
       </header>
 
       <section class="kingdom-ledger" aria-label="Combined discovery ledger">
-        <div>
-          <span>Combined field notes</span>
-          <strong>${totalCount} / ${total}</strong>
+        <div class="kingdom-ledger-heading">
+          <span>Journey progress</span>
+          <strong>${totalCount}<small> / ${total} discoveries</small></strong>
         </div>
         <div class="kingdom-ledger-track"><span style="width:${total ? totalCount / total * 100 : 0}%"></span></div>
-        <small>19 shipped · target 100</small>
+        <p><b>19</b> hackathons shipped <i aria-hidden="true">·</i> target 100</p>
       </section>
 
-      <section class="kingdom-cards" aria-label="Choose a kingdom">
+      <section class="kingdom-cards" aria-label="Choose an edition">
         ${renderKingdomCard({
           href: "/worlds/shawn",
-          eyebrow: "Creation district",
-          title: "Shawn Kingdom",
-          summary: "An editable village for assets, residents, animals, weather, seasons and the operator journal.",
+          number: "01",
+          eyebrow: "Build the system",
+          title: "The maker's edition",
+          summary: "Shape the playground: assets, people, weather, seasons and the operator log all respond to your decisions.",
           progress: `${villageCount} / ${villageTotal} discoveries`,
-          action: "Enter the village",
+          action: "Open edition 01",
           className: "village"
         })}
         ${renderKingdomCard({
           href: "/worlds/kairui",
-          eyebrow: "Story district",
-          title: "Kairui Kingdom",
-          summary: "A cinematic archipelago for guided stories, coastal atmosphere, field notes and transport.",
+          number: "02",
+          eyebrow: "Walk the proof",
+          title: "The operator's edition",
+          summary: "Follow the field journal through a cinematic coast—stories, decisions and lessons become a place you can explore.",
           progress: `${coastalCount} / ${coastalTotal} field notes`,
-          action: "Sail to the coast",
+          action: "Open edition 02",
           className: "coast"
         })}
       </section>
 
       <footer class="kingdom-hub-footer">
-        <a href="/local-builder">Open village editor</a>
-        <span>Player colours and progress persist across districts</span>
+        <a href="/local-builder">Open the world editor <b aria-hidden="true">↗</b></a>
+        <span>One player profile and one archive, shared across both editions.</span>
+        <small>Inspired by Shawnville &amp; Kairui</small>
       </footer>
     </main>
   `;
@@ -96,6 +99,7 @@ export function mountKingdomHub(root: HTMLElement): void {
 
 function renderKingdomCard(card: {
   href: string;
+  number: string;
   eyebrow: string;
   title: string;
   summary: string;
@@ -105,14 +109,15 @@ function renderKingdomCard(card: {
 }): string {
   return `
     <a class="kingdom-card ${card.className}" href="${card.href}">
-      <span>${card.eyebrow}</span>
-      <div class="kingdom-card-art" aria-hidden="true">
-        <i></i><i></i><i></i>
+      <div class="kingdom-card-topline">
+        <span>Edition ${card.number}</span>
+        <i aria-hidden="true"></i>
+        <small>${card.eyebrow}</small>
       </div>
+      <div class="kingdom-card-art" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
       <h2>${card.title}</h2>
       <p>${card.summary}</p>
-      <small>${card.progress}</small>
-      <strong>${card.action} →</strong>
+      <div class="kingdom-card-footer"><small>${card.progress}</small><strong>${card.action} <b aria-hidden="true">↗</b></strong></div>
     </a>
   `;
 }

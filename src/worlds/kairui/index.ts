@@ -56,8 +56,8 @@ type BalloonReturn = {
 
 export const KAIRUI_WORLD: WorldDefinition = {
   id: "kairui",
-  name: "Kairui Kingdom",
-  description: "A cinematic coastal hackathon archipelago and operator journal.",
+  name: "Edition 02 · Operate",
+  description: "The cinematic field-journal edition of the operator archive.",
   routes: [
     { path: "/worlds/kairui", mode: "explore" },
     { path: "/coast", mode: "explore" }

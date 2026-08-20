@@ -31,11 +31,11 @@ export function mountApplication(root: HTMLElement, pathname = window.location.p
 function mountKingdomTravelDock(root: HTMLElement): void {
   const nav = document.createElement("nav");
   nav.className = "kingdom-travel-dock";
-  nav.setAttribute("aria-label", "Kingdom travel");
+  nav.setAttribute("aria-label", "Edition travel");
   nav.innerHTML = `
-    <a href="/worlds/shawn" aria-current="page">Village</a>
-    <a href="/worlds/kairui">Coast</a>
-    <a href="/kingdoms">Kingdoms</a>
+    <a href="/worlds/shawn" aria-current="page">Edition 01</a>
+    <a href="/worlds/kairui">Edition 02</a>
+    <a href="/kingdoms">Index</a>
   `;
   root.appendChild(nav);
 }
@@ -48,9 +48,9 @@ function renderNotFound(root: HTMLElement, pathname: string): void {
   root.className = "app-error";
   root.innerHTML = `
     <main>
-      <p>Unknown kingdom route.</p>
+      <p>Unknown edition route.</p>
       <pre>${escapeHtml(pathname)}</pre>
-      <p><a href="/">Return to Shawn Kingdom</a></p>
+      <p><a href="/">Return to the archive</a></p>
     </main>
   `;
 }
