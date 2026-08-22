@@ -5491,10 +5491,7 @@ body.operator-archive-page #app {
   position: relative;
   min-width: 0;
   overflow: hidden;
-  background:
-    radial-gradient(ellipse at 15% 80%, rgba(208, 240, 222, 0.23), transparent 24%),
-    radial-gradient(ellipse at 85% 8%, rgba(255, 235, 178, 0.25), transparent 20%),
-    linear-gradient(125deg, #9ac7c4 0%, #74adb7 54%, #4a939e 100%);
+  background: url("/island-map.png") center / cover no-repeat;
 }
 
 .island-map::before,
@@ -5506,14 +5503,20 @@ body.operator-archive-page #app {
 }
 
 .island-map::before {
-  opacity: 0.42;
-  background-image: linear-gradient(rgba(234, 248, 235, 0.13) 1px, transparent 1px), linear-gradient(90deg, rgba(234, 248, 235, 0.13) 1px, transparent 1px);
-  background-size: 26px 26px;
-  mask-image: linear-gradient(90deg, transparent, #000 30%, #000 70%, transparent);
+  background: radial-gradient(ellipse at center, transparent 45%, rgba(7, 42, 48, 0.2) 100%);
 }
 
 .island-map::after {
-  background: linear-gradient(90deg, rgba(10, 50, 58, 0.12), transparent 16% 86%, rgba(10, 50, 58, 0.15));
+  background: linear-gradient(90deg, rgba(7, 42, 48, 0.18), transparent 20% 82%, rgba(7, 42, 48, 0.14));
+}
+
+.island-map > .map-wave,
+.island-map > .map-current,
+.island-map > .map-boat,
+.island-map > .map-star,
+.island-map > .island-shadow,
+.island-map > .island-landmass {
+  display: none;
 }
 
 .map-wave {
@@ -5859,29 +5862,30 @@ body.operator-archive-page #app {
 
 .map-place-label {
   display: grid;
-  gap: 1px;
-  min-width: 145px;
-  padding: 8px 10px;
-  background: rgba(255, 250, 235, 0.91);
-  border: 1px solid rgba(25, 65, 60, 0.22);
-  border-radius: 3px;
-  box-shadow: 0 10px 22px rgba(22, 70, 70, 0.19);
-  backdrop-filter: blur(8px);
+  gap: 3px;
+  min-width: 168px;
+  padding: 11px 13px;
+  color: #fff9eb;
+  background: rgba(11, 42, 46, 0.84);
+  border: 1px solid rgba(255, 247, 227, 0.46);
+  border-radius: 8px;
+  box-shadow: 0 16px 34px rgba(3, 26, 28, 0.42);
+  backdrop-filter: blur(12px) saturate(0.8);
 }
 
 .map-place-label small {
-  color: #a85c45;
+  color: #f0b55e;
   font-size: 8px;
   font-weight: 850;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
-.map-place-beach .map-place-label small { color: #a26b28; }
-.map-place-label strong { font-family: "Bebas Neue", "Arial Narrow", sans-serif; font-size: 29px; font-weight: 400; line-height: 0.85; }
-.map-place-label em { color: rgba(24, 60, 61, 0.68); font-size: 9px; font-style: normal; font-weight: 760; }
+.map-place-beach .map-place-label small { color: #f3c96e; }
+.map-place-label strong { color: #fff9eb; font-family: "Bebas Neue", "Arial Narrow", sans-serif; font-size: 31px; font-weight: 400; line-height: 0.85; }
+.map-place-label em { color: rgba(255, 249, 235, 0.74); font-size: 9px; font-style: normal; font-weight: 760; }
 .map-place-label em b { margin-left: 4px; font-size: 13px; font-weight: 400; }
-.map-place-label u { color: #c86b51; font-size: 8px; font-weight: 850; letter-spacing: 0.12em; text-decoration: none; text-transform: uppercase; }
+.map-place-label u { color: #ff967b; font-size: 8px; font-weight: 850; letter-spacing: 0.12em; text-decoration: none; text-transform: uppercase; }
 
 .map-compass {
   position: absolute;
