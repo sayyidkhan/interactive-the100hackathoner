@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Playfair+Display:ital,wght@0,600;1,600&display=swap");
 
 :root {
   color: #352d24;
@@ -4705,14 +4705,29 @@ dd {
 /* Operator archive hub --------------------------------------------------- */
 
 .kingdom-hub-root {
+  width: 100%;
   min-width: 100%;
-  min-height: 100%;
-  overflow: auto;
+  min-height: 100vh;
+  height: auto;
+  overflow: visible;
   color: #f5f0e7;
   background:
     radial-gradient(circle at 3% 3%, rgba(224, 112, 72, 0.22), transparent 23%),
     radial-gradient(circle at 94% 10%, rgba(96, 163, 160, 0.2), transparent 25%),
     linear-gradient(135deg, #101c29 0%, #152d36 52%, #0c2027 100%);
+}
+
+html.operator-archive-page,
+body.operator-archive-page {
+  min-height: 100%;
+  height: auto;
+  overflow-y: auto;
+}
+
+body.operator-archive-page #app {
+  height: auto;
+  min-height: 100vh;
+  overflow: visible;
 }
 
 .kingdom-hub {
@@ -5137,6 +5152,854 @@ dd {
     justify-self: start;
     text-align: left;
   }
+}
+
+/* Island portal map ------------------------------------------------------ */
+
+.island-portal {
+  display: grid;
+  width: min(1320px, calc(100% - 64px));
+  min-height: 100%;
+  margin: 0 auto;
+  align-content: center;
+  gap: clamp(20px, 3vw, 34px);
+  padding: clamp(34px, 5vw, 68px) 0 28px;
+}
+
+.portal-header {
+  display: grid;
+  gap: 16px;
+}
+
+.portal-brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  color: #f1b55b;
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+}
+
+.portal-brand i {
+  display: block;
+  width: 28px;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.65;
+}
+
+.portal-brand span:last-child {
+  color: rgba(245, 240, 231, 0.55);
+}
+
+.portal-intro {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 30px;
+}
+
+.portal-intro h1 {
+  display: flex;
+  align-items: baseline;
+  gap: 0.14em;
+  margin: 0;
+  color: #faf6ec;
+  font-family: "Bebas Neue", "Arial Narrow", sans-serif;
+  font-size: clamp(58px, 7.4vw, 105px);
+  font-weight: 400;
+  line-height: 0.78;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.portal-intro h1 em {
+  display: inline-block;
+  color: #f0bc67;
+  font-family: "Playfair Display", Georgia, "Times New Roman", serif;
+  font-size: 0.68em;
+  font-weight: 600;
+  font-style: italic;
+  letter-spacing: -0.07em;
+  line-height: 1;
+  transform: translateY(-0.01em);
+}
+
+.portal-intro h1 > span {
+  font-size: 0.84em;
+}
+
+.portal-intro p {
+  max-width: none;
+  margin: 13px 0 0;
+  color: rgba(245, 240, 231, 0.7);
+  font-size: clamp(14px, 1.6vw, 17px);
+  line-height: 1.55;
+  white-space: nowrap;
+}
+
+.island-map-panel {
+  display: grid;
+  grid-template-columns: 206px minmax(0, 1fr);
+  min-height: min(64vw, 650px);
+  overflow: hidden;
+  background: #7ab3bc;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 7px;
+  box-shadow: 0 32px 88px rgba(0, 10, 16, 0.28);
+}
+
+.map-info-panel {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  padding: 26px 21px;
+  color: #eef4e8;
+  background: #1d4549;
+}
+
+.map-info-kicker,
+.map-info-panel dl dt,
+.map-info-panel > small {
+  color: rgba(238, 244, 232, 0.58);
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.map-info-panel > strong {
+  margin-top: 9px;
+  color: #fff9ec;
+  font-family: "Bebas Neue", "Arial Narrow", sans-serif;
+  font-size: 60px;
+  font-weight: 400;
+  line-height: 0.76;
+}
+
+.map-info-panel > strong small {
+  color: rgba(238, 244, 232, 0.65);
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+.map-info-panel > p {
+  margin: 6px 0 17px;
+  color: rgba(238, 244, 232, 0.63);
+  font-size: 11px;
+}
+
+.map-progress-track {
+  height: 5px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 99px;
+}
+
+.map-progress-track span {
+  display: block;
+  height: 100%;
+  min-width: 7px;
+  background: linear-gradient(90deg, #f17e63, #f0bc67 62%, #80c1ad);
+  border-radius: inherit;
+}
+
+.map-info-panel dl {
+  display: grid;
+  gap: 13px;
+  margin: 28px 0 0;
+}
+
+.map-info-panel dl div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(238, 244, 232, 0.14);
+}
+
+.map-info-panel dl dd {
+  margin: 0;
+  color: #f0bc67;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.map-info-panel > small {
+  margin-top: auto;
+  line-height: 1.55;
+}
+
+.map-info-panel > small b {
+  color: #f0bc67;
+}
+
+.map-side-menu {
+  position: relative;
+  z-index: 4;
+  display: grid;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  color: #eef4e8;
+  background: #1d4549;
+}
+
+.map-menu-summary {
+  display: grid;
+  gap: 7px;
+  padding: 24px 21px 18px;
+  border-bottom: 1px solid rgba(238, 244, 232, 0.16);
+}
+
+.map-menu-summary > span,
+.map-menu-heading,
+.map-menu-footer {
+  color: rgba(238, 244, 232, 0.58);
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.map-menu-summary > strong {
+  color: #fff9ec;
+  font-family: "Bebas Neue", "Arial Narrow", sans-serif;
+  font-size: 54px;
+  font-weight: 400;
+  line-height: 0.76;
+}
+
+.map-menu-summary > strong small {
+  color: rgba(238, 244, 232, 0.65);
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+.map-menu-summary > p {
+  margin: 0 0 6px;
+  color: rgba(238, 244, 232, 0.63);
+  font-size: 11px;
+}
+
+.map-place-menu {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 17px 12px;
+  scrollbar-color: rgba(240, 188, 103, 0.72) transparent;
+  scrollbar-width: thin;
+}
+
+.map-place-menu::-webkit-scrollbar { width: 5px; }
+.map-place-menu::-webkit-scrollbar-thumb { background: rgba(240, 188, 103, 0.72); border-radius: 99px; }
+
+.map-menu-heading {
+  padding: 0 8px 5px;
+}
+
+.map-menu-item {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 8px;
+  color: #f7f1e5;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  text-decoration: none;
+  transition: background 180ms ease, border-color 180ms ease, transform 180ms ease;
+}
+
+.map-menu-item:hover,
+.map-menu-item:focus-visible {
+  background: rgba(255, 250, 235, 0.1);
+  border-color: rgba(255, 250, 235, 0.25);
+  outline: 0;
+  transform: translateX(2px);
+}
+
+.map-menu-item > i {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  color: #1d4549;
+  background: #de7158;
+  border-radius: 50%;
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.map-menu-item.beach > i { background: #f0bc67; }
+
+.map-menu-item > span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.map-menu-item strong {
+  font-family: "Bebas Neue", "Arial Narrow", sans-serif;
+  font-size: 23px;
+  font-weight: 400;
+  line-height: 0.78;
+}
+
+.map-menu-item small,
+.map-menu-item em {
+  color: rgba(238, 244, 232, 0.56);
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 750;
+  letter-spacing: 0.02em;
+}
+
+.map-menu-item em {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  color: #f0bc67;
+  font-size: 9px;
+}
+
+.map-menu-item em b {
+  color: rgba(238, 244, 232, 0.82);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 0.7;
+}
+
+.map-menu-footer {
+  padding: 15px 21px 19px;
+  border-top: 1px solid rgba(238, 244, 232, 0.14);
+  line-height: 1.6;
+}
+
+.map-menu-footer b { color: #f0bc67; }
+
+.island-map {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 15% 80%, rgba(208, 240, 222, 0.23), transparent 24%),
+    radial-gradient(ellipse at 85% 8%, rgba(255, 235, 178, 0.25), transparent 20%),
+    linear-gradient(125deg, #9ac7c4 0%, #74adb7 54%, #4a939e 100%);
+}
+
+.island-map::before,
+.island-map::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  pointer-events: none;
+}
+
+.island-map::before {
+  opacity: 0.42;
+  background-image: linear-gradient(rgba(234, 248, 235, 0.13) 1px, transparent 1px), linear-gradient(90deg, rgba(234, 248, 235, 0.13) 1px, transparent 1px);
+  background-size: 26px 26px;
+  mask-image: linear-gradient(90deg, transparent, #000 30%, #000 70%, transparent);
+}
+
+.island-map::after {
+  background: linear-gradient(90deg, rgba(10, 50, 58, 0.12), transparent 16% 86%, rgba(10, 50, 58, 0.15));
+}
+
+.map-wave {
+  position: absolute;
+  z-index: 1;
+  display: block;
+  width: 430px;
+  height: 180px;
+  border: 1px solid rgba(238, 249, 237, 0.36);
+  border-radius: 50%;
+  opacity: 0.65;
+  pointer-events: none;
+}
+
+.wave-one { top: -76px; left: -166px; transform: rotate(28deg); }
+.wave-two { right: -160px; bottom: -57px; transform: rotate(-23deg); }
+.wave-three { top: 38%; left: 49%; width: 270px; height: 110px; border-color: rgba(238, 249, 237, 0.25); transform: rotate(-32deg); }
+
+.map-current {
+  position: absolute;
+  z-index: 1;
+  display: block;
+  width: 180px;
+  height: 56px;
+  border-top: 2px solid rgba(239, 250, 237, 0.45);
+  border-radius: 50%;
+  opacity: 0.68;
+  pointer-events: none;
+}
+
+.map-current::after {
+  position: absolute;
+  top: 13px;
+  left: 25px;
+  width: 120px;
+  height: 28px;
+  border-top: 1px solid rgba(239, 250, 237, 0.32);
+  border-radius: 50%;
+  content: "";
+}
+
+.current-one { top: 17%; right: 5%; transform: rotate(17deg); animation: current-drift 7s ease-in-out infinite; }
+.current-two { bottom: 10%; left: 4%; transform: rotate(-21deg) scale(0.78); opacity: 0.48; animation: current-drift 9s ease-in-out -2s infinite reverse; }
+
+.map-boat {
+  position: absolute;
+  z-index: 3;
+  top: 14%;
+  right: 12%;
+  display: block;
+  width: 31px;
+  height: 15px;
+  background: #315e63;
+  border-radius: 0 0 15px 15px;
+  box-shadow: 0 9px 0 -7px rgba(245, 250, 235, 0.5);
+  transform: rotate(13deg);
+  animation: boat-bob 3.8s ease-in-out infinite;
+}
+
+.map-boat::before {
+  position: absolute;
+  bottom: 12px;
+  left: 15px;
+  width: 1px;
+  height: 25px;
+  background: #315e63;
+  content: "";
+}
+
+.map-boat::after {
+  position: absolute;
+  bottom: 13px;
+  left: 16px;
+  width: 18px;
+  height: 21px;
+  background: #f4db9f;
+  clip-path: polygon(0 0, 100% 100%, 0 100%);
+  content: "";
+}
+
+.map-star {
+  position: absolute;
+  z-index: 2;
+  display: block;
+  width: 6px;
+  height: 6px;
+  background: rgba(255, 247, 205, 0.9);
+  border-radius: 50%;
+  box-shadow: 0 0 15px 3px rgba(255, 247, 205, 0.34);
+  animation: map-twinkle 2.5s ease-in-out infinite alternate;
+}
+
+.star-one { top: 24%; left: 11%; }
+.star-two { right: 8%; bottom: 32%; animation-delay: -1.4s; }
+
+.island-shadow,
+.island-landmass {
+  position: absolute;
+  width: 74%;
+  height: 82%;
+  clip-path: polygon(14% 5%, 37% 0, 53% 7%, 74% 2%, 96% 19%, 91% 36%, 100% 54%, 89% 74%, 77% 77%, 66% 96%, 45% 91%, 29% 100%, 15% 83%, 0 68%, 6% 50%, 0 32%);
+}
+
+.island-shadow {
+  z-index: 1;
+  top: 11.5%;
+  left: 12.2%;
+  background: rgba(19, 79, 77, 0.3);
+  filter: blur(7px);
+  transform: translate(11px, 13px) rotate(1deg);
+}
+
+.island-landmass {
+  z-index: 2;
+  top: 8%;
+  left: 11%;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 20% 75%, rgba(71, 119, 78, 0.35) 0 15%, transparent 15.4%),
+    radial-gradient(circle at 35% 28%, rgba(194, 212, 127, 0.64) 0 9%, transparent 9.4%),
+    radial-gradient(circle at 70% 42%, rgba(217, 201, 129, 0.55) 0 13%, transparent 13.4%),
+    linear-gradient(130deg, #8fae70 0%, #c6c880 43%, #d9c78b 67%, #ebd6aa 100%);
+}
+
+.island-landmass::before,
+.island-landmass::after {
+  position: absolute;
+  content: "";
+  pointer-events: none;
+}
+
+.island-landmass::before {
+  inset: 9% 8%;
+  border: 1px dashed rgba(38, 93, 77, 0.36);
+  border-radius: 49% 51% 39% 56%;
+  transform: rotate(8deg);
+  animation: contour-shift 12s ease-in-out infinite alternate;
+}
+
+.island-landmass::after {
+  right: -12%;
+  bottom: -13%;
+  width: 49%;
+  height: 53%;
+  background: #f0deaf;
+  border-radius: 50% 0 0 0;
+  transform: rotate(-19deg);
+}
+
+.island-hill,
+.island-grove,
+.island-peak,
+.island-lagoon,
+.island-shore,
+.island-road,
+.island-river,
+.village-shapes,
+.beach-umbrellas,
+.beach-hut,
+.island-campfire {
+  position: absolute;
+  z-index: 2;
+  display: block;
+}
+
+.island-hill { border-radius: 50%; background: rgba(67, 115, 73, 0.24); }
+.hill-one { top: 14%; left: 17%; width: 30%; height: 22%; transform: rotate(-17deg); }
+.hill-two { top: 39%; left: 43%; width: 35%; height: 19%; transform: rotate(21deg); }
+.hill-three { right: 7%; bottom: 24%; width: 27%; height: 17%; transform: rotate(-32deg); }
+
+.island-grove {
+  width: 65px;
+  height: 31px;
+  background: radial-gradient(circle at 9px 18px, #407554 0 9px, transparent 9.5px), radial-gradient(circle at 26px 10px, #477f59 0 12px, transparent 12.5px), radial-gradient(circle at 46px 17px, #3c6d4e 0 11px, transparent 11.5px), radial-gradient(circle at 58px 25px, #477f59 0 7px, transparent 7.5px);
+}
+.grove-one { top: 15%; left: 46%; transform: rotate(12deg); }
+.grove-two { top: 54%; left: 17%; transform: scale(1.25) rotate(-13deg); }
+.grove-three { top: 57%; right: 20%; transform: scale(0.85) rotate(21deg); }
+
+.island-peak {
+  z-index: 3;
+  width: 55px;
+  height: 48px;
+  background: linear-gradient(135deg, #7c9066 0 48%, #5c7b63 49% 100%);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  filter: drop-shadow(0 5px 0 rgba(63, 94, 70, 0.16));
+}
+
+.island-peak::after {
+  position: absolute;
+  top: 9px;
+  left: 21px;
+  width: 14px;
+  height: 13px;
+  background: rgba(241, 235, 190, 0.8);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  content: "";
+}
+
+.peak-one { top: 15%; left: 28%; transform: scale(0.82); }
+.peak-two { top: 18%; left: 34%; transform: scale(1.12); }
+.peak-three { top: 22%; left: 41%; transform: scale(0.72); }
+
+.island-lagoon { top: 28%; right: 12%; width: 24%; height: 18%; background: #7dbabd; border: 7px solid rgba(239, 222, 173, 0.54); border-radius: 47% 53% 46% 54%; transform: rotate(-17deg); }
+.island-shore { right: -5%; bottom: 6%; width: 49%; height: 18%; background: rgba(249, 231, 187, 0.8); border-radius: 60% 0 0 60%; transform: rotate(-20deg); }
+
+.island-road {
+  z-index: 3;
+  top: 32%;
+  left: 26%;
+  width: 56%;
+  height: 42%;
+  border-top: 3px dotted rgba(156, 103, 67, 0.72);
+  border-right: 3px dotted rgba(156, 103, 67, 0.72);
+  border-radius: 0 58% 58% 0;
+  transform: rotate(16deg);
+  animation: route-pulse 3.5s ease-in-out infinite;
+}
+
+.island-river {
+  z-index: 2;
+  top: 29%;
+  right: 28%;
+  width: 9%;
+  height: 37%;
+  border-right: 7px solid rgba(112, 179, 186, 0.76);
+  border-bottom: 7px solid rgba(112, 179, 186, 0.76);
+  border-radius: 0 0 80% 0;
+  opacity: 0.82;
+  transform: rotate(14deg);
+}
+
+.village-shapes {
+  z-index: 4;
+  top: 36%;
+  left: 17%;
+  width: 62px;
+  height: 38px;
+  background: linear-gradient(90deg, #d06650 0 22%, transparent 22% 28%, #d06650 28% 57%, transparent 57% 63%, #d06650 63% 100%);
+  box-shadow: 7px 29px 0 -4px #376b53;
+}
+
+.village-shapes::before,
+.village-shapes::after,
+.beach-umbrellas::before,
+.beach-umbrellas::after {
+  position: absolute;
+  content: "";
+}
+
+.village-shapes::before { top: -13px; left: -6px; width: 26px; height: 17px; background: #a95242; clip-path: polygon(50% 0, 100% 100%, 0 100%); box-shadow: 28px -1px 0 -1px #a95242, 52px 0 #a95242; }
+.village-shapes::after { top: 4px; left: 8px; width: 4px; height: 7px; background: #f0c469; box-shadow: 30px 0 #f0c469, 54px 0 #f0c469; }
+
+.beach-umbrellas { z-index: 4; right: 18%; bottom: 19%; width: 42px; height: 18px; background: #df8b5b; clip-path: polygon(50% 0, 100% 100%, 0 100%); transform: rotate(16deg); }
+.beach-umbrellas::before { top: 15px; left: 20px; width: 2px; height: 26px; background: #a56343; }
+.beach-umbrellas::after { top: 28px; left: -27px; width: 84px; height: 1px; background: rgba(121, 92, 61, 0.52); transform: rotate(-15deg); }
+
+.beach-hut {
+  z-index: 4;
+  right: 8%;
+  bottom: 24%;
+  width: 31px;
+  height: 22px;
+  background: #e98e5f;
+  box-shadow: inset 8px 7px 0 -4px #f5da9b;
+}
+
+.beach-hut::before {
+  position: absolute;
+  top: -15px;
+  left: -6px;
+  width: 43px;
+  height: 18px;
+  background: #bf654f;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  content: "";
+}
+
+.island-campfire {
+  z-index: 4;
+  top: 58%;
+  left: 35%;
+  width: 16px;
+  height: 18px;
+  background: #ec7652;
+  border-radius: 60% 40% 55% 45%;
+  box-shadow: 0 0 0 7px rgba(244, 191, 95, 0.18), 0 0 19px 4px rgba(244, 191, 95, 0.4);
+  transform: rotate(45deg);
+  animation: campfire-flicker 1.7s ease-in-out infinite alternate;
+}
+
+.map-place {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #183c3d;
+  text-decoration: none;
+  transition: transform 200ms ease;
+}
+
+.map-place:hover,
+.map-place:focus-visible {
+  outline: 0;
+  transform: translateY(-4px) scale(1.025);
+}
+
+.map-place-village { top: 33%; left: 21%; }
+.map-place-beach { right: 10%; bottom: 18%; flex-direction: row-reverse; text-align: right; }
+
+.map-pin {
+  position: relative;
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  place-items: center;
+  background: #d76651;
+  border: 3px solid #fff8e8;
+  border-radius: 50% 50% 50% 0;
+  box-shadow: 0 5px 0 rgba(76, 87, 60, 0.27), 0 0 0 5px rgba(255, 248, 232, 0.2);
+  transform: rotate(-45deg);
+  animation: pin-bounce 2.8s cubic-bezier(0.33, 0.04, 0.25, 1) infinite;
+}
+
+.map-place-beach .map-pin { background: #efb55d; }
+.map-pin i { width: 9px; height: 9px; background: #fff8e8; border-radius: 50%; transform: rotate(45deg); }
+
+.map-pin::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(255, 248, 232, 0.8);
+  border-radius: 50%;
+  content: "";
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  animation: pin-ripple 2.8s ease-out infinite;
+}
+
+.map-place-label {
+  display: grid;
+  gap: 1px;
+  min-width: 145px;
+  padding: 8px 10px;
+  background: rgba(255, 250, 235, 0.91);
+  border: 1px solid rgba(25, 65, 60, 0.22);
+  border-radius: 3px;
+  box-shadow: 0 10px 22px rgba(22, 70, 70, 0.19);
+  backdrop-filter: blur(8px);
+}
+
+.map-place-label small {
+  color: #a85c45;
+  font-size: 8px;
+  font-weight: 850;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.map-place-beach .map-place-label small { color: #a26b28; }
+.map-place-label strong { font-family: "Bebas Neue", "Arial Narrow", sans-serif; font-size: 29px; font-weight: 400; line-height: 0.85; }
+.map-place-label em { color: rgba(24, 60, 61, 0.68); font-size: 9px; font-style: normal; font-weight: 760; }
+.map-place-label em b { margin-left: 4px; font-size: 13px; font-weight: 400; }
+.map-place-label u { color: #c86b51; font-size: 8px; font-weight: 850; letter-spacing: 0.12em; text-decoration: none; text-transform: uppercase; }
+
+.map-compass {
+  position: absolute;
+  z-index: 4;
+  right: 28px;
+  top: 24px;
+  display: grid;
+  width: 42px;
+  height: 58px;
+  place-items: start center;
+  color: rgba(245, 250, 235, 0.78);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 11px;
+}
+
+.map-compass b,
+.map-compass em { position: absolute; top: 19px; display: block; width: 0; height: 0; border-right: 9px solid transparent; border-bottom: 22px solid rgba(245, 250, 235, 0.72); border-left: 9px solid transparent; }
+.map-compass em { top: 41px; border-top: 22px solid rgba(28, 90, 95, 0.72); border-right-color: transparent; border-bottom: 0; border-left-color: transparent; }
+
+@keyframes current-drift {
+  from { margin-left: -8px; opacity: 0.35; }
+  to { margin-left: 12px; opacity: 0.76; }
+}
+
+@keyframes boat-bob {
+  0%, 100% { margin-top: 0; }
+  50% { margin-top: -6px; }
+}
+
+@keyframes map-twinkle {
+  from { opacity: 0.2; transform: scale(0.7); }
+  to { opacity: 1; transform: scale(1.3); }
+}
+
+@keyframes contour-shift {
+  from { transform: rotate(8deg) scale(0.98); }
+  to { transform: rotate(11deg) scale(1.02); }
+}
+
+@keyframes route-pulse {
+  0%, 100% { filter: drop-shadow(0 0 0 transparent); opacity: 0.62; }
+  50% { filter: drop-shadow(0 0 5px rgba(210, 112, 77, 0.62)); opacity: 1; }
+}
+
+@keyframes campfire-flicker {
+  from { transform: rotate(45deg) scale(0.85); }
+  to { transform: rotate(45deg) scale(1.12); }
+}
+
+@keyframes pin-bounce {
+  0%, 78%, 100% { margin-top: 0; }
+  86% { margin-top: -7px; }
+  92% { margin-top: -2px; }
+}
+
+@keyframes pin-ripple {
+  0%, 72% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+  75% { opacity: 0.8; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.5); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .map-current,
+  .map-boat,
+  .map-star,
+  .island-landmass::before,
+  .island-road,
+  .island-campfire,
+  .map-pin,
+  .map-pin::after {
+    animation: none;
+  }
+}
+
+.portal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  color: rgba(245, 240, 231, 0.48);
+  font-size: 10px;
+}
+
+.portal-footer small { color: rgba(245, 240, 231, 0.32); font-size: 9px; font-style: italic; }
+
+@media (max-width: 820px) {
+  .island-portal { width: min(100% - 28px, 640px); padding-top: 31px; }
+  .portal-intro { align-items: flex-start; flex-direction: column; gap: 16px; }
+  .portal-intro h1 { flex-wrap: wrap; white-space: normal; }
+  .portal-intro p { max-width: 560px; white-space: normal; }
+  .island-map-panel { grid-template-columns: 1fr; }
+  .map-side-menu { grid-template-rows: auto auto; }
+  .map-menu-summary { grid-template-columns: auto auto 1fr; column-gap: 15px; align-items: center; padding: 14px 17px; }
+  .map-menu-summary > span { grid-column: 1; }
+  .map-menu-summary > strong { grid-row: span 2; margin: 0; font-size: 48px; }
+  .map-menu-summary > p { margin: 0; }
+  .map-progress-track { grid-column: 1 / -1; margin-top: 7px; }
+  .map-place-menu { display: flex; overflow-x: auto; overflow-y: hidden; padding: 12px; }
+  .map-menu-heading,
+  .map-menu-footer { display: none; }
+  .map-menu-item { flex: 1 0 210px; }
+  .island-map { min-height: 500px; }
+}
+
+@media (max-width: 560px) {
+  .portal-intro h1 { font-size: clamp(55px, 19vw, 82px); }
+  .island-map { min-height: 445px; }
+  .island-shadow,
+  .island-landmass { width: 94%; height: 76%; left: 2%; top: 11%; }
+  .island-shadow { left: 3.2%; top: 14.5%; }
+  .map-place-village { top: 30%; left: 8%; }
+  .map-place-beach { right: 4%; bottom: 13%; }
+  .map-place-label { min-width: 123px; padding: 7px 8px; }
+  .map-place-label strong { font-size: 25px; }
+  .map-place-label em { font-size: 8px; }
+  .map-pin { width: 28px; height: 28px; }
+  .map-compass { top: 13px; right: 11px; transform: scale(0.82); transform-origin: top right; }
+  .portal-footer { align-items: flex-start; flex-direction: column; gap: 7px; }
 }
 
 /* Coastal kingdom -------------------------------------------------------- */

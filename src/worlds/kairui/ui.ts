@@ -60,10 +60,10 @@ export function createCoastalHud(root: HTMLElement, options: CoastalHudOptions):
       </div>
       <div class="coastal-menu-group">
         <span>Travel</span>
-        <nav class="coastal-world-switcher" aria-label="Kingdom travel">
+        <nav class="coastal-world-switcher" aria-label="Island travel">
           <a href="/worlds/shawn"><i aria-hidden="true">⌂</i><span>Village</span></a>
-          <a href="/worlds/kairui" aria-current="page"><i aria-hidden="true">≈</i><span>Coast</span></a>
-          <a href="/kingdoms"><i aria-hidden="true">◇</i><span>Worlds</span></a>
+          <a href="/worlds/kairui" aria-current="page"><i aria-hidden="true">≈</i><span>Beach</span></a>
+          <a href="/kingdoms"><i aria-hidden="true">◇</i><span>Portal</span></a>
         </nav>
       </div>
       <div class="coastal-menu-group">

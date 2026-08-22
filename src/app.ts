@@ -21,6 +21,10 @@ export function mountApplication(root: HTMLElement, pathname = window.location.p
     return;
   }
 
+  const isArchive = resolved.world.id === "unified";
+  document.documentElement.classList.toggle("operator-archive-page", isArchive);
+  document.body.classList.toggle("operator-archive-page", isArchive);
+
   document.title = `${resolved.world.name} · The 100 Hackathoner`;
   resolved.world.mount(root, { route: resolved.route });
   if (resolved.world.id === "shawn" && resolved.route.mode === "explore") {
@@ -31,11 +35,11 @@ export function mountApplication(root: HTMLElement, pathname = window.location.p
 function mountKingdomTravelDock(root: HTMLElement): void {
   const nav = document.createElement("nav");
   nav.className = "kingdom-travel-dock";
-  nav.setAttribute("aria-label", "Edition travel");
+  nav.setAttribute("aria-label", "Island travel");
   nav.innerHTML = `
-    <a href="/worlds/shawn" aria-current="page">Edition 01</a>
-    <a href="/worlds/kairui">Edition 02</a>
-    <a href="/kingdoms">Index</a>
+    <a href="/worlds/shawn" aria-current="page">Village</a>
+    <a href="/worlds/kairui">Beach</a>
+    <a href="/kingdoms">Portal</a>
   `;
   root.appendChild(nav);
 }
@@ -48,7 +52,7 @@ function renderNotFound(root: HTMLElement, pathname: string): void {
   root.className = "app-error";
   root.innerHTML = `
     <main>
-      <p>Unknown edition route.</p>
+      <p>Unknown island route.</p>
       <pre>${escapeHtml(pathname)}</pre>
       <p><a href="/">Return to the archive</a></p>
     </main>

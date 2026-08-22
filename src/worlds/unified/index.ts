@@ -8,7 +8,7 @@ import { COASTAL_LANDMARKS } from "../kairui/content";
 export const UNIFIED_WORLD: WorldDefinition = {
   id: "unified",
   name: "The 100 Hackathoner",
-  description: "A single operator journey, expressed through two evolving editions.",
+  description: "An island portal for the playable parts of the operator archive.",
   routes: [
     { path: "/", mode: "explore" },
     { path: "/kingdoms", mode: "explore" },
@@ -49,75 +49,67 @@ export function mountKingdomHub(root: HTMLElement): void {
   const total = villageTotal + coastalTotal;
 
   root.innerHTML = `
-    <main class="kingdom-hub">
-      <header class="kingdom-hub-header">
-        <div class="kingdom-hub-brand"><span>The 100 Hackathoner</span><i aria-hidden="true"></i><span>Operator archive</span></div>
-        <h1>One journey.<br /><em>Two editions.</em></h1>
-        <p>Not separate worlds—two ways to experience the same work. Build the system, then walk through the proof.</p>
+    <main class="island-portal">
+      <header class="portal-header">
+        <div class="portal-brand"><span>The 100 Hackathoner</span><i aria-hidden="true"></i><span>Island map</span></div>
+        <div class="portal-intro">
+          <div>
+            <h1><span>Explore</span> <em>the island.</em></h1>
+            <p>Build your next experiment in the Village, then follow the stories, decisions and lessons along the Beach.</p>
+          </div>
+        </div>
       </header>
 
-      <section class="kingdom-ledger" aria-label="Combined discovery ledger">
-        <div class="kingdom-ledger-heading">
-          <span>Journey progress</span>
-          <strong>${totalCount}<small> / ${total} discoveries</small></strong>
+      <section class="island-map-panel" aria-label="Island destinations">
+        <aside class="map-side-menu" aria-label="Places on the island">
+          <header class="map-menu-summary">
+            <span>Your island</span>
+            <strong>${totalCount}<small> / ${total}</small></strong>
+            <p>discoveries collected</p>
+            <div class="map-progress-track"><span style="width:${total ? totalCount / total * 100 : 0}%"></span></div>
+          </header>
+          <nav class="map-place-menu" aria-label="Choose a place">
+            <span class="map-menu-heading">Places to visit</span>
+            <a class="map-menu-item village" href="/worlds/shawn">
+              <i aria-hidden="true">01</i><span><strong>Village</strong><small>Build &amp; experiment</small></span><em>${villageCount} / ${villageTotal}<b aria-hidden="true">↗</b></em>
+            </a>
+            <a class="map-menu-item beach" href="/worlds/kairui">
+              <i aria-hidden="true">02</i><span><strong>Beach</strong><small>Stories &amp; field notes</small></span><em>${coastalCount} / ${coastalTotal}<b aria-hidden="true">↗</b></em>
+            </a>
+          </nav>
+          <footer class="map-menu-footer"><b>19</b> hackathons shipped<br />Target: 100</footer>
+        </aside>
+
+        <div class="island-map" aria-label="A stylised island map with destinations for the Village and the Beach">
+          <i class="map-wave wave-one" aria-hidden="true"></i>
+          <i class="map-wave wave-two" aria-hidden="true"></i>
+          <i class="map-wave wave-three" aria-hidden="true"></i>
+          <i class="map-current current-one" aria-hidden="true"></i><i class="map-current current-two" aria-hidden="true"></i>
+          <i class="map-boat" aria-hidden="true"></i><i class="map-star star-one" aria-hidden="true"></i><i class="map-star star-two" aria-hidden="true"></i>
+          <div class="island-shadow" aria-hidden="true"></div>
+          <div class="island-landmass" aria-hidden="true">
+            <i class="island-hill hill-one"></i><i class="island-hill hill-two"></i><i class="island-hill hill-three"></i>
+            <i class="island-grove grove-one"></i><i class="island-grove grove-two"></i><i class="island-grove grove-three"></i>
+            <i class="island-peak peak-one"></i><i class="island-peak peak-two"></i><i class="island-peak peak-three"></i>
+            <i class="island-lagoon"></i><i class="island-shore"></i><i class="island-road"></i><i class="island-river"></i>
+            <i class="village-shapes"></i><i class="beach-umbrellas"></i><i class="beach-hut"></i><i class="island-campfire"></i>
+          </div>
+          <a class="map-place map-place-village" href="/worlds/shawn" aria-label="Enter the Village, ${villageCount} of ${villageTotal} discoveries found">
+            <span class="map-pin"><i aria-hidden="true"></i></span>
+            <span class="map-place-label"><small>01 · open now</small><strong>Village</strong><em>Build &amp; experiment <b aria-hidden="true">↗</b></em><u>You are here</u></span>
+          </a>
+          <a class="map-place map-place-beach" href="/worlds/kairui" aria-label="Visit the Beach, ${coastalCount} of ${coastalTotal} field notes found">
+            <span class="map-pin"><i aria-hidden="true"></i></span>
+            <span class="map-place-label"><small>02 · open now</small><strong>Beach</strong><em>Stories &amp; field notes <b aria-hidden="true">↗</b></em></span>
+          </a>
+          <span class="map-compass" aria-hidden="true"><i>N</i><b></b><em></em></span>
         </div>
-        <div class="kingdom-ledger-track"><span style="width:${total ? totalCount / total * 100 : 0}%"></span></div>
-        <p><b>19</b> hackathons shipped <i aria-hidden="true">·</i> target 100</p>
       </section>
 
-      <section class="kingdom-cards" aria-label="Choose an edition">
-        ${renderKingdomCard({
-          href: "/worlds/shawn",
-          number: "01",
-          eyebrow: "Build the system",
-          title: "The maker's edition",
-          summary: "Shape the playground: assets, people, weather, seasons and the operator log all respond to your decisions.",
-          progress: `${villageCount} / ${villageTotal} discoveries`,
-          action: "Open edition 01",
-          className: "village"
-        })}
-        ${renderKingdomCard({
-          href: "/worlds/kairui",
-          number: "02",
-          eyebrow: "Walk the proof",
-          title: "The operator's edition",
-          summary: "Follow the field journal through a cinematic coast—stories, decisions and lessons become a place you can explore.",
-          progress: `${coastalCount} / ${coastalTotal} field notes`,
-          action: "Open edition 02",
-          className: "coast"
-        })}
-      </section>
-
-      <footer class="kingdom-hub-footer">
-        <a href="/local-builder">Open the world editor <b aria-hidden="true">↗</b></a>
-        <span>One player profile and one archive, shared across both editions.</span>
+      <footer class="portal-footer">
+        <span>Follow the paths. New places will appear as the island grows.</span>
         <small>Inspired by Shawnville &amp; Kairui</small>
       </footer>
     </main>
-  `;
-}
-
-function renderKingdomCard(card: {
-  href: string;
-  number: string;
-  eyebrow: string;
-  title: string;
-  summary: string;
-  progress: string;
-  action: string;
-  className: string;
-}): string {
-  return `
-    <a class="kingdom-card ${card.className}" href="${card.href}">
-      <div class="kingdom-card-topline">
-        <span>Edition ${card.number}</span>
-        <i aria-hidden="true"></i>
-        <small>${card.eyebrow}</small>
-      </div>
-      <div class="kingdom-card-art" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-      <h2>${card.title}</h2>
-      <p>${card.summary}</p>
-      <div class="kingdom-card-footer"><small>${card.progress}</small><strong>${card.action} <b aria-hidden="true">↗</b></strong></div>
-    </a>
   `;
 }

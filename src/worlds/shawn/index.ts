@@ -3,8 +3,8 @@ import { initLoopTown } from "../../world/loopTown";
 
 export const SHAWN_WORLD: WorldDefinition = {
   id: "shawn",
-  name: "Edition 01 · Make",
-  description: "The editable world-building edition of the operator archive.",
+  name: "The Village",
+  description: "The editable village at the heart of the operator island.",
   routes: [
     { path: "/worlds/shawn", mode: "explore" },
     { path: "/local-builder", mode: "build" },
