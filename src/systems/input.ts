@@ -12,7 +12,16 @@ export type InputState = {
 
 export type InputControl = "forward" | "backward" | "left" | "right" | "sprint" | "jump" | "inspect";
 
+export type InputBinding = {
+  state: InputState;
+  dispose(): void;
+};
+
 export function createInput(): InputState {
+  return bindInput().state;
+}
+
+export function bindInput(): InputBinding {
   const input: InputState = {
     forward: false,
     backward: false,
@@ -43,10 +52,18 @@ export function createInput(): InputState {
     }
   };
 
-  window.addEventListener("keydown", (event) => setKey(event, true));
-  window.addEventListener("keyup", (event) => setKey(event, false));
+  const onKeyDown = (event: KeyboardEvent) => setKey(event, true);
+  const onKeyUp = (event: KeyboardEvent) => setKey(event, false);
+  window.addEventListener("keydown", onKeyDown);
+  window.addEventListener("keyup", onKeyUp);
 
-  return input;
+  return {
+    state: input,
+    dispose() {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+    }
+  };
 }
 
 function isEditableTarget(target: EventTarget | null): boolean {

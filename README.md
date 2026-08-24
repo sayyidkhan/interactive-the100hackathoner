@@ -1,6 +1,6 @@
 # The 100 Hackathoner
 
-A walkable proof-of-work archive inspired by `interactive.shawnchee.com`, rebuilt around Sayyid's 100-hackathon journey.
+A connected open-world proof-of-work archive for Sayyid's 100-hackathon journey.
 
 The loop engineering model is:
 
@@ -31,8 +31,35 @@ Open the local URL printed by Vite.
 
 Useful routes:
 
-- `/` - 3D walkable town
+- `/` - unified kingdom hub
+- `/worlds/shawn` - explicit Shawn Kingdom exploration route
+- `/local-builder` - Shawn Kingdom editor
+- `/worlds/shawn/build` - explicit Shawn Kingdom editor route
+- `/worlds/kairui` - Kairui coastal hackathon kingdom
+- `/coast` - short alias for the coastal kingdom
+- `/kingdoms` - unified kingdom hub and combined discovery ledger
 - `/dev/discoveries` - discovery-card QA view
+
+## World Roadmap
+
+- `codex/loop-town-amazing-pass` — major single-town experience pass that refined the exploration loop, discovery journal, HUD and town presentation; preserved as the foundation before the multi-kingdom architecture
+- `dev-v2` — Shawn Kingdom
+- `dev-v3` — Shawn Kingdom with editable world-building tools
+- `codex/decompile-kairui` — Kairui technical study archive
+- `codex/kairui-kingdom` — maintainable multi-world engine and coastal prototype
+- `dev-v4` — Coastal Hackathon Kingdom
+- `dev-v5` — unified Shawn + Kairui open world
+
+The `loop-town-amazing-pass` branch established the original product loop:
+explore, discover a hackathon story, extract the operator lesson and save it in
+the journal. The Shawn-inspired kingdom focuses on town building, residents,
+discoveries and environment customization. The Kairui-inspired kingdom focuses on coastal
+terrain, cinematic storytelling, guided exploration, boats, balloon travel and
+atmospheric world design. `dev-v5` connects both through a shared player,
+environment clock and discovery ledger.
+
+See [docs/KINGDOM-ROADMAP.md](docs/KINGDOM-ROADMAP.md) for the architecture and
+delivery gates.
 
 ## Build
 
@@ -55,6 +82,6 @@ Screenshots captured during implementation:
 
 ## Inspiration
 
-- Shawn Chee post: https://www.linkedin.com/posts/shawn-chee_update-on-my-site-bought-a-domain-interactive-share-7480904325112733696-E2bo/
-- Main site: https://www.shawnchee.com/
-- Interactive site: https://interactive.shawnchee.com/
+The early village and coastal study branches are preserved as references. The
+production worlds are original TypeScript/Three.js compositions built around
+Sayyid's own hackathon stories, operator lessons and portfolio identity.

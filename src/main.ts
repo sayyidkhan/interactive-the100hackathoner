@@ -1,5 +1,4 @@
-import { initLoopTown } from "./world/loopTown";
-import { renderDevDiscoveries } from "./ui/devDiscoveries";
+import { mountApplication } from "./app";
 import "./styles.css";
 
 const root = document.querySelector<HTMLDivElement>("#app");
@@ -9,13 +8,7 @@ if (!root) {
 }
 
 try {
-  if (window.location.pathname === "/dev/discoveries") {
-    renderDevDiscoveries(root);
-  } else if (window.location.pathname === "/local-builder") {
-    initLoopTown(root, { initialBuilder: true });
-  } else {
-    initLoopTown(root);
-  }
+  mountApplication(root);
 } catch (error) {
   root.className = "app-error";
   root.innerHTML = `
