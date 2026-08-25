@@ -55,7 +55,7 @@ export function mountKingdomHub(root: HTMLElement): void {
         <div class="portal-intro">
           <div>
             <h1><span>Explore</span> <em>the island.</em></h1>
-            <p>Build your next experiment in the Village, then follow the stories, decisions and lessons along the Beach.</p>
+            <p>Follow a serial hackathoner—build in the Village, uncover the story at the Beach.</p>
           </div>
         </div>
       </header>
@@ -96,11 +96,11 @@ export function mountKingdomHub(root: HTMLElement): void {
           </div>
           <a class="map-place map-place-village" href="/worlds/shawn" aria-label="Enter the Village, ${villageCount} of ${villageTotal} discoveries found">
             <span class="map-pin"><i aria-hidden="true"></i></span>
-            <span class="map-place-label"><small>01 · open now</small><strong>Village</strong><em>Build &amp; experiment <b aria-hidden="true">↗</b></em><u>You are here</u></span>
+            <span class="map-place-label"><small>01 · build &amp; experiment</small><strong>Village <b aria-hidden="true">↗</b></strong></span>
           </a>
           <a class="map-place map-place-beach" href="/worlds/kairui" aria-label="Visit the Beach, ${coastalCount} of ${coastalTotal} field notes found">
             <span class="map-pin"><i aria-hidden="true"></i></span>
-            <span class="map-place-label"><small>02 · open now</small><strong>Beach</strong><em>Stories &amp; field notes <b aria-hidden="true">↗</b></em></span>
+            <span class="map-place-label"><small>02 · stories &amp; field notes</small><strong>Beach <b aria-hidden="true">↗</b></strong></span>
           </a>
           <span class="map-compass" aria-hidden="true"><i>N</i><b></b><em></em></span>
         </div>
